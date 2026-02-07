@@ -8,7 +8,7 @@
 <div class="stats-grid">
     <x-stats-card 
         title="Total Revenue" 
-        value="$24,500" 
+        value="EGP {{ $orders->where('payment_status', 'paid')->sum('total') }}" 
         icon="currency" 
         color="primary" 
         trend="up" 
@@ -16,7 +16,7 @@
     />
     <x-stats-card 
         title="Total Orders" 
-        value="156" 
+        value="{{ $orders->count() }}" 
         icon="cart" 
         color="success" 
         trend="up" 
@@ -24,7 +24,7 @@
     />
     <x-stats-card 
         title="Total Customers" 
-        value="1,240" 
+        value="{{ $customers->count() }}" 
         icon="users" 
         color="info" 
         trend="up" 
@@ -32,7 +32,7 @@
     />
     <x-stats-card 
         title="Products" 
-        value="432" 
+        value="{{ $products->count() }}" 
         icon="package" 
         color="warning" 
         trend="down" 
@@ -65,7 +65,7 @@
     <!-- Quick Actions -->
     <x-card title="Quick Actions">
         <div class="quick-actions">
-            <a href="{{ route('orders.index') }}" class="quick-action-btn">
+            <a href="{{ route('orders.create') }}" class="quick-action-btn">
                 <div class="quick-action-icon" style="background-color: rgba(16, 185, 129, 0.15); color: var(--accent-success);">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -73,7 +73,7 @@
                 </div>
                 <span class="quick-action-text">New Order</span>
             </a>
-            <a href="{{ route('products.index') }}" class="quick-action-btn">
+            <a href="{{ route('products.create') }}" class="quick-action-btn">
                 <div class="quick-action-icon" style="background-color: rgba(6, 182, 212, 0.15); color: var(--accent-primary);">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -81,7 +81,7 @@
                 </div>
                 <span class="quick-action-text">Add Product</span>
             </a>
-            <a href="{{ route('customers.index') }}" class="quick-action-btn">
+            <a href="{{ route('customers.create') }}" class="quick-action-btn">
                 <div class="quick-action-icon" style="background-color: rgba(59, 130, 246, 0.15); color: var(--accent-info);">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -89,13 +89,13 @@
                 </div>
                 <span class="quick-action-text">Add Customer</span>
             </a>
-            <a href="{{ route('invoices.index') }}" class="quick-action-btn">
+            <a href="{{ route('inventory.create') }}" class="quick-action-btn">
                 <div class="quick-action-icon" style="background-color: rgba(245, 158, 11, 0.15); color: var(--accent-warning);">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                   <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                        </svg>
                 </div>
-                <span class="quick-action-text">Create Invoice</span>
+                <span class="quick-action-text">Create Inventory</span>
             </a>
         </div>
     </x-card>
@@ -103,52 +103,38 @@
 
 <!-- Recent Orders -->
 <div style="margin-top: 24px;">
-    <x-card title="Recent Orders" :padding="false">
-        <x-slot name="actions">
-            <a href="{{ route('orders.index') }}" class="btn btn-outline btn-sm">View All</a>
-        </x-slot>
-        <x-data-table :headers="['Order ID', 'Customer', 'Products', 'Total', 'Status', 'Date']">
-            <tr>
-                <td><span style="color: var(--accent-primary); font-weight: 600;">#ORD-001</span></td>
-                <td>Ahmed Mohamed</td>
-                <td>3 items</td>
-                <td style="font-weight: 600;">$245.00</td>
-                <td><span class="badge success">Completed</span></td>
-                <td style="color: var(--text-secondary);">Jan 15, 2026</td>
-            </tr>
-            <tr>
-                <td><span style="color: var(--accent-primary); font-weight: 600;">#ORD-002</span></td>
-                <td>Sara Ali</td>
-                <td>1 item</td>
-                <td style="font-weight: 600;">$89.00</td>
-                <td><span class="badge warning">Pending</span></td>
-                <td style="color: var(--text-secondary);">Jan 15, 2026</td>
-            </tr>
-            <tr>
-                <td><span style="color: var(--accent-primary); font-weight: 600;">#ORD-003</span></td>
-                <td>Omar Hassan</td>
-                <td>5 items</td>
-                <td style="font-weight: 600;">$567.00</td>
-                <td><span class="badge info">Processing</span></td>
-                <td style="color: var(--text-secondary);">Jan 14, 2026</td>
-            </tr>
-            <tr>
-                <td><span style="color: var(--accent-primary); font-weight: 600;">#ORD-004</span></td>
-                <td>Fatima Youssef</td>
-                <td>2 items</td>
-                <td style="font-weight: 600;">$156.00</td>
-                <td><span class="badge success">Completed</span></td>
-                <td style="color: var(--text-secondary);">Jan 14, 2026</td>
-            </tr>
-            <tr>
-                <td><span style="color: var(--accent-primary); font-weight: 600;">#ORD-005</span></td>
-                <td>Khaled Ibrahim</td>
-                <td>4 items</td>
-                <td style="font-weight: 600;">$340.00</td>
-                <td><span class="badge danger">Cancelled</span></td>
-                <td style="color: var(--text-secondary);">Jan 13, 2026</td>
-            </tr>
-        </x-data-table>
-    </x-card>
+    <x-card :padding="false">
+    <x-data-table :headers="['Order ID', 'Customer', 'Products', 'Total', 'Payment_status', 'Date' , 'Actions']">
+        @forelse ($latestOrders as $order)
+        <tr>
+            <td><span style="color: var(--accent-primary); font-weight: 600;">{{ $order->order_id }}</span></td>
+            <td>{{ $order->customer->name ?? 'N/A' }}</td>
+            <td>{{ $order->quantity }} items</td>
+            <td style="font-weight: 600;">EGP {{ number_format($order->total, 2) }}</td>
+            <td><span class="badge 
+        {{ 
+            $order->payment_status == 'paid' ? 'success' : 
+            ($order->payment_status == 'pending' ? 'warning' : 
+            ($order->payment_status == 'unpaid' ? 'danger' : 'secondary'))
+        }}">{{ $order->payment_status }}</span></td>
+            <td style="color: var(--text-secondary);">{{ $order->created_at->format('Y-m-d') }}</td>
+            <td>
+                <div style="display: flex; gap: 8px;">
+                    <a class="btn btn-icon btn-secondary btn-sm" title="View" href="{{ route('orders.show', $order->id) }}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+</a>
+                </div>
+            </td>
+        </tr>
+        @empty
+        <tr>
+            <td colspan="7" style="text-align: center;">No orders found</td>
+        </tr>
+        @endforelse
+    </x-data-table>
+</x-card>
 </div>
 @endsection

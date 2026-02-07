@@ -15,6 +15,9 @@
     <link rel="stylesheet" href="{{ asset('css/app.css') }}">
     
     @stack('styles')
+    
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -31,6 +34,15 @@
             
             <!-- Main Content -->
             <main class="main-content">
+                <!-- @if (session('success'))
+                    <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid var(--accent-success); border-radius: var(--radius-md); padding: 12px 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+                        <svg style="width: 20px; height: 20px; color: var(--accent-success);" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span style="color: var(--text-primary); font-size: 14px;">{{ session('success') }}</span>
+                    </div>
+                @endif -->
+                
                 @yield('content')
             </main>
         </div>
