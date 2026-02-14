@@ -39,7 +39,8 @@
 <div class="stats-grid" style="margin-bottom: 24px;">
     <x-stats-card 
         title="Total Spent" 
-        value="EGP {{ number_format($customer->orders()->where('payment_status', 'paid')->sum('total'), 2) }}"        icon="cart" 
+        value="EGP {{ number_format($customer->total_paid, 2) }}"        
+        icon="cart" 
         color="success"
     />
     <x-stats-card 
@@ -50,13 +51,13 @@
     />
     <x-stats-card 
         title="Current Balance" 
-        value="EGP {{ number_format($customer->orders()->where('payment_status', '!=', 'paid')->sum('total'), 2) }}" 
+        value="EGP {{ number_format($customer->balance(), 2) }}" 
         icon="chart" 
         color="danger"
     />
     <x-stats-card 
         title="Avg. Order Value" 
-        value="EGP {{ $customer->total_orders > 0 ? number_format($customer->orders()->where('payment_status', 'paid')->sum('total') / $customer->total_orders, 2) : '0.00' }}" 
+        value="EGP {{ $customer->total_orders > 0 ? number_format($customer->total_invoiced / $customer->total_orders, 2) : '0.00' }}" 
         icon="chart" 
         color="warning"
     />

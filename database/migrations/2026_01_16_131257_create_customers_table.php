@@ -18,7 +18,6 @@ return new class extends Migration
             $table->string('phone')->unique();
             $table->string('address')->nullable();
             $table->string('price_tier')->nullable();
-            $table->decimal('balance', 10, 2)->default(0);
             $table->integer('total_orders')->default(0);
             $table->decimal('total_spent', 10, 2)->default(0);
             $table->timestamps();

@@ -51,8 +51,16 @@
                         <option value="">Choose an order...</option>
                         @if(isset($unpaidOrders))
                             @foreach($unpaidOrders as $ord)
-                                <option value="{{ $ord->id }}" data-total="{{ $ord->total }}" {{ (isset($selected_order_id) && $selected_order_id == $ord->id) ? 'selected' : '' }}>
-                                    {{ $ord->order_id }} (EGP {{ number_format($ord->total, 2) }})
+                                <option value="{{ $ord->id }}" 
+                                        data-total="{{ $ord->total }}" 
+                                        data-remaining="{{ $ord->remaining_balance }}"
+                                        {{ (isset($selected_order_id) && $selected_order_id == $ord->id) ? 'selected' : '' }}>
+                                    {{ $ord->order_id }} 
+                                    @if($ord->payment_status == 'partially paid')
+                                        (Remaining: EGP {{ number_format($ord->remaining_balance, 2) }})
+                                    @else
+                                        (Total: EGP {{ number_format($ord->total, 2) }})
+                                    @endif
                                 </option>
                             @endforeach
                         @endif
@@ -185,10 +193,10 @@
 
     function updateAmount(selectElement) {
         const selectedOption = selectElement.options[selectElement.selectedIndex];
-        const total = selectedOption.getAttribute('data-total');
+        const remaining = selectedOption.getAttribute('data-remaining');
         
-        if (total) {
-            document.querySelector('input[name="amount"]').value = total;
+        if (remaining) {
+            document.querySelector('input[name="amount"]').value = remaining;
         }
     }
 </script>

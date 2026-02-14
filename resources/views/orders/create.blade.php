@@ -94,12 +94,12 @@
                         placeholder="Search and select customer..." 
                     />
                 </div>
-                <button type="button" class="btn btn-secondary btn-sm" style="width: 100%;">
+                <a href="{{ route('customers.create') }}" class="btn btn-secondary btn-sm" style="width: 100%;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="margin-right: 6px;">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
                     New Customer
-                </button>
+                </a>
             </div>
 
             <!-- Payment & Summary -->

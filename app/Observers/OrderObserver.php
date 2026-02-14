@@ -3,22 +3,37 @@
 namespace App\Observers;
 
 use App\Models\Order;
-
+use App\Models\Invoice;
+use App\Models\LedgerEntry;
+use Illuminate\Support\Facades\DB;
 class OrderObserver
 {
     /**
      * Handle the Order "created" event.
      */
-    public function created(Order $order): void
-    {
-        \App\Models\Invoice::create([
+   public function created(Order $order): void
+{
+    DB::transaction(function () use ($order) {
+
+        $invoice = Invoice::create([
             'order_id'       => $order->id,
             'customer_id'    => $order->customer_id,
             'customer_name'  => $order->customer_name ?? $order->customer?->name,
             'total'          => $order->total,
             'payment_status' => $order->payment_status,
         ]);
-    }
+
+        LedgerEntry::create([
+            'account_type'   => 'customer',
+            'account_id'     => $order->customer_id,
+            'type'           => 'debit', // customer owes money
+            'amount'         => $invoice->total,
+            'description'    => 'Invoice #' . $invoice->id,
+            'reference_type' => 'invoice',
+            'reference_id'   => $invoice->id,
+        ]);
+    });
+}
 
     /**
      * Handle the Order "updated" event.

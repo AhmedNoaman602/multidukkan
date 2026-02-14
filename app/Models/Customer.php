@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Balance;
 use App\Models\Order;
+use App\Models\LedgerEntry;
 class Customer extends Model
 {
     protected $fillable = [
@@ -15,27 +16,40 @@ class Customer extends Model
         'total_orders',
         'total_spent',
         'price_tier',
-        'balance',
     ];
 
     public function orders()
     {
         return $this->hasMany(Order::class);
     }
-    public function balances()
+
+    public function ledgerEntries()
     {
-        return $this->hasMany(Balance::class);
+        return $this->hasMany(LedgerEntry::class, 'account_id')->where('account_type', 'customer');
     }
+
+
+  public function balance()
+{
+    return \App\Models\LedgerEntry::where('account_type', 'customer')
+        ->where('account_id', $this->id)
+        ->selectRaw("
+            COALESCE(SUM(CASE 
+                WHEN type = 'debit' THEN amount 
+                WHEN type = 'credit' THEN -amount 
+            END), 0) as balance
+        ")
+        ->value('balance');
+}
 
     public function getTotalInvoicedAttribute()
     {
-        return $this->balances->where('type', 'invoice')->sum('amount');
+        return $this->ledgerEntries->where('type', 'debit')->sum('amount');
     }
 
     public function getTotalPaidAttribute()
     {
-        return $this->balances->where('type', 'payment')->sum('amount') + 
-               $this->balances->where('type', 'refund')->sum('amount');
+        return $this->ledgerEntries->where('type', 'credit')->sum('amount');
     }
 
     public function getOutstandingBalanceAttribute()
@@ -45,7 +59,7 @@ class Customer extends Model
 
     public function getLastPaymentAttribute()
     {
-        $lastPayment = $this->balances->where('type', 'payment')->sortByDesc('created_at')->first();
+        $lastPayment = $this->ledgerEntries->where('type', 'credit')->sortByDesc('created_at')->first();
         return $lastPayment ? $lastPayment->created_at->format('M d, Y') : 'N/A';
     }
 }

@@ -114,7 +114,7 @@
             <td><span class="badge 
         {{ 
             $order->payment_status == 'paid' ? 'success' : 
-            ($order->payment_status == 'pending' ? 'warning' : 
+            ($order->payment_status == 'partially paid' ? 'warning' : 
             ($order->payment_status == 'unpaid' ? 'danger' : 'secondary'))
         }}">{{ $order->payment_status }}</span></td>
             <td style="color: var(--text-secondary);">{{ $order->created_at->format('Y-m-d') }}</td>

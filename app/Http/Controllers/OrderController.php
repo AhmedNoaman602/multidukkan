@@ -55,6 +55,20 @@ class OrderController extends Controller
 
         $customer = Customer::findOrFail($request->customer_id);
 
+        // Calculate status based on existing credit balance
+        $customerBalance = $customer->balance(); // positive means owes, negative means credit
+        $customerCredit = $customerBalance < 0 ? abs($customerBalance) : 0;
+        
+        $paymentStatus = 'unpaid';
+        $appliedCredit = 0;
+        
+        if ($customerCredit > 0) {
+            $appliedCredit = min($total, $customerCredit);
+            $remaining = $total - $appliedCredit;
+            $paymentStatus = $remaining > 0 ? 'partially paid' : ($total > 0 ? 'partially paid' : 'paid'); 
+            // If total is 0, it's paid. If remaining is 0 and total > 0, it's paid.
+        }
+
         $order = Order::create([
             'order_id' => '#ORD-' . strtoupper(Str::random(5)),
             'customer_id' => $customer->id,
@@ -62,12 +76,16 @@ class OrderController extends Controller
             'quantity' => collect($request->products)->sum('quantity'),
             'total' => $total,
             'discount_amount' => $discount,
-            'payment_status' => 'unpaid',
+            'payment_status' => $paymentStatus,
         ]);
-$lastBalance = Balance::where('customer_id', $customer->id)->latest()->first();
-$currentRunningBalance = $lastBalance ? $lastBalance->running_balance : 0;
+
+        // Record the invoice in balance history
+        $lastBalance = Balance::where('customer_id', $customer->id)->latest()->first();
+        $currentRunningBalance = $lastBalance ? $lastBalance->running_balance : 0;
+        
         Balance::create([
             'customer_id' => $customer->id,
+            'order_id' => $order->id, // Link to order items
             'type' => 'invoice',
             'reference' => $order->order_id,
             'description' => 'Invoice for order #' . $order->order_id,
@@ -75,6 +93,32 @@ $currentRunningBalance = $lastBalance ? $lastBalance->running_balance : 0;
             'running_balance' => $currentRunningBalance + $total,
             'payment_method' => 'cash',
         ]);
+
+        // If credit was applied, record it as a payment/credit application
+        if ($appliedCredit > 0) {
+            $newRunningBalanceAfterInvoice = $currentRunningBalance + $total;
+            
+            $balance = Balance::create([
+                'customer_id' => $customer->id,
+                'order_id' => $order->id,
+                'type' => 'payment',
+                'amount' => $appliedCredit,
+                'payment_method' => 'credit_balance',
+                'reference' => Balance::generateReference('payment'),
+                'description' => 'Credit applied from overpayment to Order #' . $order->order_id,
+                'running_balance' => $newRunningBalanceAfterInvoice - $appliedCredit,
+            ]);
+
+            LedgerEntry::create([
+                'account_type' => 'customer',
+                'account_id' => $customer->id,
+                'type' => 'credit', 
+                'amount' => $appliedCredit,
+                'description' => $balance->description,
+                'reference_type' => 'payment',
+                'reference_id' => $balance->id,
+            ]);
+        }
 
         if ($customer) {
             $customer->increment('total_orders');

@@ -81,11 +81,6 @@
             <x-card :padding="true">
                 <h3 style="margin-top: 0; margin-bottom: 20px; font-size: 16px; font-weight: 600;">Financial Details</h3>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-                    <div>
-                        <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary);">Current Balance (EGP)</label>
-                        <input type="number" name="balance" value="{{ old('balance', $customer->balance) }}" step="0.01" placeholder="0.00" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-darkest); color: var(--text-primary); outline: none;">
-                    </div>
                     <div>
                         <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary);">Price Tier</label>
                         <select name="price_tier" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-darkest); color: var(--text-primary); outline: none;">
@@ -94,7 +89,6 @@
                             <option value="vip" {{ old('price_tier', $customer->price_tier) == 'vip' ? 'selected' : '' }}>VIP</option>
                         </select>
                     </div>
-                </div>
             </x-card>
         </div>
 

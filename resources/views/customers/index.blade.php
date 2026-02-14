@@ -37,8 +37,8 @@
             <td style="color: var(--text-secondary);">{{ $customer->email }}</td>
             <td style="color: var(--text-secondary);">{{ $customer->phone }}</td>
             <td style="font-weight: 600;">{{ $customer->total_orders }}</td>
-            <td style="font-weight: 600; color: var(--accent-danger);">EGP {{ $customer->orders()->where('payment_status', '!=', 'paid')->sum('total') }}</td>
-             <td style="font-weight: 600; color: var(--text-secondary);">EGP {{ $customer->orders()->where('payment_status', 'paid')->sum('total') }}</td>
+            <td style="font-weight: 600; color: var(--accent-danger);">EGP {{ number_format($customer->balance(), 2) }}</td>
+             <td style="font-weight: 600; color: var(--text-secondary);">EGP {{ number_format($customer->total_paid, 2) }}</td>
             <td>
                 <div style="display: flex; gap: 8px;">
                     <a href="{{ route('customers.show', $customer->id) }}" class="btn btn-icon btn-secondary btn-sm" title="View">

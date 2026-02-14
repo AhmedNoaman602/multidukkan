@@ -22,13 +22,13 @@
 <!-- Summary Cards -->
 <div class="stats-grid" style="margin-bottom: 24px;">
     <x-stats-card 
-        title="Total Outstanding" 
+        title="Total Debit" 
         value="EGP {{ number_format($totalOutstanding ?? 0, 2) }}" 
         icon="chart" 
         color="danger"
     />
     <x-stats-card 
-        title="Total Collected" 
+        title="Total Credit" 
         value="EGP {{ number_format($totalCollected ?? 0, 2) }}" 
         icon="chart" 
         color="success"
@@ -94,7 +94,26 @@
             </td>
             <td style="font-weight: 600; color: var(--text-secondary);">EGP {{ number_format($customer->total_invoiced, 2) }}</td>
             <td style="font-weight: 600; color: #10b981;">EGP {{ number_format($customer->total_paid, 2) }}</td>
-            <td style="font-weight: 600; color: #ef4444;">EGP {{$customer->outstanding_balance}}</td>
+
+
+<td style="font-weight: 600;">
+   @if ($customer->balance_label === 'outstanding')
+    <span style="color:#ef4444">
+        EGP {{ number_format($customer->computed_balance, 2) }}
+    </span>
+    <div class="text-muted text-xs">Outstanding</div>
+
+@elseif ($customer->balance_label === 'credit')
+    <span style="color:#10b981">
+        Credit: EGP {{ number_format(abs($customer->computed_balance), 2) }}
+    </span>
+    <div class="text-muted text-xs">Overpaid</div>
+
+@else
+    <span class="text-muted">Settled</span>
+@endif
+
+</td>
             <td style="color: var(--text-muted);">{{ $customer->last_payment }}</td>
             <td>
                 <div style="display: flex; gap: 8px;">

@@ -44,4 +44,8 @@ class Order extends Model
     {
         return $this->balances()->where('type', 'payment')->sum('amount');
     }
+    public function getRemainingBalanceAttribute()
+    {
+        return max(0, $this->total - $this->total_paid);
+    }
 }

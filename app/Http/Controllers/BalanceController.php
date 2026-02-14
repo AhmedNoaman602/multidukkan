@@ -3,58 +3,114 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Balance;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\LedgerEntry;
+use Illuminate\Support\Facades\DB;
+
 class BalanceController extends Controller
 {
     public function index()
     {
-        $customers = Customer::with('balances')->get();
-        
-        $totalOutstanding = $customers->sum(fn($c) => $c->outstanding_balance);
-        $totalCollected = Balance::where('type', 'payment')->sum('amount');
-        $customersWithBalance = $customers->filter(fn($c) => $c->outstanding_balance > 0)->count();
-        
-        return view('balances.index', compact('customers', 'totalOutstanding', 'totalCollected', 'customersWithBalance'));
+        $totalOutstanding = 0;
+        $totalCollected = 0;
+        $customersWithBalance = 0;
+
+        $customers = Customer::all()->map(function ($customer) use (
+            &$totalOutstanding,
+            &$totalCollected,
+            &$customersWithBalance
+        ) {
+
+            $balance = $customer->balance(); // from ledger
+
+            $customer->computed_balance = $balance;
+
+            if ($balance > 0) {
+                $customer->balance_label = 'outstanding';
+                $totalOutstanding += $balance;
+                $customersWithBalance++;
+            } elseif ($balance < 0) {
+                $customer->balance_label = 'credit';
+                $totalCollected += abs($balance);
+            } else {
+                $customer->balance_label = 'settled';
+            }
+
+            return $customer;
+        });
+
+        $totalInvoiced = LedgerEntry::where('account_type', 'customer')
+            ->where('type', 'debit')
+            ->sum('amount');
+            
+        $totalPaid = LedgerEntry::where('account_type', 'customer')
+            ->where('type', 'credit')
+            ->sum('amount');
+
+        return view('balances.index', compact(
+            'customers',
+            'totalOutstanding',
+            'totalCollected',
+            'totalInvoiced',
+            'totalPaid',
+            'customersWithBalance'
+        ));
     }
 
-    public function show(Customer $customer){
-        // Get all transactions for this customer, ordered by date
-        $transactions = $customer->balances()->orderBy('created_at', 'desc')->get();
-        
-        // Calculate totals
-        $totalInvoiced = $transactions->where('type', 'invoice')->sum('amount');
-        $totalPaid = $transactions->where('type', 'payment')->sum('amount') + 
-                     $transactions->where('type', 'refund')->sum('amount');
-        $currentBalance = $totalInvoiced - $totalPaid;
-        
-        // Get last payment date
-        $lastPaymentRecord = $transactions->where('type', 'payment')->first();
-        $lastPayment = $lastPaymentRecord ? $lastPaymentRecord->created_at->format('M d, Y') : 'N/A';
-        
-        // Calculate aging summary
-        // $aging = Balance::calculateAging($transactions);
-        
+    public function show(Customer $customer)
+    {
+        // Get transactions from ledger
+        $transactions = LedgerEntry::where('account_type', 'customer')
+            ->where('account_id', $customer->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Totals
+        $totalDebit = $transactions->where('type', 'debit')->sum('amount');
+        $totalCredit = $transactions->where('type', 'credit')->sum('amount');
+
+        $currentBalance = $totalDebit - $totalCredit;
+
+        // Last payment
+        $lastPayment = $transactions
+            ->where('type', 'credit')
+            ->first();
+
+        $lastPaymentDate = $lastPayment
+            ? $lastPayment->created_at->format('M d, Y')
+            : 'N/A';
+
         return view('balances.show', compact(
             'customer',
             'transactions',
-            'totalInvoiced',
-            'totalPaid',
+            'totalDebit',
+            'totalCredit',
             'currentBalance',
-            'lastPayment',
-            // 'aging'
+            'lastPaymentDate'
         ));
     }
 
     public function create(Request $request)
     {
         $customers = Customer::orderBy('name')->get();
+
         $customerId = $request->query('customer_id');
         $customer = $customerId ? Customer::find($customerId) : null;
-        $unpaidOrders = $customer ? $customer->orders()->where('payment_status', 'unpaid')->orderBy('order_id')->get() : collect();
-        return view('balances.create', compact('customers' , 'customer' , 'unpaidOrders'));
+
+        $unpaidOrders = $customer
+            ? $customer->orders()
+                ->whereIn('payment_status', ['unpaid', 'partially paid'])
+                ->get()
+            : collect();
+
+        return view('balances.create', compact(
+            'customers',
+            'customer',
+            'unpaidOrders'
+        ));
     }
+
     public function store(Request $request)
     {
         $request->validate([
@@ -65,47 +121,52 @@ class BalanceController extends Controller
             'payment_method' => 'required|string',
         ]);
 
-        $customer = Customer::findOrFail($request->customer_id);
-        
-        // Calculate running balance
-        $lastTransaction = Balance::where('customer_id', $customer->id)
-            ->orderBy('created_at', 'desc')
-            ->first();
-        
-        $currentRunningBalance = $lastTransaction ? $lastTransaction->running_balance : 0;
-        $newRunningBalance = $currentRunningBalance - $request->amount;
+        DB::transaction(function () use ($request) {
 
-        Balance::create([
-            'customer_id' => $request->customer_id,
-            'order_id' => $request->order_id,
-            'type' => 'payment',
-            'amount' => $request->amount,
-            'payment_method' => $request->payment_method,
-            'reference' => $request->reference ?? Balance::generateReference('payment'),
-            'description' => $request->notes ?? 'Customer payment',
-            'notes' => $request->notes,
-            'running_balance' => $newRunningBalance,
-            'created_at' => $request->payment_date,
-        ]);
+            LedgerEntry::create([
+                'account_type' => 'customer',
+                'account_id' => $request->customer_id,
+                'type' => 'credit', // payment reduces receivable
+                'amount' => $request->amount,
+                'description' => 'Customer payment',
+                'reference_type' => 'payment',
+                'reference_id' => $request->order_id,
+                'created_at' => $request->payment_date,
+            ]);
+        });
+
+        // Update order status
         if ($request->order_id) {
+
             $order = Order::findOrFail($request->order_id);
-            if($order->totalPaid >= $order->total){
-                $order->update([
-                    'payment_status' => 'paid',
-                ]);
-            }elseif($order->totalPaid < $order->total && $order->totalPaid > 0){
-                $order->update([
-                    'payment_status' => 'partially paid',
-                ]);
-            }else{
-                $order->update([
-                    'payment_status' => 'unpaid',
-                ]);
+
+            $totalDebit = LedgerEntry::where('account_type', 'customer')
+                ->where('account_id', $order->customer_id)
+                ->where('reference_type', 'order')
+                ->where('reference_id', $order->id)
+                ->where('type', 'debit')
+                ->sum('amount');
+
+            $totalCredit = LedgerEntry::where('account_type', 'customer')
+                ->where('account_id', $order->customer_id)
+                ->where('reference_type', 'payment')
+                ->where('reference_id', $order->id)
+                ->where('type', 'credit')
+                ->sum('amount');
+
+            if ($totalCredit >= $totalDebit) {
+                $order->update(['payment_status' => 'paid']);
+            } elseif ($totalCredit > 0) {
+                $order->update(['payment_status' => 'partially paid']);
+            } else {
+                $order->update(['payment_status' => 'unpaid']);
             }
         }
 
-        return redirect()->route('balances.index')->with('success', 'Payment recorded successfully');
+        return redirect()->route('balances.index')
+            ->with('success', 'Payment recorded successfully');
     }
+
     public function edit(Balance $balance)
     {
         return view('balances.create', compact('balance'));

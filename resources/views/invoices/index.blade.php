@@ -10,12 +10,12 @@
         <p class="page-header-subtitle">Generate and manage invoices</p>
     </div>
     <div class="page-header-actions">
-        <button class="btn btn-primary">
+        <!-- <button class="btn btn-primary">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             Create Invoice
-        </button>
+        </button> -->
     </div>
 </div>
 
@@ -34,14 +34,14 @@
         color="success"
     />
     <x-stats-card 
-        title="Unpaid" 
-        value="{{ $invoices->where('payment_status', 'unpaid')->sum('total') }}" 
+        title="partially paid" 
+        value="{{ $invoices->where('payment_status', 'partially paid')->sum('total') }}" 
         icon="currency" 
         color="warning"
     />
     <x-stats-card 
-        title="Overdue" 
-        value="EGP890" 
+        title="Unpaid" 
+        value="{{ $invoices->where('payment_status', 'unpaid')->sum('total') }}" 
         icon="currency" 
         color="danger"
     />
@@ -56,10 +56,11 @@
             <td style="font-weight: 600;">{{ $invoice->total }}</td>
    <td><span class="badge 
         {{ 
-            $invoice->payment_status == 'paid' ? 'success' : 
-            ($invoice->payment_status == 'pending' ? 'warning' : 
-            ($invoice->payment_status == 'unpaid' ? 'danger' : 'secondary'))
-        }}">{{ $invoice->payment_status }}</span></td>            <td>
+            $invoice->order->payment_status == 'paid' ? 'success' : 
+            ($invoice->order->payment_status == 'partially paid' ? 'warning' : 
+            ($invoice->order->payment_status == 'unpaid' ? 'danger' : 'secondary'))
+        }}">{{ $invoice->order->payment_status }}</span></td>            
+        <td>
                 <div style="display: flex; gap: 8px;">
                     <a href="{{ route('invoices.show', $invoice->id) }}" class="btn btn-icon btn-secondary btn-sm" title="View">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -4,6 +4,21 @@
 @section('page-title', 'Customer Balance')
 
 @section('content')
+<style>
+    .balance-layout-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 24px;
+        align-items: start;
+    }
+
+    @media (max-width: 1300px) {
+        .balance-layout-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
 <div class="page-header">
     <div style="display: flex; align-items: center; gap: 20px;">
         <div style="width: 64px; height: 64px; background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-info) 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 24px; color: white; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">
@@ -40,30 +55,28 @@
     />
     <x-stats-card 
         title="Total Invoiced" 
-        value="EGP {{ number_format($totalInvoiced ?? 0, 2) }}" 
+        value="EGP {{ number_format($totalDebit ?? 0, 2) }}" 
         icon="cart" 
         color="primary"
     />
     <x-stats-card 
         title="Total Paid" 
-        value="EGP {{ number_format($totalPaid ?? 0, 2) }}" 
+        value="EGP {{ number_format($totalCredit ?? 0, 2) }}" 
         icon="chart" 
         color="success"
     />
     <x-stats-card 
         title="Last Payment" 
-        value="{{ $lastPayment ?? 'N/A' }}" 
+        value="{{ $lastPaymentDate ?? 'N/A' }}" 
         icon="chart" 
         color="warning"
     />
 </div>
 
-<div style="display: grid; grid-template-columns: 1fr 350px; gap: 24px;">
-    
-    <!-- Left Column: Transactions Table -->
+
+<div class="balance-layout-grid">
+    <!-- Main Content: Transactions Table -->
     <div style="display: flex; flex-direction: column; gap: 24px;">
-        
-        <!-- Payment Transactions Card -->
         <x-card :padding="false">
             <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
                 <h3 style="margin: 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
@@ -83,6 +96,10 @@
             </div>
             
             <x-data-table :headers="['Date', 'Type', 'Reference', 'Description', 'Amount', 'Balance']">
+                @php
+                    $runningBalance = 0;
+                @endphp
+
                 @forelse($transactions ?? [] as $transaction)
                 <tr>
                     <td style="color: var(--text-secondary);">{{ $transaction->created_at->format('M d, Y') }}</td>
@@ -100,16 +117,30 @@
                     <td style="color: var(--text-secondary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                         {{ $transaction->description }}
                     </td>
-                    <td>
-                        @if($transaction->type == 'payment' || $transaction->type == 'refund')
-                            <span style="color: #10b981; font-weight: 600;">- EGP {{ number_format($transaction->amount, 2) }}</span>
-                        @else
-                            <span style="color: #ef4444; font-weight: 600;">+ EGP {{ number_format($transaction->amount, 2) }}</span>
-                        @endif
+                  <td>
+                    @if($transaction->type == 'credit')
+                        <span style="color: #10b981; font-weight: 600;">
+                            - EGP {{ number_format($transaction->amount, 2) }}
+                        </span>
+                    @else
+                        <span style="color: #ef4444; font-weight: 600;">
+                            + EGP {{ number_format($transaction->amount, 2) }}
+                        </span>
+                    @endif
                     </td>
-                    <td style="font-weight: 600; color: var(--text-primary);">
-                        EGP {{ number_format($transaction->running_balance, 2) }}
-                    </td>
+
+                    <td style="font-weight: 600;">
+    @php
+        if($transaction->type == 'debit') {
+            $runningBalance += $transaction->amount;
+        } else {
+            $runningBalance -= $transaction->amount;
+        }
+    @endphp
+
+    EGP {{ number_format($runningBalance, 2) }}
+</td>
+
                 </tr>
                 @empty
                 <tr>
@@ -139,7 +170,7 @@
         </x-card>
     </div>
 
-    <!-- Right Column: Sidebar -->
+    <!-- Sidebar: Overview & Actions -->
     <div style="display: flex; flex-direction: column; gap: 24px;">
         
         <!-- Balance Overview Card -->
@@ -152,21 +183,21 @@
                 <div style="margin-bottom: 20px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: var(--text-muted);">
                         <span>Amount Paid</span>
-                        <span>{{ $totalInvoiced > 0 ? round(($totalPaid / $totalInvoiced) * 100) : 0 }}%</span>
+                        <span>{{ $totalDebit > 0 ? round(($totalCredit / $totalDebit) * 100) : 0 }}%</span>
                     </div>
                     <div style="height: 8px; background: var(--bg-darkest); border-radius: 4px; overflow: hidden;">
-                        <div style="height: 100%; width: {{ $totalInvoiced > 0 ? ($totalPaid / $totalInvoiced) * 100 : 0 }}%; background: linear-gradient(90deg, #10b981, #059669); border-radius: 4px;"></div>
+                        <div style="height: 100%; width: {{ $totalDebit > 0 ? ($totalCredit / $totalDebit) * 100 : 0 }}%; background: linear-gradient(90deg, #10b981, #059669); border-radius: 4px;"></div>
                     </div>
                 </div>
                 
                 <div style="display: flex; flex-direction: column; gap: 12px;">
                     <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 10px; background: var(--bg-darkest); border-radius: var(--radius-sm);">
                         <span style="color: var(--text-muted);">Total Invoiced</span>
-                        <span style="color: var(--text-primary); font-weight: 600;">EGP {{ number_format($totalInvoiced ?? 0, 2) }}</span>
+                        <span style="color: var(--text-primary); font-weight: 600;">EGP {{ number_format($totalDebit ?? 0, 2) }}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 10px; background: var(--bg-darkest); border-radius: var(--radius-sm);">
                         <span style="color: var(--text-muted);">Total Paid</span>
-                        <span style="color: #10b981; font-weight: 600;">EGP {{ number_format($totalPaid ?? 0, 2) }}</span>
+                        <span style="color: #10b981; font-weight: 600;">EGP {{ number_format($totalCredit ?? 0, 2) }}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; font-size: 13px; padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: var(--radius-sm);">
                         <span style="color: var(--text-primary); font-weight: 500;">Outstanding Balance</span>
@@ -175,33 +206,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Aging Summary Card -->
-        <!-- <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); overflow: hidden;">
-            <div style="padding: 20px; border-bottom: 1px solid var(--border-color);">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Aging Summary</h3>
-            </div>
-            <div style="padding: 20px;">
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                        <span style="color: var(--text-muted);">Current (0-30 days)</span>
-                        <span style="color: #10b981; font-weight: 600;">EGP {{ number_format($aging['current'] ?? 0, 2) }}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                        <span style="color: var(--text-muted);">31-60 days</span>
-                        <span style="color: #f59e0b; font-weight: 600;">EGP {{ number_format($aging['30_60'] ?? 0, 2) }}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                        <span style="color: var(--text-muted);">61-90 days</span>
-                        <span style="color: #f97316; font-weight: 600;">EGP {{ number_format($aging['60_90'] ?? 0, 2) }}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 13px;">
-                        <span style="color: var(--text-muted);">Over 90 days</span>
-                        <span style="color: #ef4444; font-weight: 600;">EGP {{ number_format($aging['over_90'] ?? 0, 2) }}</span>
-                    </div>
-                </div>
-            </div>
-        </div> -->
 
         <!-- Quick Actions Card -->
         <div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 20px;">

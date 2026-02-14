@@ -76,7 +76,11 @@
                     </div>
                     <div style="display: flex; justify-content: space-between;">
                         <span style="color: var(--text-muted); font-size: 13px;">Payment Status:</span>
-                        <span class="badge {{ $order->payment_status == 'completed' ? 'success' : 'warning' }}" style="font-size: 11px;">{{ strtoupper($order->payment_status) }}</span>
+                        <span class="badge {{ 
+            $order->payment_status == 'paid' ? 'success' : 
+            ($order->payment_status == 'partially paid' ? 'warning' : 
+            ($order->payment_status == 'unpaid' ? 'danger' : 'secondary'))
+        }}" style="font-size: 11px;">{{ strtoupper($order->payment_status) }}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
                         <span style="color: var(--text-muted); font-size: 13px;">Amount Due:</span>

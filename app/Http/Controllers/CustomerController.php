@@ -24,7 +24,6 @@ class CustomerController extends Controller
             'email' => 'nullable|email|unique:customers,email',
             'phone' => 'nullable|string|max:20|unique:customers,phone',
             'address' => 'nullable|string|max:500',
-            'balance' => 'nullable|numeric|min:0',
             'price_tier' => 'nullable|string|in:standard,wholesale,vip',
             'status' => 'nullable|string|in:active,inactive',
         ]);
@@ -49,7 +48,6 @@ class CustomerController extends Controller
             'email' => 'nullable|email|unique:customers,email,' . $customer->id,
             'phone' => 'nullable|string|max:20|unique:customers,phone,' . $customer->id,
             'address' => 'nullable|string|max:500',
-            'balance' => 'nullable|numeric|min:0',
             'price_tier' => 'nullable|string|in:standard,wholesale,vip',
             'status' => 'nullable|string|in:active,inactive',
         ]);
