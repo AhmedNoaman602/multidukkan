@@ -29,8 +29,12 @@ class Product extends Model
     {
         return $this->belongsTo(Tenant::class);
     }
-    public function ordersItems()
+    public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
+    }
+    public function inventories()
+    {
+        return $this->hasMany(Inventory::class);
     }
 }

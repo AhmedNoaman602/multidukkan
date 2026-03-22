@@ -319,6 +319,8 @@ public function test_cannot_delete_order_from_different_tenant(): void
 }
    public function test_cannot_create_payment_with_invalid_order_id(): void
 {
+    
+
     $this->postJson('/api/payments', [
         'tenant_id'   => $this->tenant->id,
         'store_id'    => $this->store->id,
@@ -330,10 +332,13 @@ public function test_cannot_delete_order_from_different_tenant(): void
 }
    public function test_cannot_create_payment_with_invalid_method(): void
 {
+    $response = $this->createOrder(quantity: 2);
+    $order    = $response->json();
+
     $this->postJson('/api/payments', [
         'tenant_id'   => $this->tenant->id,
         'store_id'    => $this->store->id,
-        'order_id'    => 999,
+        'order_id'    => $order['id'],
         'customer_id' => $this->customer->id,
         'amount'      => 100, 
         'method'      => 'bitcoin',

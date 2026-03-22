@@ -7,11 +7,9 @@ use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\PaymentController;
 use App\Http\Controllers\Api\V1\LedgerEntryController;
 use App\Http\Controllers\Api\V1\ProductController;
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
-
-
+use App\Http\Controllers\Api\V1\CustomerController;
+use App\Http\Controllers\Api\V1\WarehouseController;
+use App\Http\Controllers\Api\V1\InventoryController;
 
 Route::get('/stores', [StoreController::class, 'index']);
 Route::get('/stores/{store}', [StoreController::class, 'show']);
@@ -42,3 +40,18 @@ Route::get('products/{product}', [ProductController::class, 'show']);
 Route::post('/products', [ProductController::class, 'store']);
 Route::put('products/{product}', [ProductController::class, 'update']);
 Route::delete('products/{product}', [ProductController::class, 'destroy'])->withTrashed();
+
+
+Route::get('warehouses', [WarehouseController::class, 'index']);
+Route::get('warehouses/{warehouse}', [WarehouseController::class, 'show']);
+Route::post('/warehouses', [WarehouseController::class, 'store']);
+Route::put('warehouses/{warehouse}', [WarehouseController::class, 'update']);
+Route::delete('warehouses/{warehouse}', [WarehouseController::class, 'destroy'])->withTrashed();
+
+
+
+Route::get('/inventory', [InventoryController::class, 'index']);
+Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
+Route::post('/inventory', [InventoryController::class, 'store']);
+Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);
+Route::post('/inventory/{inventory}/adjust', [InventoryController::class, 'adjust']);

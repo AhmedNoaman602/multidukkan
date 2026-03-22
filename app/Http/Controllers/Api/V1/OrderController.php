@@ -4,17 +4,14 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
-use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
     public function __construct(
-        protected LedgerService $ledger,
         protected OrderService $order
     ) {}
 
@@ -29,12 +26,17 @@ class OrderController extends Controller
         return OrderResource::collection($orders->load('items', 'payments'));
     }
 
-    public function store(StoreOrderRequest $request)
-    {
+   public function store(StoreOrderRequest $request)
+{
+    try {
         $order = $this->order->createOrder($request->validated());
-
-        return new OrderResource($order->load('items', 'payments'));
+        return (new OrderResource($order->load('items', 'payments')))
+            ->response()
+            ->setStatusCode(201);
+    } catch (\InvalidArgumentException $e) {
+        return response()->json(['message' => $e->getMessage()], 422);
     }
+}
 
     public function show(Request $request , Order $order)
     {
@@ -64,6 +66,7 @@ class OrderController extends Controller
 
     public function destroy(Request $request, Order $order)
     {
+        
         if ($order->trashed()) {
             return response()->json(['message' => 'Order already cancelled'], 422);
         }
@@ -71,21 +74,7 @@ class OrderController extends Controller
         if ($order->tenant_id != $request->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-
-        DB::transaction(function () use ($order) {
-            $total = $order->items()
-                ->sum(DB::raw('unit_price * quantity'));
-
-            $this->ledger->reverseOrder([
-                'tenant_id'   => $order->tenant_id,
-                'customer_id' => $order->customer_id,
-                'store_id'    => $order->store_id,
-                'order_id'    => $order->id,
-                'amount'      => $total,
-            ]);
-
-            $order->delete();
-        });
+        $this->order->cancelOrder($order);
 
         return response()->json(['message' => 'Order cancelled and ledger reversed successfully'], 200);
     }

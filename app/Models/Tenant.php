@@ -10,10 +10,7 @@ class Tenant extends Model
     /** @use HasFactory<\Database\Factories\TenantFactory> */
     use HasFactory;
     protected $fillable = [
-        'id',
         'name',
-        'created_at',
-        'updated_at',
     ];
     public function stores()
     {
@@ -30,5 +27,13 @@ class Tenant extends Model
     public function ledgerEntries()
     {
         return $this->hasMany(LedgerEntry::class);
+    }
+    public function warehouses()
+    {
+        return $this->hasMany(Warehouse::class);
+    }
+    public function inventories()
+    {
+        return $this->hasMany(Inventory::class);
     }
 }

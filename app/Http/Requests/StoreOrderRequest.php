@@ -7,6 +7,7 @@ use App\Rules\BelongsToTenant;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Store;
+use App\Models\Warehouse;
 class StoreOrderRequest extends FormRequest
 {
     public function authorize(): bool
@@ -27,6 +28,7 @@ class StoreOrderRequest extends FormRequest
 
             'items'              => 'required|array|min:1',
             'items.*.product_id' => ['required', 'exists:products,id', new BelongsToTenant(Product::class, $tenantId)],
+            'items.*.warehouse_id' => ['nullable', 'exists:warehouses,id', new BelongsToTenant(Warehouse::class, $tenantId)],
             'items.*.quantity'   => 'required|integer|min:1',
         ];
     }
