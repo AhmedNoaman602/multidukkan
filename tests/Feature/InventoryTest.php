@@ -317,4 +317,50 @@ public function test_cancelled_order_without_warehouse_skips_stock_restore(): vo
         'quantity'     => 50, // untouched
     ]);
 }
+
+public function test_two_stores_can_sell_same_product_from_different_warehouses(): void
+{
+    // Store B setup
+    $storeB     = Store::factory()->create(['tenant_id' => $this->tenant->id]);
+    $warehouseB = Warehouse::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'store_id'  => $storeB->id,
+    ]);
+    Inventory::factory()->create([
+        'tenant_id'    => $this->tenant->id,
+        'warehouse_id' => $warehouseB->id,
+        'product_id'   => $this->product->id,
+        'quantity'     => 50,
+        'threshold'    => 10,
+    ]);
+
+    // Store A sells 5 from Warehouse A
+    $this->createOrder(quantity: 5);
+
+    // Store B sells 5 from Warehouse B
+    $this->postJson('/api/orders', [
+        'tenant_id'   => $this->tenant->id,
+        'store_id'    => $storeB->id,
+        'customer_id' => $this->customer->id,
+        'items'       => [[
+            'product_id'   => $this->product->id,
+            'quantity'     => 5,
+            'warehouse_id' => $warehouseB->id,
+        ]],
+    ])->assertStatus(201);
+
+    // Warehouse A untouched by Store B's sale
+    $this->assertDatabaseHas('inventory', [
+        'warehouse_id' => $this->warehouse->id,
+        'product_id'   => $this->product->id,
+        'quantity'     => 45, // 50 - 5
+    ]);
+
+    // Warehouse B untouched by Store A's sale
+    $this->assertDatabaseHas('inventory', [
+        'warehouse_id' => $warehouseB->id,
+        'product_id'   => $this->product->id,
+        'quantity'     => 45, // 50 - 5
+    ]);
+}
 }
