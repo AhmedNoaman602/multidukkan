@@ -1,0 +1,139 @@
+# MultiDukkan — Project Rules & Context
+
+## What is this project?
+
+MultiDukkan is a multi-tenant SaaS application for small businesses to manage multi-store inventory and sales. Built with Laravel (REST API), MySQL. No frontend yet.
+
+## Current Status
+
+- Phase 1 ✅ Complete — customers, products, orders, payments, ledger
+- Phase 2 ✅ Complete — warehouses, inventory, inventory transactions
+- Phase 3 🔓 In Progress — auth, roles, middleware, stock transfers
+- 69 tests passing
+
+## Developer Profile
+
+- Name: Ahmed
+- Background: Frontend developer learning Laravel backend
+- Time: Limited (military service)
+- Style: Needs WHY behind every decision, not just HOW
+- Rule: One task at a time. Explain reasoning. Don't write everything at once.
+
+## Architecture Rules — Non-Negotiable
+
+- tenant_id on every table
+- Never store order.status — calculate from payments
+- Never store order.total — calculate from order_items
+- Snapshot product name + price on order items at sale time
+- Ledger is append-only — never edit, only add reversals
+- Inventory transactions are append-only
+- Business logic in Services — controllers stay thin
+- FormRequests are gatekeepers — all validation lives there
+- API Resources for all responses — never return raw models
+- Always use $request->validated() — never $request->all()
+- Type hint all service method parameters
+- Always explain why before how
+
+## Stack
+
+- Laravel (backend)
+- MySQL
+- Laravel Sanctum (Phase 3 auth)
+- PHPUnit (testing)
+- Postman (API testing)
+
+## File Structure
+
+app/Http/Controllers/Api/V1/ — all controllers
+app/Http/Requests/ — all FormRequests
+app/Http/Resources/ — all API Resources
+app/Services/ — all business logic
+app/Models/ — all Eloquent models
+app/Rules/ — custom validation rules
+database/migrations/ — all migrations
+database/factories/ — all factories
+tests/Feature/ — all feature tests
+
+## Current Controllers
+
+StoreController, ProductController, CustomerController,
+OrderController, PaymentController, LedgerEntryController,
+WarehouseController, InventoryController
+
+## Current Services
+
+LedgerService, OrderService, PaymentService, InventoryService
+
+## Current Models
+
+Tenant, Store, Customer, Product, Order, OrderItem,
+Payment, LedgerEntry, Warehouse, Inventory (table: inventory),
+InventoryTransaction, User
+
+## Current Custom Rules
+
+BelongsToTenant — validates a field belongs to the given tenant
+OrderBelongsToCustomer — validates order belongs to customer
+
+## Database — Key Notes
+
+- inventory table is named 'inventory' (singular) — $table = 'inventory' set on model
+- order_items has warehouse_id (nullable) — no warehouse = skip stock check
+- customers has created_by_store_id (nullable) — tracking only, not restriction
+- ledger_entries has no soft deletes — append only
+- inventory_transactions has no soft deletes — append only
+- users: store_id nullable (null = tenant_admin)
+
+## Phase 3 — Current Task
+
+Building in this order:
+
+1. AuthController — login, logout, me (CURRENT)
+2. Protect all routes with auth:sanctum middleware
+3. Remove manual tenant_id from requests — derive from auth()->user()
+4. Role-based policies per model
+5. Stock transfers
+
+## Auth Rules
+
+- Laravel Sanctum — token based
+- Three roles (string column): tenant_admin, store_manager, store_staff
+- tenant_admin: store_id = null, full access
+- store_manager: store_id = their store, full access within store
+- store_staff: store_id = their store, limited access
+
+## Permissions Summary
+
+tenant_admin → everything
+store_manager → full own store + read-only other stores inventory
+store_staff → orders + payments + read-only inventory/products + request transfers
+
+## Stock Transfer Rules
+
+- Source store manager OR tenant_admin approves
+- store_staff can only request — cannot approve
+- On approve: atomic — deduct source, add destination, log TRANSFER_OUT + TRANSFER_IN
+- On reject: nothing moves
+- Zero ledger entries — inventory only
+- Statuses: PENDING, APPROVED, REJECTED, COMPLETED
+
+## Locked Decisions — Never Revisit
+
+- Sanctum for auth
+- String role column (not roles table)
+- Source store approves transfers
+- store_staff cannot approve transfers
+- Products managed by tenant_admin only
+- No ledger entries for transfers
+- warehouse_id nullable on order_items
+- Warehouse deletion blocked if stock > 0
+
+## Test Rules
+
+- Always use RefreshDatabase
+- Always declare typed properties in setUp()
+- Never hardcode IDs — always use factories
+- Always use /api/ prefix in routes
+- Wrap single resource assertions with 'data' key
+- Negative tests must verify DB state too
+- Existing 72 tests must be updated to use auth in Phase 3
