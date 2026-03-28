@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreCreditRequest extends FormRequest
+class AdjustInventoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,8 +14,7 @@ class StoreCreditRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount'      => 'required|numeric|min:0.01',
-            'description' => 'nullable|string|max:255',
+            'quantity' => 'required|integer|min:1',
         ];
     }
 }

@@ -22,8 +22,8 @@ class UpdateInventoryRequest extends FormRequest
      */
     public function rules(): array
     {
+        
         return [
-            'tenant_id' => 'required|exists:tenants,id',
             'quantity' => 'required|integer|min:0',
             'threshold' => 'nullable|integer|min:0',
         ];

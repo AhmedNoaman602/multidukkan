@@ -11,6 +11,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\Inventory;
+use App\Models\User;
 class InventoryTest extends TestCase
 {
     /**
@@ -36,6 +37,11 @@ class InventoryTest extends TestCase
             'quantity'     => 50,
             'threshold'    => 10,
         ]);
+        $this->user = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id' => null,
+            'role' => 'tenant_admin',
+        ]);
     }
 
     private function createOrder(int $quantity = 2 , bool $withWarehouse = true) : \Illuminate\Testing\TestResponse{
@@ -48,8 +54,7 @@ class InventoryTest extends TestCase
             $item['warehouse_id'] = $this->warehouse->id;
         }
         
-        return $this->postJson('/api/orders', [
-            'tenant_id' => $this->tenant->id,
+        return $this->actingAs($this->user)->postJson('/api/orders', [
             'store_id' => $this->store->id,
             'customer_id' => $this->customer->id,
             'items' => [$item],
@@ -60,8 +65,7 @@ class InventoryTest extends TestCase
         $newProduct = Product::factory()->create([
             'tenant_id' => $this->tenant->id,
         ]);
-        $this->postJson('/api/inventory', [
-            'tenant_id' => $this->tenant->id,
+        $this->actingAs($this->user)->postJson('/api/inventory', [
             'warehouse_id' => $this->warehouse->id,
             'product_id' => $newProduct->id,
             'quantity' => 30,
@@ -75,7 +79,7 @@ class InventoryTest extends TestCase
             
       }
       public function test_can_view_inventory() : void {
-        $this->getJson("/api/inventory/{$this->inventory->id}")
+        $this->actingAs($this->user)->getJson("/api/inventory/{$this->inventory->id}")
             ->assertStatus(200)
             ->assertJson([
                 'data' => [
@@ -86,8 +90,7 @@ class InventoryTest extends TestCase
       }
 
       public function test_can_update_inventory() : void {
-        $this->putJson("/api/inventory/{$this->inventory->id}", [
-            'tenant_id' => $this->tenant->id,
+        $this->actingAs($this->user)->putJson("/api/inventory/{$this->inventory->id}", [
             'quantity' => 60,
         ])->assertStatus(200);
 
@@ -110,9 +113,7 @@ class InventoryTest extends TestCase
        $response = $this->createOrder();
        $orderId = $response->json('id');
 
-       $this->deleteJson("/api/orders/{$orderId}", [
-        'tenant_id' => $this->tenant->id,
-       ])->assertStatus(200);
+       $this->actingAs($this->user)->deleteJson("/api/orders/{$orderId}")->assertStatus(200);
 
        $this->assertDatabaseHas('inventory', [
             'warehouse_id' => $this->warehouse->id, 
@@ -161,7 +162,7 @@ class InventoryTest extends TestCase
 {
     $this->inventory->update(['quantity' => 5]); // threshold is 10
 
-    $this->getJson("/api/inventory/{$this->inventory->id}")
+    $this->actingAs($this->user)->getJson("/api/inventory/{$this->inventory->id}")
         ->assertStatus(200)
         ->assertJson(['data' => ['low_stock' => true]]);
 }
@@ -170,14 +171,13 @@ public function test_low_stock_flag_is_false_when_quantity_above_threshold(): vo
 {
     $this->inventory->update(['quantity' => 50]); // threshold is 10
 
-    $this->getJson("/api/inventory/{$this->inventory->id}")
+    $this->actingAs($this->user)->getJson("/api/inventory/{$this->inventory->id}")
         ->assertStatus(200)
         ->assertJson(['data' => ['low_stock' => false]]);
 }
         
 public function test_can_adjust_stock_manually() : void {
-    $this->postJson("/api/inventory/{$this->inventory->id}/adjust", [
-        'tenant_id' => $this->tenant->id,
+    $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 5,
     ])->assertStatus(200);
 
@@ -189,22 +189,19 @@ public function test_can_adjust_stock_manually() : void {
 }
 
 public function test_cannot_adjust_stock_with_zero_quantity() : void {
-    $this->postJson("/api/inventory/{$this->inventory->id}/adjust", [
-        'tenant_id' => $this->tenant->id,
+    $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 0,
     ])->assertStatus(422);
 }
 
 public function test_cannot_adjust_stock_with_negative_quantity() : void {
-    $this->postJson("/api/inventory/{$this->inventory->id}/adjust", [
-        'tenant_id' => $this->tenant->id,
+    $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => -5,
     ])->assertStatus(422);
 }
 
 public function test_inventory_transaction_created_on_adjustment():void{
-    $this->postJson("/api/inventory/{$this->inventory->id}/adjust", [
-        'tenant_id' => $this->tenant->id,
+    $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 5,
     ])->assertStatus(200);
 
@@ -222,8 +219,7 @@ public function test_cannot_create_inventory_with_warehouse_from_different_tenan
         'tenant_id' => $otherTenant->id,
         'store_id' => $this->store->id,
     ]);
-    $this->postJson("/api/inventory", [
-        'tenant_id' => $this->tenant->id,
+    $this->actingAs($this->user)->postJson("/api/inventory", [
         'warehouse_id' => $otherWarehouse->id,
         'product_id' => $this->product->id,
         'quantity' => 10,
@@ -235,8 +231,7 @@ public function test_cannot_create_inventory_with_product_from_different_tenant(
     $otherProduct = Product::factory()->create([
         'tenant_id' => $otherTenant->id,
     ]);
-    $this->postJson("/api/inventory", [
-        'tenant_id' => $this->tenant->id,
+    $this->actingAs($this->user)->postJson("/api/inventory", [
         'warehouse_id' => $this->warehouse->id,
         'product_id' => $otherProduct->id,
         'quantity' => 10,
@@ -249,8 +244,7 @@ public function test_cannot_create_order_with_warehouse_from_different_tenant():
         'tenant_id' => $otherTenant->id,
         'store_id' => $this->store->id,
     ]);
-    $this->postJson("/api/orders", [
-        'tenant_id' => $this->tenant->id,
+    $this->actingAs($this->user)->postJson("/api/orders", [
         'store_id' => $this->store->id,
         'customer_id' => $this->customer->id,
         'items' => [
@@ -291,9 +285,7 @@ public function test_cancelled_order_restores_stock(): void
     $response = $this->createOrder(quantity: 10);
     $orderId  = $response->json('id');
 
-    $this->deleteJson("/api/orders/{$orderId}", [
-        'tenant_id' => $this->tenant->id,
-    ])->assertStatus(200);
+    $this->actingAs($this->user)->deleteJson("/api/orders/{$orderId}")->assertStatus(200);
 
     $this->assertDatabaseHas('inventory', [
         'warehouse_id' => $this->warehouse->id,
@@ -307,9 +299,7 @@ public function test_cancelled_order_without_warehouse_skips_stock_restore(): vo
     $response = $this->createOrder(quantity: 2, withWarehouse: false);
     $orderId  = $response->json('id');
 
-    $this->deleteJson("/api/orders/{$orderId}", [
-        'tenant_id' => $this->tenant->id,
-    ])->assertStatus(200);
+    $this->actingAs($this->user)->deleteJson("/api/orders/{$orderId}")->assertStatus(200);
 
     $this->assertDatabaseHas('inventory', [
         'warehouse_id' => $this->warehouse->id,
@@ -338,8 +328,7 @@ public function test_two_stores_can_sell_same_product_from_different_warehouses(
     $this->createOrder(quantity: 5);
 
     // Store B sells 5 from Warehouse B
-    $this->postJson('/api/orders', [
-        'tenant_id'   => $this->tenant->id,
+    $this->actingAs($this->user)->postJson('/api/orders', [
         'store_id'    => $storeB->id,
         'customer_id' => $this->customer->id,
         'items'       => [[

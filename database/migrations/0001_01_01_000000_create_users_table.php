@@ -15,9 +15,12 @@ return new class extends Migration
 Schema::create('users', function (Blueprint $table) {
     $table->id();
     $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
-$table->foreignId('store_id')->nullable()->constrained()->nullOnDelete();    $table->string('name');
+    $table->foreignId('store_id')->nullable()->constrained()->nullOnDelete();
+    $table->string('name');
+    $table->string('email')->unique();
+    $table->string('password');
+    $table->string('role')->default('store_staff');
     $table->timestamps();
-    // NO email, NO password, NO role_id — that's Phase 3
 });
     }
 

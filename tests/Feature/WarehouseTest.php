@@ -9,6 +9,7 @@ use App\Models\Store;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\Inventory;
+use App\Models\User;
 class WarehouseTest extends TestCase
 {
     /**
@@ -21,6 +22,7 @@ class WarehouseTest extends TestCase
     protected Product $product;
     protected Warehouse $warehouse;
     protected Inventory $inventory;
+    protected User $user;
   protected function setUp(): void
     {
         parent::setUp();
@@ -33,17 +35,20 @@ class WarehouseTest extends TestCase
             'store_id'  => $this->store->id,
         ]);
         $this->inventory = Inventory::factory()->create([
-            'tenant_id'    => $this->tenant->id,
             'warehouse_id' => $this->warehouse->id,
             'product_id'   => $this->product->id,
             'quantity'     => 50,
             'threshold'    => 10,
         ]);
+        $this->user = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id'  => null,
+            'role'      => 'tenant_admin',
+        ]);
     }
       public function test_can_create_warehouse(): void {
 
-            $response = $this->postJson('/api/warehouses' , [
-                'tenant_id'=>$this->tenant->id,
+            $response = $this->actingAs($this->user)->postJson('/api/warehouses' , [
                 'store_id'=>$this->store->id,
                 'name'=>'Main Warehouse',
             ])->assertStatus(201);
@@ -56,14 +61,14 @@ class WarehouseTest extends TestCase
         }
 
         public function test_can_list_warehouses(): void {
-            $this->getJson("/api/warehouses?tenant_id={$this->tenant->id}&store_id={$this->store->id}")
-            ->assertStatus(200)
-            ->assertJsonCount(1);
+            $this->actingAs($this->user)
+                 ->getJson("/api/warehouses")
+                 ->assertStatus(200)
+                 ->assertJsonCount(1, 'data');
         }
         
         public function test_can_update_warehouse() : void{
-            $this->putJson("/api/warehouses/{$this->warehouse->id}", [
-                'tenant_id'=>$this->tenant->id,
+            $this->actingAs($this->user)->putJson("/api/warehouses/{$this->warehouse->id}", [
                 'store_id'=>$this->store->id,   
                 'name'=>'Updated Warehouse',
             ])->assertStatus(200);
@@ -74,19 +79,19 @@ class WarehouseTest extends TestCase
             ]);
         }
       public function  test_can_delete_warehouse_with_no_stock() : void{
-$this->inventory->update([
-    'quantity'=>0,
-]);
-$this->deleteJson("/api/warehouses/{$this->warehouse->id}")
-->assertStatus(200);
+        $this->inventory->update([
+            'quantity'=>0,
+        ]);
+        $this->actingAs($this->user)->deleteJson("/api/warehouses/{$this->warehouse->id}")
+        ->assertStatus(200);
 
-$this->assertDatabaseMissing('warehouses',[
-    'id'=>$this->warehouse->id,
-]);
+        $this->assertDatabaseMissing('warehouses',[
+            'id'=>$this->warehouse->id,
+        ]);
     }
 
     public function test_cannot_delete_warehouse_with_existing_stock() : void{
-        $this->deleteJson("/api/warehouses/{$this->warehouse->id}")
+        $this->actingAs($this->user)->deleteJson("/api/warehouses/{$this->warehouse->id}")
         ->assertStatus(422);
 
         $this->assertDatabaseHas('warehouses',[
@@ -94,19 +99,10 @@ $this->assertDatabaseMissing('warehouses',[
         ]);
     }
 
-    public function test_cannot_create_warehouse_with_invalid_tenant_id() : void{
-        $this->postJson("/api/warehouses", [
-            'tenant_id'=> 999,
-            'store_id'=>$this->store->id,
-            'name'=>'Warehouse',
-        ])->assertStatus(422);
-    }
-
     public function test_cannot_create_warehouse_with_store_from_different_tenant(): void{
         $otherTenant = Tenant::factory()->create();
         $otherStore = Store::factory()->create(['tenant_id' => $otherTenant->id]);
-        $this->postJson("/api/warehouses", [
-            'tenant_id'=>$this->tenant->id,
+        $this->actingAs($this->user)->postJson("/api/warehouses", [
             'store_id'=>$otherStore->id,
             'name'=>'Warehouse',
         ])->assertStatus(422);

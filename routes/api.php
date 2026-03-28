@@ -10,6 +10,14 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\WarehouseController;
 use App\Http\Controllers\Api\V1\InventoryController;
+use App\Http\Controllers\Api\V1\AuthController;
+
+Route::post('/login', [AuthController::class, 'login']);
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/me', [AuthController::class, 'me']);
+
 
 Route::get('/stores', [StoreController::class, 'index']);
 Route::get('/stores/{store}', [StoreController::class, 'show']);
@@ -55,3 +63,4 @@ Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
 Route::post('/inventory', [InventoryController::class, 'store']);
 Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);
 Route::post('/inventory/{inventory}/adjust', [InventoryController::class, 'adjust']);
+});

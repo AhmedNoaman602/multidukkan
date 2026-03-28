@@ -13,14 +13,20 @@ class PaymentController extends Controller
 
     public function index()
     {
-        $payments = Payment::all();
+        $user = auth()->user();
+        $payments = Payment::where('tenant_id', $user->tenant_id)
+            ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
+            ->get();
         return response()->json($payments, 200);
     }
 
     public function store(StorePaymentRequest $request)
     {
         try {
-            $payment = $this->payment->processPayment($request->validated());
+            $payment = $this->payment->processPayment(
+                $request->validated(),
+                auth()->user()
+            );
 
             return response()->json($payment, 201);
         } catch (\InvalidArgumentException $e) {

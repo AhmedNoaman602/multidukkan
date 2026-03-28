@@ -6,6 +6,8 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use App\Rules\BelongsToTenant;
 use App\Models\Store;
+use Illuminate\Support\Facades\Auth;
+
 class StoreWarehouseRequest extends FormRequest
 {
     /**
@@ -23,10 +25,13 @@ class StoreWarehouseRequest extends FormRequest
      */
     public function rules(): array
     {
+        $tenantId = Auth::user()->tenant_id;
+
         return [
             'name' => 'required|string|max:255',
-            'tenant_id' => 'required|exists:tenants,id',
-            'store_id' => ['required', 'exists:stores,id', new BelongsToTenant(Store::class, $this->tenant_id)],
+            'store_id' => $this->user()->store_id
+                ? []
+                : ['required', 'exists:stores,id', new BelongsToTenant(Store::class, $tenantId)],
             'phone' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:255',

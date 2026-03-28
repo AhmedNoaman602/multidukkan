@@ -17,12 +17,12 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $request->validate([
-            'tenant_id' => 'required|exists:tenants,id'
-        ]);
+        $user = auth()->user();
 
-        $orders = Order::where('tenant_id', $request->tenant_id)->get();
-
+        $orders = Order::where('tenant_id', $user->tenant_id)
+            ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
+            ->get();
+            
         return OrderResource::collection($orders->load('items', 'payments'));
     }
 
@@ -40,7 +40,7 @@ class OrderController extends Controller
 
     public function show(Request $request , Order $order)
     {
-         if ($order->tenant_id != $request->tenant_id) {
+         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
         return new OrderResource($order->load('items', 'payments'));
@@ -49,7 +49,7 @@ class OrderController extends Controller
     public function update(Request $request, Order $order)
     {
         // Cannot Modify Order After Payment
-        if ($order->tenant_id != $request->tenant_id) {
+        if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 
@@ -71,7 +71,7 @@ class OrderController extends Controller
             return response()->json(['message' => 'Order already cancelled'], 422);
         }
 
-        if ($order->tenant_id != $request->tenant_id) {
+        if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $this->order->cancelOrder($order);

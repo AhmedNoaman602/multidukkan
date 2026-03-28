@@ -7,6 +7,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use App\Models\Warehouse;
 use App\Models\Product;
+use Illuminate\Support\Facades\Auth;
 class StoreInventoryRequest extends FormRequest
 {
     /**
@@ -24,10 +25,10 @@ class StoreInventoryRequest extends FormRequest
      */
     public function rules(): array
     {
+        $tenantId = Auth::user()->tenant_id;
         return [
-            'tenant_id' => 'required|exists:tenants,id',
-            'warehouse_id' => ['required', 'exists:warehouses,id', new BelongsToTenant(Warehouse::class, $this->tenant_id)],
-            'product_id'   => ['required', 'exists:products,id', new BelongsToTenant(Product::class, $this->tenant_id)],
+            'warehouse_id' => ['required', 'exists:warehouses,id', new BelongsToTenant(Warehouse::class, $tenantId)],
+            'product_id'   => ['required', 'exists:products,id', new BelongsToTenant(Product::class, $tenantId)],
             'quantity' => 'required|integer|min:0',
             'threshold' => 'nullable|integer|min:0',
         ];

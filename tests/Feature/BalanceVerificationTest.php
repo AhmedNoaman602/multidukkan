@@ -8,6 +8,7 @@ use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,6 +20,7 @@ class BalanceVerificationTest extends TestCase
     protected Store $store;
     protected Customer $customer;
     protected Product $product;
+    protected User $user;
 
     protected function setUp(): void
     {
@@ -30,12 +32,17 @@ class BalanceVerificationTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'price'     => 100,
         ]);
+        $this->user = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id' => null,
+            'role' => 'tenant_admin',
+        ]);
     }
 
     public function test_balance_after_overpayment(): void
     {
         // 1. Create order for 100
-        $this->postJson('/api/orders', [
+        $this->actingAs($this->user)->postJson('/api/orders', [
             'tenant_id'   => $this->tenant->id,
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
@@ -47,7 +54,7 @@ class BalanceVerificationTest extends TestCase
         $order = Order::first();
 
         // 2. Pay 150 (50 overpayment)
-        $this->postJson('/api/payments', [
+        $this->actingAs($this->user)->postJson('/api/payments', [
             'tenant_id'   => $this->tenant->id,
             'store_id'    => $this->store->id,
             'order_id'    => $order->id,
@@ -58,7 +65,7 @@ class BalanceVerificationTest extends TestCase
 
         // 3. Check balance
         // Expectation: 100 - 150 = -50
-        $response = $this->getJson("/api/customers/{$this->customer->id}/balance");
+        $response = $this->actingAs($this->user)->getJson("/api/customers/{$this->customer->id}/balance");
         $response->assertStatus(200);
         
         $balance = $response->json('balance');

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Services\LedgerService;
 use App\Http\Requests\StoreCreditRequest;
+use Illuminate\Support\Facades\Auth;
+
 class LedgerEntryController extends Controller
 {
      public function __construct(protected LedgerService $ledger) {}
@@ -38,15 +40,16 @@ class LedgerEntryController extends Controller
 
     public function addCredit(Customer $customer, StoreCreditRequest $request)
 {
+    $user = auth()->user();
     $entry = $this->ledger->addCredit([
-        'tenant_id'   => $request->tenant_id,
+        'tenant_id'   => $user->tenant_id,
         'customer_id' => $customer->id,
-        'store_id'    => $request->store_id,
+        'store_id'    => $user->store_id,
         'amount'      => $request->amount,
         'description' => $request->description,
     ]);
 
-    $balance = $this->ledger->getBalance($request->tenant_id, $customer->id);
+    $balance = $this->ledger->getBalance($user->tenant_id, $customer->id);
 
     return response()->json([
         'message'     => 'Credit added successfully',
@@ -55,39 +58,4 @@ class LedgerEntryController extends Controller
     ], 201);
 }
 
-    public function index()
-    {
-        //
-    }
-
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
-    }
 }

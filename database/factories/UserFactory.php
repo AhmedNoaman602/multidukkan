@@ -5,6 +5,7 @@ namespace Database\Factories;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use App\Models\Tenant;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
@@ -21,14 +22,17 @@ class UserFactory extends Factory
      *
      * @return array<string, mixed>
      */
-    public function definition(): array
-    {
-        return [
-            'name' => fake()->name(),
-            'tenant_id' => null,
-            'store_id' => null,
-        ];
-    }
+   public function definition(): array
+{
+    return [
+        'tenant_id' => Tenant::factory(),
+        'store_id'  => null,
+        'name'      => fake()->name(),
+        'email'     => fake()->unique()->safeEmail(),
+        'password'  => bcrypt('password'),
+        'role'      => 'store_staff',
+    ];
+}
 
     /**
      * Indicate that the model's email address should be unverified.

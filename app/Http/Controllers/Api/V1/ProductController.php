@@ -14,7 +14,9 @@ class ProductController extends Controller
      */
     public function index()
     {
-        $products = Product::all();
+        $user = auth()->user();
+        $products = Product::where('tenant_id',$user->tenant_id)
+        ->get();
         return ProductResource::collection($products);
     }
 
@@ -23,37 +25,61 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
-        $validated = $request->validated(); 
-        $product = Product::create($validated);
-        return new ProductResource($product);
+        $user = auth()->user();
+        $product = Product::create([
+            'tenant_id' => $user->tenant_id,
+            'name'      => $request->name,
+            'sku'       => $request->sku,
+            'price'     => $request->price,
+            'unit'      => $request->unit ?? 'pcs',
+        ]);
+
+        return (new ProductResource($product))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
-    {
-        $product = Product::find($id);
+    public function show(Product $product)
+    {   
+        if ($product->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        
         return new ProductResource($product);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(StoreProductRequest $request, Product $product)
     {
-        $product = Product::find($id);
-        $product->update($request->all());
+        if ($product->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        
+        $product->update([
+            'name'  => $request->name,
+            'sku'   => $request->sku,
+            'price' => $request->price,
+            'unit'  => $request->unit ?? $product->unit,
+        ]);
         return new ProductResource($product);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Product $product)
     {
-        $product = Product::find($id);
+        if ($product->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }        
+        
         $product->delete();
+        
         return response()->json(['message' => 'Product deleted successfully']);
     }
 }

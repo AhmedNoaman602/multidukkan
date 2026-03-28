@@ -21,59 +21,55 @@ class OrderService
      */
      public function __construct(protected LedgerService $ledger , protected InventoryService $inventory){}
 
-   public function createOrder(array $data) : Order{
-     return DB::transaction(function () use ($data) {
-            $order = Order::create([
-                'tenant_id'   => $data['tenant_id'],
-                'store_id'    => $data['store_id'],
-                'customer_id' => $data['customer_id'],
-                'created_by'  => $data['created_by'] ?? null,
-                'notes'       => $data['notes'] ?? null,
-            ]);
+   public function createOrder(array $data): Order
+{
+    return DB::transaction(function () use ($data) {
+        $user = auth()->user();
 
-            $totalAmount = 0;
+        $order = Order::create([
+            'tenant_id'   => $user->tenant_id,
+            'store_id'    => $user->store_id ?? $data['store_id'],
+            'customer_id' => $data['customer_id'],
+            'created_by'  => $user->id,
+            'notes'       => $data['notes'] ?? null,
+        ]);
 
-            foreach ($data['items'] as $itemData) {
-                $product = Product::findOrFail($itemData['product_id']);
-                $warehouseId = $itemData['warehouse_id'] ?? null;
+        $totalAmount = 0;
 
-                if($warehouseId){
-                    $this->inventory->checkStock($product->id, $warehouseId, $itemData['quantity']);
-                }
-                
-                $orderItem = $order->items()->create([
-                    'product_id'   => $product->id,
-                    'product_name' => $product->name,
-                    'quantity'     => $itemData['quantity'],
-                    'unit_price'   => $product->price,
-                    'warehouse_id' => $warehouseId,
-                ]);
+        foreach ($data['items'] as $itemData) {
+            $product     = Product::findOrFail($itemData['product_id']);
+            $warehouseId = $itemData['warehouse_id'] ?? null;
 
-                if($warehouseId){
-                    $this->inventory->deductStock(
-                        $product->id,
-                        $warehouseId,
-                        $itemData['quantity'],
-                        $order->id,
-                        Order::class,
-                    );
-                }
-
-                $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
+            if ($warehouseId) {
+                $this->inventory->checkStock($product->id, $warehouseId, $itemData['quantity']);
             }
 
-            // Charge the ledger
-            $this->ledger->chargeOrder([
-                'tenant_id'   => $order->tenant_id,
-                'customer_id' => $order->customer_id,
-                'store_id'    => $order->store_id,
-                'order_id'    => $order->id,
-                'amount'      => $totalAmount,
+            $orderItem = $order->items()->create([
+                'product_id'   => $product->id,
+                'product_name' => $product->name,
+                'quantity'     => $itemData['quantity'],
+                'unit_price'   => $product->price,
+                'warehouse_id' => $warehouseId,
             ]);
 
-            return $order->load('items');
-        });
-   }
+            if ($warehouseId) {
+                $this->inventory->deductStock($product->id, $warehouseId, $itemData['quantity'], $order->id, Order::class);
+            }
+
+            $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
+        }
+
+        $this->ledger->chargeOrder([
+            'tenant_id'   => $order->tenant_id,
+            'customer_id' => $order->customer_id,
+            'store_id'    => $order->store_id,
+            'order_id'    => $order->id,
+            'amount'      => $totalAmount,
+        ]);
+
+        return $order->load('items');
+    });
+}
 
    public function cancelOrder(Order $order): void
 {
@@ -83,13 +79,8 @@ class OrderService
 
         foreach ($order->items as $item) {
             if ($item->warehouse_id) {
-                $this->inventory->restoreStock(
-                    $item->warehouse_id,
-                    $item->product_id,
-                    $item->quantity,
-                    $order->id,
-                    Order::class,
-                );
+                $this->inventory->restoreStock($item->product_id, $item->warehouse_id, $item->quantity, $order->id, Order::class);
+
             }
         }
 

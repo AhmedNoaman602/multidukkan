@@ -6,52 +6,76 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Store;
 use App\Http\Resources\StoreResource;
+
 class StoreController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
-        $stores = Store::all();
+        $user = auth()->user();
+
+        $stores = Store::where('tenant_id', $user->tenant_id)
+            ->when($user->store_id, fn($q) => $q->where('id', $user->store_id))
+            ->get();
+
         return StoreResource::collection($stores);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        $store = Store::create($request->all());
+        $user = auth()->user();
+
+        $validated = $request->validate([
+            'name'    => 'required|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'phone'   => 'nullable|string|max:20',
+        ]);
+
+        $store = Store::create([
+            'tenant_id' => $user->tenant_id,
+            'name'      => $validated['name'],
+            'address'   => $validated['address'] ?? null,
+            'phone'     => $validated['phone'] ?? null,
+        ]);
+
+        return (new StoreResource($store))
+            ->response()
+            ->setStatusCode(201);
+    }
+
+    public function show(Store $store)
+    {
+        if ($store->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         return new StoreResource($store);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function update(Request $request, Store $store)
     {
-        $store = Store::find($id);
+        if ($store->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'name'    => 'sometimes|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'phone'   => 'nullable|string|max:20',
+        ]);
+
+        $store->update($validated);
+
         return new StoreResource($store);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function destroy(Store $store)
     {
-        $store = Store::find($id);
-        $store->update($request->all());
-        return new StoreResource($store);
-    }
+        if ($store->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        $store = Store::find($id);
         $store->delete();
+
         return response()->json(['message' => 'Store deleted successfully']);
     }
 }

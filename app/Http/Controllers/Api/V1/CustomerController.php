@@ -13,7 +13,9 @@ class CustomerController extends Controller
      */
     public function index()
     {
-        $customers = Customer::all();
+        $user = auth()->user();
+        $customers = Customer::where('tenant_id',$user->tenant_id)
+        ->get();
         return CustomerResource::collection($customers);
     }
 
@@ -22,42 +24,67 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
+        $user = auth()->user();
+
         $validated = $request->validate([
-            'tenant_id' => 'required|exists:tenants,id',
             'name' => 'required',
-            'email' => 'nullable|email',
             'phone' => 'required',
             'address' => 'nullable',
         ]);
-        $customer = Customer::create($validated);
-        return new CustomerResource($customer);
+
+        $customer = Customer::create([
+            'tenant_id'           => $user->tenant_id,
+            'created_by_store_id' => $user->store_id,
+            'name'                => $validated['name'],
+            'phone'               => $validated['phone'],
+            'address'             => $validated['address'] ?? null,
+        ]);
+
+        return (new CustomerResource($customer))
+                ->response()
+                ->setStatusCode(201);    
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(Customer $customer)
     {
-        $customer = Customer::find($id);
+        if ($customer->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         return new CustomerResource($customer);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Customer $customer)
     {
-        $customer = Customer::find($id);
-        $customer->update($request->all());
+        if ($customer->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $validated = $request->validate([
+            'name'    => 'sometimes|string|max:255',
+            'phone'   => 'sometimes|string|max:20',
+            'address' => 'nullable|string|max:255',
+        ]);        
+        
+        $customer->update($validated);
         return new CustomerResource($customer);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Customer $customer)
     {
-        $customer = Customer::find($id);
+        if ($customer->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        
         $customer->delete();
         return response()->json(['message' => 'Customer deleted successfully']);
     }

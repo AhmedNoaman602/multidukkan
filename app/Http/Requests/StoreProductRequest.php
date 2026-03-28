@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class StoreProductRequest extends FormRequest
 {
@@ -22,14 +23,14 @@ class StoreProductRequest extends FormRequest
      */
     public function rules(): array
     {
+        $tenantId = Auth::user()->tenant_id;
         return [
-            'tenant_id' => 'required|exists:tenants,id',
             'name'      => 'required|string|max:255',
             'sku'       => [
                 'required',
                 'string',
                 'max:100',
-                Rule::unique('products', 'sku')->where('tenant_id', $this->input('tenant_id')),
+                Rule::unique('products', 'sku')->where('tenant_id', $tenantId),
             ],
             'price'     => 'required|numeric|min:0',
             'unit'      => 'nullable|string|max:20',
