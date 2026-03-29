@@ -29,14 +29,14 @@ class CustomerPolicy
      */
    public function create(User $user): bool
 {
-    return in_array($user->role, ['tenant_admin', 'store_manager']);
+    return in_array($user->role, ['tenant_admin', 'store_manager','store_staff']);
 }
     /**
      * Determine whether the user can update the model.
      */
     public function update(User $user, Customer $customer): bool
     {
-    return in_array($user->role, ['tenant_admin', 'store_manager']);
+    return in_array($user->role, ['tenant_admin', 'store_manager','store_staff']);
     }
 
     /**
@@ -46,4 +46,9 @@ class CustomerPolicy
     {
         return $user->role === 'tenant_admin';    
     } 
+
+    public function addCredit(User $user, Customer $customer): bool
+{
+    return in_array($user->role, ['tenant_admin', 'store_manager']);
+}
 }

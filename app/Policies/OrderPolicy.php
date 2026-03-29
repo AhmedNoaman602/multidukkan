@@ -29,22 +29,19 @@ class OrderPolicy
      */
     public function create(User $user): bool
     {
-        return true;
-    }
+return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
 
     /**
      * Determine whether the user can update the model.
      */
     public function update(User $user, Order $order): bool
     {
-        return true;
-    }
+return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
 
     /**
      * Determine whether the user can delete the model.
      */
     public function delete(User $user, Order $order): bool
     {
-        return true;
-    }
+return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
 }

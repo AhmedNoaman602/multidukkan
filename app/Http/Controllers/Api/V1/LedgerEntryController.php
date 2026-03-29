@@ -44,8 +44,8 @@ class LedgerEntryController extends Controller
 
     public function addCredit(Customer $customer, StoreCreditRequest $request)
 {
-    $this->authorize('create', Customer::class);
-        
+    $this->authorize('addCredit', $customer);    
+
     $user = auth()->user();
     $entry = $this->ledger->addCredit([
         'tenant_id'   => $user->tenant_id,

@@ -27,13 +27,15 @@ public function create(User $user): bool
 public function update(User $user, Inventory $inventory): bool
 {
     if ($user->role === 'tenant_admin') return true;
-    return $user->store_id === $inventory->warehouse->store_id;
+    if ($user->role === 'store_manager') return $user->store_id === $inventory->warehouse->store_id;
+    return false;
 }
 
 public function adjust(User $user, Inventory $inventory): bool
 {
     if ($user->role === 'tenant_admin') return true;
-    return $user->store_id === $inventory->warehouse->store_id;
+    if ($user->role === 'store_manager') return $user->store_id === $inventory->warehouse->store_id;
+    return false;
 }
 
 }

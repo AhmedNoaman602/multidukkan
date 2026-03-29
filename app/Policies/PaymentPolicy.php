@@ -20,8 +20,7 @@ class PaymentPolicy
      */
     public function create(User $user): bool
     {
-        return true;
-    }
+return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
 
    
 }

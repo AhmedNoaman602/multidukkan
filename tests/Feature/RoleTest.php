@@ -24,6 +24,7 @@ class RoleTest extends TestCase
     private Customer $customer;
     private Warehouse $warehouse;
     private Inventory $inventory;
+    private User $staff;
 
     protected function setUp(): void
     {
@@ -53,6 +54,15 @@ class RoleTest extends TestCase
             'email'     => 'manager@test.com',
             'password'  => bcrypt('password'),
             'role'      => 'store_manager',
+            'store_id'  => $this->store->id,
+        ]);
+
+        $this->staff = User::create([
+            'tenant_id' => $this->tenant->id,
+            'name'      => 'Staff User',
+            'email'     => 'staff@test.com',
+            'password'  => bcrypt('password'),
+            'role'      => 'store_staff',
             'store_id'  => $this->store->id,
         ]);
 
@@ -214,4 +224,107 @@ class RoleTest extends TestCase
                 'quantity' => 10,
             ])->assertStatus(403);
     }
+
+    // ─────────────────────────────────────────
+// STORE STAFF
+// ─────────────────────────────────────────
+
+public function test_staff_can_view_products(): void
+{
+    $this->actingAs($this->staff)
+        ->getJson('/api/products')
+        ->assertStatus(200);
+}
+
+public function test_staff_cannot_create_product(): void
+{
+    $this->actingAs($this->staff)
+        ->postJson('/api/products', [
+            'name'  => 'New Product',
+            'sku'   => 'SKU-STAFF',
+            'price' => 50,
+            'unit'  => 'pcs',
+        ])->assertStatus(403);
+}
+
+public function test_staff_can_create_customer(): void
+{
+    $this->actingAs($this->staff)
+        ->postJson('/api/customers', [
+            'name'  => 'Staff Customer',
+            'phone' => '01222222222',
+        ])->assertStatus(201);
+}
+
+public function test_staff_cannot_delete_customer(): void
+{
+    $this->actingAs($this->staff)
+        ->deleteJson("/api/customers/{$this->customer->id}")
+        ->assertStatus(403);
+}
+
+public function test_staff_can_create_order(): void
+{
+    $this->actingAs($this->staff)
+        ->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'items'       => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity'   => 1,
+                ],
+            ],
+        ])->assertStatus(201);
+}
+
+public function test_staff_can_process_payment(): void
+{
+    $order = $this->actingAs($this->staff)
+        ->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'items'       => [
+                [
+                    'product_id' => $this->product->id,
+                    'quantity'   => 1,
+                ],
+            ],
+        ])->json('id');
+
+    $this->actingAs($this->staff)
+        ->postJson('/api/payments', [
+            'order_id'    => $order,
+            'customer_id' => $this->customer->id,
+            'amount'      => 100,
+            'method'      => 'cash',
+        ])->assertStatus(201);
+}
+
+public function test_staff_cannot_adjust_inventory(): void
+{
+    $this->actingAs($this->staff)
+        ->postJson("/api/inventory/{$this->inventory->id}/adjust", [
+            'quantity' => 10,
+        ])->assertStatus(403);
+}
+
+public function test_staff_cannot_create_store(): void
+{
+    $this->actingAs($this->staff)
+        ->postJson('/api/stores', [
+            'name'    => 'Staff Store',
+            'address' => 'Some Address',
+            'phone'   => '01333333333',
+        ])->assertStatus(403);
+}
+
+public function test_staff_cannot_create_warehouse(): void
+{
+    $this->actingAs($this->staff)
+        ->postJson('/api/warehouses', [
+            'store_id' => $this->store->id,
+            'name'     => 'Staff Warehouse',
+        ])->assertStatus(403);
+}
 }

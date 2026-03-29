@@ -38,7 +38,8 @@ class WarehousePolicy
     public function update(User $user, Warehouse $warehouse): bool
     {
         if($user->role === 'tenant_admin') return true;
-        return $user->store_id === $warehouse->store_id;
+        if ($user->role === 'store_manager') return $user->store_id === $warehouse->store_id;
+        return false;    
     }
 
     /**
@@ -46,7 +47,8 @@ class WarehousePolicy
      */
     public function delete(User $user, Warehouse $warehouse): bool
     {
-        if ($user->isTenantAdmin()) return true;
-        return $user->store_id === $warehouse->store_id;    
+        if ($user->role === 'tenant_admin') return true;
+        if ($user->role === 'store_manager') return $user->store_id === $warehouse->store_id;
+        return false;  
     }
 }
