@@ -52,7 +52,7 @@ class OrderService
                 'warehouse_id' => $warehouseId,
             ]);
 
-            if ($warehouseId) {
+            if ($warehouseId) { // return to it
                 $this->inventory->deductStock($product->id, $warehouseId, $itemData['quantity'], $order->id, Order::class);
             }
 

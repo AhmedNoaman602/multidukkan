@@ -13,6 +13,8 @@ class CustomerController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', Customer::class);
+        
         $user = auth()->user();
         $customers = Customer::where('tenant_id',$user->tenant_id)
         ->get();
@@ -24,6 +26,8 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Customer::class);
+        
         $user = auth()->user();
 
         $validated = $request->validate([
@@ -50,6 +54,8 @@ class CustomerController extends Controller
      */
     public function show(Customer $customer)
     {
+        $this->authorize('view', $customer);
+        
         if ($customer->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -62,6 +68,8 @@ class CustomerController extends Controller
      */
     public function update(Request $request, Customer $customer)
     {
+        $this->authorize('update', $customer);
+        
         if ($customer->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -81,6 +89,8 @@ class CustomerController extends Controller
      */
     public function destroy(Customer $customer)
     {
+        $this->authorize('delete', $customer);
+        
         if ($customer->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }

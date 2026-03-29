@@ -11,6 +11,8 @@ class WarehouseController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', Warehouse::class);
+        
         $user = auth()->user();
         $warehouses = Warehouse::where('tenant_id', $user->tenant_id)
         ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
@@ -19,6 +21,8 @@ class WarehouseController extends Controller
     }
     public function store(StoreWarehouseRequest $request)
     {
+        $this->authorize('create', Warehouse::class);
+        
         $user = auth()->user();
         $warehouse = Warehouse::create([
             'tenant_id' => $user->tenant_id,
@@ -32,6 +36,8 @@ class WarehouseController extends Controller
     }
     public function show(Warehouse $warehouse)
     {
+        $this->authorize('view', $warehouse);
+        
         if($warehouse->tenant_id !== auth()->user()->tenant_id){
             return response()->json(['message'=>'Unauthorized'] , 403);
         }
@@ -39,7 +45,9 @@ class WarehouseController extends Controller
     }
     public function update(StoreWarehouseRequest $request, Warehouse $warehouse)
     {
-         if ($warehouse->tenant_id !== auth()->user()->tenant_id) {
+        $this->authorize('update', $warehouse);
+        
+        if ($warehouse->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -53,7 +61,9 @@ class WarehouseController extends Controller
     }
     public function destroy(Warehouse $warehouse)
     {
-         if ($warehouse->tenant_id !== auth()->user()->tenant_id) {
+        $this->authorize('delete', $warehouse);
+        
+        if ($warehouse->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

@@ -11,6 +11,8 @@ class StoreController extends Controller
 {
     public function index()
     {
+        $this->authorize('viewAny', Store::class);
+        
         $user = auth()->user();
 
         $stores = Store::where('tenant_id', $user->tenant_id)
@@ -22,6 +24,8 @@ class StoreController extends Controller
 
     public function store(Request $request)
     {
+        $this->authorize('create', Store::class);
+        
         $user = auth()->user();
 
         $validated = $request->validate([
@@ -44,6 +48,8 @@ class StoreController extends Controller
 
     public function show(Store $store)
     {
+        $this->authorize('view', $store);
+        
         if ($store->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -53,6 +59,8 @@ class StoreController extends Controller
 
     public function update(Request $request, Store $store)
     {
+        $this->authorize('update', $store);
+        
         if ($store->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -70,6 +78,8 @@ class StoreController extends Controller
 
     public function destroy(Store $store)
     {
+        $this->authorize('delete', $store);
+        
         if ($store->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }

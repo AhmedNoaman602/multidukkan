@@ -15,6 +15,8 @@ class InventoryController extends Controller
     public function __construct(private InventoryService $inventoryService){}
     public function index()
     {
+        $this->authorize('viewAny', Inventory::class);
+        
         $user = auth()->user();
         $inventory = Inventory::where('tenant_id', $user->tenant_id)
             ->when($user->store_id, function ($q) use ($user) {
@@ -25,6 +27,8 @@ class InventoryController extends Controller
     }
     public function show(Inventory $inventory)
     {
+        $this->authorize('view', $inventory);
+        
         if($inventory->tenant_id !== auth()->user()->tenant_id){
             return response()->json(['message'=>'Unauthorized'] , 403);
         }
@@ -32,6 +36,8 @@ class InventoryController extends Controller
     }
     public function store(StoreInventoryRequest $request)
     {
+        $this->authorize('create', Inventory::class);
+        
         $user = auth()->user();
         $inventory = Inventory::create([
             'tenant_id' => $user->tenant_id,
@@ -46,6 +52,8 @@ class InventoryController extends Controller
     }
     public function update(UpdateInventoryRequest $request, Inventory $inventory)
     {
+        $this->authorize('update', $inventory);
+        
         if ($inventory->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -55,6 +63,8 @@ class InventoryController extends Controller
 
     public function adjust(AdjustInventoryRequest $request, Inventory $inventory)
     {
+        $this->authorize('update', $inventory);
+        
         $user = auth()->user();
         if ($inventory->tenant_id !== $user->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);

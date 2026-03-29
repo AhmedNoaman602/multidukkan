@@ -14,6 +14,8 @@ class ProductController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', Product::class);
+
         $user = auth()->user();
         $products = Product::where('tenant_id',$user->tenant_id)
         ->get();
@@ -25,6 +27,8 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
+        $this->authorize('create', Product::class);
+
         $user = auth()->user();
         $product = Product::create([
             'tenant_id' => $user->tenant_id,
@@ -44,6 +48,8 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {   
+        $this->authorize('view', $product);
+
         if ($product->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -56,6 +62,8 @@ class ProductController extends Controller
      */
     public function update(StoreProductRequest $request, Product $product)
     {
+        $this->authorize('update', $product);
+
         if ($product->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -74,6 +82,7 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
+        $this->authorize('delete', $product);
         if ($product->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }        

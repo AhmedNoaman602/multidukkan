@@ -13,6 +13,8 @@ class PaymentController extends Controller
 
     public function index()
     {
+        $this->authorize('viewAny', Payment::class);
+        
         $user = auth()->user();
         $payments = Payment::where('tenant_id', $user->tenant_id)
             ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
@@ -23,6 +25,8 @@ class PaymentController extends Controller
     public function store(StorePaymentRequest $request)
     {
         try {
+            $this->authorize('create', Payment::class);
+            
             $payment = $this->payment->processPayment(
                 $request->validated(),
                 auth()->user()

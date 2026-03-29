@@ -17,6 +17,8 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Order::class);
+        
         $user = auth()->user();
 
         $orders = Order::where('tenant_id', $user->tenant_id)
@@ -29,6 +31,8 @@ class OrderController extends Controller
    public function store(StoreOrderRequest $request)
 {
     try {
+        $this->authorize('create', Order::class);
+        
         $order = $this->order->createOrder($request->validated());
         return (new OrderResource($order->load('items', 'payments')))
             ->response()
@@ -40,7 +44,9 @@ class OrderController extends Controller
 
     public function show(Request $request , Order $order)
     {
-         if ($order->tenant_id != auth()->user()->tenant_id) {
+        $this->authorize('view', $order);
+        
+        if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
         return new OrderResource($order->load('items', 'payments'));
@@ -48,6 +54,8 @@ class OrderController extends Controller
 
     public function update(Request $request, Order $order)
     {
+        $this->authorize('update', $order);
+        
         // Cannot Modify Order After Payment
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
@@ -66,6 +74,7 @@ class OrderController extends Controller
 
     public function destroy(Request $request, Order $order)
     {
+        $this->authorize('delete', $order);
         
         if ($order->trashed()) {
             return response()->json(['message' => 'Order already cancelled'], 422);

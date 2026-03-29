@@ -41,7 +41,11 @@ class AuthController extends Controller
     
     public function logout(Request $request){
        $user = request()->user();
-       $user->currentAccessToken()->delete();
+       $token = $user->currentAccessToken();
+
+       if (method_exists($token, 'delete')) {
+        $token->delete();
+       } //condition is only for testing files
 
        return response()->json([
         'message' => 'Logged out successfully.'

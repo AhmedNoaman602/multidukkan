@@ -15,6 +15,8 @@ class LedgerEntryController extends Controller
 
     public function balance(Customer $customer)
     {
+        $this->authorize('view', $customer);
+        
         $balance = $this->ledger->getBalance($customer->tenant_id, $customer->id);
 
         return response()->json([
@@ -27,6 +29,8 @@ class LedgerEntryController extends Controller
 
     public function history(Customer $customer)
     {
+        $this->authorize('view', $customer);
+        
         $history = $this->ledger->getHistory($customer->tenant_id, $customer->id);
         $balance = $this->ledger->getBalance($customer->tenant_id, $customer->id);
         return response()->json([
@@ -40,6 +44,8 @@ class LedgerEntryController extends Controller
 
     public function addCredit(Customer $customer, StoreCreditRequest $request)
 {
+    $this->authorize('create', Customer::class);
+        
     $user = auth()->user();
     $entry = $this->ledger->addCredit([
         'tenant_id'   => $user->tenant_id,

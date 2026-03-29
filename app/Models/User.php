@@ -54,7 +54,7 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Store::class);
     }
-    
+     
     // Helper methods — clean role checks
     public function isTenantAdmin(): bool
     {
