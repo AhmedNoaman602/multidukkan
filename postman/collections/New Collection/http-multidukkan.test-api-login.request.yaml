@@ -1,0 +1,29 @@
+$kind: http-request
+name: http://multidukkan.test/api/login
+url: http://multidukkan.test/api/login
+method: POST
+headers:
+  Accept: application/json
+body:
+  type: json
+  content: "{\r
+
+    \    \"email\": \"ahmed@multidukkan.com\",\r
+
+    \    \"password\": \"password123\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: ""
+scripts:
+  - type: beforeRequest
+    code: "const res = pm.response.json();\r
+
+      pm.environment.set(\"token\", res.token);"
+    language: text/javascript
+settings:
+  disabledSystemHeaders:
+    - accept
+order: 1774866390198
