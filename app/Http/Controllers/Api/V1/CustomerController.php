@@ -34,6 +34,7 @@ class CustomerController extends Controller
             'name' => 'required',
             'phone' => 'required',
             'address' => 'nullable',
+            'price_tier' => 'nullable|in:default,a,b,c,d,e',
         ]);
 
         $customer = Customer::create([
@@ -42,6 +43,7 @@ class CustomerController extends Controller
             'name'                => $validated['name'],
             'phone'               => $validated['phone'],
             'address'             => $validated['address'] ?? null,
+            'price_tier'          => $validated['price_tier'] ?? 'default',
         ]);
 
         return (new CustomerResource($customer))
@@ -75,9 +77,10 @@ class CustomerController extends Controller
         }
 
         $validated = $request->validate([
-            'name'    => 'sometimes|string|max:255',
-            'phone'   => 'sometimes|string|max:20',
-            'address' => 'nullable|string|max:255',
+            'name'       => 'sometimes|string|max:255',
+            'phone'      => 'sometimes|string|max:20',
+            'address'    => 'nullable|string|max:255',
+            'price_tier' => 'sometimes|nullable|in:default,a,b,c,d,e',
         ]);        
         
         $customer->update($validated);

@@ -19,6 +19,7 @@ class CustomerResource extends JsonResource
             'name' => $this->name,
             'tenant_id' => $this->tenant_id,
             'phone' => $this->phone,
+            'price_tier' => $this->price_tier,
             'address' => $this->address,
             'created_at' => $this->created_at->toDateTimeString(),
         ];

@@ -33,7 +33,15 @@ class StoreProductRequest extends FormRequest
                 Rule::unique('products', 'sku')->where('tenant_id', $tenantId),
             ],
             'price'     => 'required|numeric|min:0',
+            'price_a'     => 'nullable|numeric|min:0',
+            'price_b'     => 'nullable|numeric|min:0',
+            'price_c'     => 'nullable|numeric|min:0',
+            'price_d'     => 'nullable|numeric|min:0',
+            'price_e'     => 'nullable|numeric|min:0',
             'unit'      => 'nullable|string|max:20',
+            'warehouse_id' => 'nullable|exists:warehouses,id',
+            'quantity'     => 'nullable|integer|min:0',
+            'threshold'    => 'nullable|integer|min:0',
         ];
     }
 }

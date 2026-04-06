@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Requests\StoreProductRequest;
 use App\Models\Product;
+use App\Models\Inventory;
 use App\Http\Resources\ProductResource;
 class ProductController extends Controller
 {
@@ -35,9 +36,22 @@ class ProductController extends Controller
             'name'      => $request->name,
             'sku'       => $request->sku,
             'price'     => $request->price,
+            'price_a'   => $request->price_a,
+            'price_b'   => $request->price_b,
+            'price_c'   => $request->price_c,
+            'price_d'   => $request->price_d,
+            'price_e'   => $request->price_e,
             'unit'      => $request->unit ?? 'pcs',
         ]);
-
+        if ($request->warehouse_id) {
+        Inventory::create([
+            'tenant_id'    => $user->tenant_id,
+            'warehouse_id' => $request->warehouse_id,
+            'product_id'   => $product->id,
+            'quantity'     => $request->quantity ?? 0,
+            'threshold'    => $request->threshold ?? 10,
+        ]);
+    }
         return (new ProductResource($product))
             ->response()
             ->setStatusCode(201);
@@ -69,10 +83,15 @@ class ProductController extends Controller
         }
         
         $product->update([
-            'name'  => $request->name,
-            'sku'   => $request->sku,
-            'price' => $request->price,
-            'unit'  => $request->unit ?? $product->unit,
+            'name'    => $request->name,
+            'sku'     => $request->sku,
+            'price'   => $request->price,
+            'price_a' => $request->price_a,
+            'price_b' => $request->price_b,
+            'price_c' => $request->price_c,
+            'price_d' => $request->price_d,
+            'price_e' => $request->price_e,
+            'unit'    => $request->unit ?? $product->unit,
         ]);
         return new ProductResource($product);
     }

@@ -13,6 +13,11 @@ class Product extends Model
         'name',
         'sku',
         'price',
+        'price_a',
+        'price_b',
+        'price_c',
+        'price_d',
+        'price_e',
         'unit',
     ];
 
@@ -22,7 +27,7 @@ class Product extends Model
     
     protected $casts = [
         'price' => 'decimal:2',
-    ];
+        ];
 
     public function tenant()
     {

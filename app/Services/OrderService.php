@@ -35,6 +35,7 @@ class OrderService
         ]);
 
         $totalAmount = 0;
+        $customer = \App\Models\Customer::findOrFail($data['customer_id']);
 
         foreach ($data['items'] as $itemData) {
             $product     = Product::findOrFail($itemData['product_id']);
@@ -43,12 +44,19 @@ class OrderService
             if ($warehouseId) {
                 $this->inventory->checkStock($product->id, $warehouseId, $itemData['quantity']);
             }
-
+            $price = match($customer->price_tier) {
+            'a'     => $product->price_a ?? $product->price,
+            'b'     => $product->price_b ?? $product->price,
+            'c'     => $product->price_c ?? $product->price,
+            'd'     => $product->price_d ?? $product->price,
+            'e'     => $product->price_e ?? $product->price,
+            default => $product->price,
+            };
             $orderItem = $order->items()->create([
                 'product_id'   => $product->id,
                 'product_name' => $product->name,
                 'quantity'     => $itemData['quantity'],
-                'unit_price'   => $product->price,
+                'unit_price'   => $price,
                 'warehouse_id' => $warehouseId,
             ]);
 
