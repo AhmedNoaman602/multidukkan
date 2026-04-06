@@ -23,9 +23,10 @@ class OrderController extends Controller
 
         $orders = Order::where('tenant_id', $user->tenant_id)
             ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
+            ->with('items', 'payments', 'customer')
             ->get();
             
-        return OrderResource::collection($orders->load('items', 'payments'));
+        return OrderResource::collection($orders);
     }
 
    public function store(StoreOrderRequest $request)
@@ -34,7 +35,7 @@ class OrderController extends Controller
         $this->authorize('create', Order::class);
         
         $order = $this->order->createOrder($request->validated());
-        return (new OrderResource($order->load('items', 'payments')))
+        return (new OrderResource($order->load('items', 'payments', 'customer')))
             ->response()
             ->setStatusCode(201);
     } catch (\InvalidArgumentException $e) {
@@ -49,7 +50,7 @@ class OrderController extends Controller
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-        return new OrderResource($order->load('items', 'payments'));
+        return new OrderResource($order->load('items', 'payments', 'customer'));
     }
 
     public function update(Request $request, Order $order)
@@ -69,7 +70,7 @@ class OrderController extends Controller
 
         // $order->update($request->validated());
 
-        return new OrderResource($order->load('items', 'payments'));
+        return new OrderResource($order->load('items', 'payments' , 'customer'));
     }
 
     public function destroy(Request $request, Order $order)
