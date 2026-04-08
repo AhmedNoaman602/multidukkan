@@ -39,6 +39,8 @@ class StoreProductRequest extends FormRequest
             'price_d'     => 'nullable|numeric|min:0',
             'price_e'     => 'nullable|numeric|min:0',
             'unit'      => 'nullable|string|max:20',
+            'secondary_unit'    => 'nullable|string|max:50',
+            'conversion_factor' => 'nullable|integer|min:2',
             'warehouse_id' => 'nullable|exists:warehouses,id',
             'quantity'     => 'nullable|integer|min:0',
             'threshold'    => 'nullable|integer|min:0',

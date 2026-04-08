@@ -42,6 +42,8 @@ class ProductController extends Controller
             'price_d'   => $request->price_d,
             'price_e'   => $request->price_e,
             'unit'      => $request->unit ?? 'pcs',
+            'secondary_unit'    => $request->secondary_unit,
+            'conversion_factor' => $request->conversion_factor,
         ]);
         if ($request->warehouse_id) {
         Inventory::create([

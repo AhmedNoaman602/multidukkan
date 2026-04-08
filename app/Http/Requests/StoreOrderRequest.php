@@ -32,6 +32,7 @@ class StoreOrderRequest extends FormRequest
             'items.*.product_id'   => ['required', 'exists:products,id', new BelongsToTenant(Product::class, $tenantId)],
             'items.*.warehouse_id' => ['nullable', 'exists:warehouses,id', new BelongsToTenant(Warehouse::class, $tenantId)],
             'items.*.quantity'     => 'required|integer|min:1',
+            'items.*.unit_type' => 'nullable|in:base,secondary',
         ];
     }
 }

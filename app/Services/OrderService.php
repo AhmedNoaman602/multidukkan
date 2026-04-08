@@ -40,9 +40,14 @@ class OrderService
         foreach ($data['items'] as $itemData) {
             $product     = Product::findOrFail($itemData['product_id']);
             $warehouseId = $itemData['warehouse_id'] ?? null;
+            $unitType = $itemData['unit_type'] ?? 'base';
+
+            $stockQuantity = $unitType === 'secondary' && $product->conversion_factor
+        ? $itemData['quantity'] * $product->conversion_factor
+        : $itemData['quantity'];
 
             if ($warehouseId) {
-                $this->inventory->checkStock($product->id, $warehouseId, $itemData['quantity']);
+                $this->inventory->checkStock($product->id, $warehouseId, $stockQuantity);
             }
             $price = match($customer->price_tier) {
             'a'     => $product->price_a ?? $product->price,
@@ -52,16 +57,21 @@ class OrderService
             'e'     => $product->price_e ?? $product->price,
             default => $product->price,
             };
+            $unitPrice = $unitType === 'secondary' && $product->conversion_factor
+        ? $price * $product->conversion_factor
+        : $price;
+
             $orderItem = $order->items()->create([
                 'product_id'   => $product->id,
                 'product_name' => $product->name,
                 'quantity'     => $itemData['quantity'],
-                'unit_price'   => $price,
+                'unit_type' => $unitType,
+                'unit_price'   => $unitPrice,
                 'warehouse_id' => $warehouseId,
             ]);
 
             if ($warehouseId) { // return to it
-                $this->inventory->deductStock($product->id, $warehouseId, $itemData['quantity'], $order->id, Order::class);
+                $this->inventory->deductStock($product->id, $warehouseId, $stockQuantity, $order->id, Order::class);
             }
 
             $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
@@ -85,13 +95,15 @@ class OrderService
         $total = $order->items()
             ->sum(DB::raw('unit_price * quantity'));
 
-        foreach ($order->items as $item) {
-            if ($item->warehouse_id) {
-                $this->inventory->restoreStock($item->product_id, $item->warehouse_id, $item->quantity, $order->id, Order::class);
+       foreach ($order->items as $item) {
+    if ($item->warehouse_id) {
+        $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
+            ? $item->quantity * $item->product->conversion_factor
+            : $item->quantity;
 
-            }
-        }
-
+        $this->inventory->restoreStock($item->product_id, $item->warehouse_id, $stockQuantity, $order->id, Order::class);
+    }
+}
         $this->ledger->reverseOrder([
             'tenant_id'   => $order->tenant_id,
             'customer_id' => $order->customer_id,

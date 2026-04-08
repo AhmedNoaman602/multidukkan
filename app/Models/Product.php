@@ -19,6 +19,8 @@ class Product extends Model
         'price_d',
         'price_e',
         'unit',
+        'secondary_unit',
+        'conversion_factor',
     ];
 
     protected $attributes = [
