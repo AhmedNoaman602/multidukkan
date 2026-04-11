@@ -273,6 +273,7 @@ public function test_staff_can_create_order(): void
                 [
                     'product_id' => $this->product->id,
                     'quantity'   => 1,
+                    'warehouse_id' => $this->warehouse->id,
                 ],
             ],
         ])->assertStatus(201);
@@ -288,6 +289,7 @@ public function test_staff_can_process_payment(): void
                 [
                     'product_id' => $this->product->id,
                     'quantity'   => 1,
+                    'warehouse_id' => $this->warehouse->id,
                 ],
             ],
         ])->json('id');

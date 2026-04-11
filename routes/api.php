@@ -13,11 +13,16 @@ use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\AuthController;
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
+
+Route::get('/users', [App\Http\Controllers\Api\V1\UserController::class, 'index']);
+Route::post('/users', [App\Http\Controllers\Api\V1\UserController::class, 'store']);
+Route::delete('/users/{user}', [App\Http\Controllers\Api\V1\UserController::class, 'destroy']);
 
 Route::get('/stores', [StoreController::class, 'index']);
 Route::get('/stores/{store}', [StoreController::class, 'show']);

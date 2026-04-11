@@ -111,17 +111,16 @@ class AuthTest extends TestCase
 
     public function test_me_returns_authenticated_user(): void
     {
-        $this->actingAs($this->user)
-            ->getJson('/api/me')
-            ->assertStatus(200)
-            ->assertJson([
-                'user' => [
-                    'id'        => $this->user->id,
-                    'email'     => $this->user->email,
-                    'role'      => 'tenant_admin',
-                    'tenant_id' => $this->user->tenant_id,
-                ]
-            ]);
+       $this->actingAs($this->user)
+    ->getJson('/api/me')
+    ->assertStatus(200)
+    ->assertJson([
+        'id'            => $this->user->id,
+        'email'         => $this->user->email,
+        'role'          => 'tenant_admin',
+        'tenant_id'     => $this->user->tenant_id,
+        'business_name' => 'Test Tenant',
+    ]);
     }
 
     public function test_me_requires_authentication(): void

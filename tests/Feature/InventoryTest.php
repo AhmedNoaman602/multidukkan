@@ -48,11 +48,8 @@ class InventoryTest extends TestCase
         $item = [
             'product_id' => $this->product->id,
             'quantity' => $quantity,
+            'warehouse_id' => $this->warehouse->id,
         ];
-
-        if($withWarehouse){
-            $item['warehouse_id'] = $this->warehouse->id;
-        }
         
         return $this->actingAs($this->user)->postJson('/api/orders', [
             'store_id' => $this->store->id,
@@ -256,17 +253,6 @@ public function test_cannot_create_order_with_warehouse_from_different_tenant():
         ],
     ])->assertStatus(422);
 }
-public function test_order_without_warehouse_skips_stock_check(): void
-{
-    $this->createOrder(quantity: 200, withWarehouse: false)
-        ->assertStatus(201);
-
-    $this->assertDatabaseHas('inventory', [
-        'warehouse_id' => $this->warehouse->id,
-        'product_id'   => $this->product->id,
-        'quantity'     => 50, // untouched
-    ]);
-}
 
 public function test_order_with_warehouse_deducts_stock(): void
 {
@@ -291,20 +277,6 @@ public function test_cancelled_order_restores_stock(): void
         'warehouse_id' => $this->warehouse->id,
         'product_id'   => $this->product->id,
         'quantity'     => 50, // restored
-    ]);
-}
-
-public function test_cancelled_order_without_warehouse_skips_stock_restore(): void
-{
-    $response = $this->createOrder(quantity: 2, withWarehouse: false);
-    $orderId  = $response->json('id');
-
-    $this->actingAs($this->user)->deleteJson("/api/orders/{$orderId}")->assertStatus(200);
-
-    $this->assertDatabaseHas('inventory', [
-        'warehouse_id' => $this->warehouse->id,
-        'product_id'   => $this->product->id,
-        'quantity'     => 50, // untouched
     ]);
 }
 

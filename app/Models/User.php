@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
@@ -45,12 +46,12 @@ class User extends Authenticatable
         ];
     }
 
-    public function tenant(): BelongsTo {
+    public function tenant() {
         
         return $this->belongsTo(Tenant::class);
     }
 
-    public function store(): BelongsTo
+    public function store()
     {
         return $this->belongsTo(Store::class);
     }

@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Inventory;
+use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -21,24 +23,36 @@ class LedgerTest extends TestCase
     protected Customer $customer;
     protected Product $product;
     protected User $user;
+    protected Warehouse $warehouse;
+    protected Inventory $inventory;
 
     protected function setUp(): void
-    {
-        parent::setUp();
+{
+    parent::setUp();
 
-        $this->tenant   = Tenant::factory()->create();
-        $this->store    = Store::factory()->create(['tenant_id' => $this->tenant->id]);
-        $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
-        $this->product  = Product::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'price'     => 100,
-        ]);
-        $this->user = User::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'store_id'  => null,
-            'role'      => 'tenant_admin',
-        ]);
-    }
+    $this->tenant   = Tenant::factory()->create();
+    $this->store    = Store::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+    $this->product  = Product::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'price'     => 100,
+    ]);
+    $this->user = User::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'store_id'  => null,
+        'role'      => 'tenant_admin',
+    ]);
+    $this->warehouse = Warehouse::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'store_id'  => $this->store->id,
+    ]);
+    $this->inventory = Inventory::factory()->create([
+        'tenant_id'    => $this->tenant->id,
+        'warehouse_id' => $this->warehouse->id,
+        'product_id'   => $this->product->id,
+        'quantity'     => 100,
+    ]);
+}
 
     // ─────────────────────────────────────────
     // Helper — creates an order via API
@@ -50,7 +64,7 @@ class LedgerTest extends TestCase
             'customer_id' => $this->customer->id,
             'notes'       => 'Test order',
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => $quantity],
+                ['product_id' => $this->product->id, 'quantity' => $quantity,'warehouse_id' => $this->warehouse->id,],
             ],
         ]);
     }

@@ -8,6 +8,8 @@ use App\Models\Tenant;
 use App\Models\Store;
 use App\Models\Product;
 use App\Models\Customer;
+use App\Models\Warehouse;
+use App\Models\Inventory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class PriceTierTest extends TestCase
@@ -18,6 +20,8 @@ class PriceTierTest extends TestCase
     private Store $store;
     private User $user;
     private Product $product;
+    private Warehouse $warehouse;
+    private Inventory $inventory;
 
     protected function setUp(): void
     {
@@ -41,7 +45,12 @@ class PriceTierTest extends TestCase
             'role'      => 'tenant_admin',
         ]);
 
-        $this->product = Product::create([
+        $this->warehouse = Warehouse::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id'  => $this->store->id,
+        ]);
+        
+         $this->product = Product::create([
             'tenant_id' => $this->tenant->id,
             'name'      => 'Test Product',
             'sku'       => 'SKU-001',
@@ -53,6 +62,16 @@ class PriceTierTest extends TestCase
             'price_e'   => 50,
             'unit'      => 'pcs',
         ]);
+
+        $this->inventory = Inventory::factory()->create([
+       'tenant_id'    => $this->tenant->id,
+    'warehouse_id' => $this->warehouse->id,
+    'product_id'   => $this->product->id,
+    'quantity'     => 100,
+    'threshold'    => 10,
+    ]);
+
+       
     }
 
     private function createOrderForCustomer(Customer $customer): array
@@ -62,7 +81,7 @@ class PriceTierTest extends TestCase
                 'store_id'    => $this->store->id,
                 'customer_id' => $customer->id,
                 'items'       => [
-                    ['product_id' => $this->product->id, 'quantity' => 1],
+                    ['product_id' => $this->product->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
                 ],
             ]);
 
@@ -121,6 +140,14 @@ class PriceTierTest extends TestCase
             'unit'      => 'pcs',
         ]);
 
+        $this->inventory = Inventory::factory()->create([
+       'tenant_id'    => $this->tenant->id,
+    'warehouse_id' => $this->warehouse->id,
+    'product_id'   => $productNoTiers->id,
+    'quantity'     => 100,
+    'threshold'    => 10,
+    ]);
+
         $customer = Customer::create([
             'tenant_id'  => $this->tenant->id,
             'name'       => 'Tier A Customer',
@@ -133,7 +160,7 @@ class PriceTierTest extends TestCase
                 'store_id'    => $this->store->id,
                 'customer_id' => $customer->id,
                 'items'       => [
-                    ['product_id' => $productNoTiers->id, 'quantity' => 1],
+                    ['product_id' => $productNoTiers->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
                 ],
             ]);
 

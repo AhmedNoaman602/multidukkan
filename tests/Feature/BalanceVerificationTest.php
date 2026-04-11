@@ -9,6 +9,8 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Warehouse;
+use App\Models\Inventory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -21,6 +23,8 @@ class BalanceVerificationTest extends TestCase
     protected Customer $customer;
     protected Product $product;
     protected User $user;
+    protected Warehouse $warehouse;
+    protected Inventory $inventory;
 
     protected function setUp(): void
     {
@@ -28,10 +32,22 @@ class BalanceVerificationTest extends TestCase
         $this->tenant   = Tenant::factory()->create();
         $this->store    = Store::factory()->create(['tenant_id' => $this->tenant->id]);
         $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
-        $this->product  = Product::factory()->create([
+        $this->warehouse = Warehouse::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'store_id'  => $this->store->id,
+    ]);
+    $this->product  = Product::factory()->create([
             'tenant_id' => $this->tenant->id,
             'price'     => 100,
         ]);
+    $this->inventory = Inventory::factory()->create([
+       'tenant_id'    => $this->tenant->id,
+    'warehouse_id' => $this->warehouse->id,
+    'product_id'   => $this->product->id,
+    'quantity'     => 100,
+    'threshold'    => 10,
+    ]);
+        
         $this->user = User::factory()->create([
             'tenant_id' => $this->tenant->id,
             'store_id' => null,
@@ -47,7 +63,7 @@ class BalanceVerificationTest extends TestCase
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1],
+                ['product_id' => $this->product->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
             ],
         ])->assertStatus(201);
 
