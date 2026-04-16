@@ -70,9 +70,9 @@ class InventoryController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         
-        $this->inventoryService->adjustStock(
+       $this->inventoryService->adjustStock(
+            $inventory->product_id,
             $inventory->warehouse_id,
-            $inventory->product_id,          
             $request->quantity
         );
         return new InventoryResource($inventory->fresh());
