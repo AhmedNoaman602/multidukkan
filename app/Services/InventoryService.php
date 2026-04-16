@@ -66,18 +66,28 @@ class InventoryService
         'reference_type' => $referenceType,
     ]);
    }
-   public function adjustStock(int $productId, int $warehouseId, int $quantity): void{
+   public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction): void{
         $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
             ->firstOrFail();
 
-            $inventory->increment('quantity', $quantity);
-
+    if ($direction === 'out') {
+        if ($inventory->quantity < $quantity) {
+            throw new InvalidArgumentException(
+                "لا يمكن إزالة {$quantity}. المتاح فقط: {$inventory->quantity}"
+            );
+        }
+        $inventory->decrement('quantity', $quantity);
+        $type = InventoryTransaction::TYPE_ADJUSTMENT_OUT;
+    } else {
+        $inventory->increment('quantity', $quantity);
+        $type = InventoryTransaction::TYPE_ADJUSTMENT_IN;
+    }
              InventoryTransaction::create([
             'tenant_id'      => $inventory->tenant_id,
             'warehouse_id'   => $warehouseId,
             'product_id'     => $productId,
-            'type'           => InventoryTransaction::TYPE_ADJUSTMENT,
+            'type'           => $type,
             'quantity'       => $quantity,
         ]);
    }

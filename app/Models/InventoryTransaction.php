@@ -10,7 +10,8 @@ class InventoryTransaction extends Model
     const TYPE_RETURN       = 'RETURN';
     const TYPE_TRANSFER_IN  = 'TRANSFER_IN';
     const TYPE_TRANSFER_OUT = 'TRANSFER_OUT';
-    const TYPE_ADJUSTMENT   = 'ADJUSTMENT';
+    const TYPE_ADJUSTMENT_IN  = 'ADJUSTMENT_IN';
+    const TYPE_ADJUSTMENT_OUT = 'ADJUSTMENT_OUT';
 
     protected $fillable = [
         'tenant_id',

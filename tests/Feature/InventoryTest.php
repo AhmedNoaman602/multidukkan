@@ -176,6 +176,7 @@ public function test_low_stock_flag_is_false_when_quantity_above_threshold(): vo
 public function test_can_adjust_stock_manually() : void {
     $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 5,
+        'direction' => 'in',
     ])->assertStatus(200);
 
     $this->assertDatabaseHas('inventory', [
@@ -200,13 +201,14 @@ public function test_cannot_adjust_stock_with_negative_quantity() : void {
 public function test_inventory_transaction_created_on_adjustment():void{
     $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 5,
+        'direction' => 'in',
     ])->assertStatus(200);
 
     $this->assertDatabaseHas('inventory_transactions', [
         'warehouse_id' => $this->warehouse->id, 
         'product_id' => $this->product->id,
         'quantity' => 5,
-        'type' => 'ADJUSTMENT',
+        'type' => 'ADJUSTMENT_IN',
     ]);
 }
 
@@ -322,6 +324,64 @@ public function test_two_stores_can_sell_same_product_from_different_warehouses(
         'warehouse_id' => $warehouseB->id,
         'product_id'   => $this->product->id,
         'quantity'     => 45, // 50 - 5
+    ]);
+}
+public function test_admin_can_add_stock_via_adjust()
+{
+    $admin = User::factory()->create(['role' => 'tenant_admin', 'store_id' => null]);
+
+    $store = Store::factory()->create(['tenant_id' => $admin->tenant_id]);
+    $warehouse = Warehouse::factory()->create([
+        'tenant_id' => $admin->tenant_id,
+        'store_id' => $store->id,
+    ]);
+    $product = Product::factory()->create(['tenant_id' => $admin->tenant_id]);
+    $inventory = Inventory::factory()->create([
+        'tenant_id' => $admin->tenant_id,
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 10,
+    ]);
+
+    $response = $this->actingAs($admin)->postJson("/api/inventory/{$inventory->id}/adjust", [
+        'quantity' => 50,
+        'direction' => 'in',
+    ]);
+
+    $response->assertOk();
+    $this->assertDatabaseHas('inventory', ['id' => $inventory->id, 'quantity' => 60]);
+}
+public function test_can_remove_stock_via_adjust(): void
+{
+    $this->inventory->update(['quantity' => 100]);
+
+    $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
+        'quantity' => 30,
+        'direction' => 'out',
+    ])->assertStatus(200);
+
+    $this->assertDatabaseHas('inventory', [
+        'id' => $this->inventory->id,
+        'quantity' => 70,
+    ]);
+    $this->assertDatabaseHas('inventory_transactions', [
+        'type' => 'ADJUSTMENT_OUT',
+        'quantity' => 30,
+    ]);
+}
+
+public function test_cannot_remove_more_stock_than_available(): void
+{
+    $this->inventory->update(['quantity' => 10]);
+
+    $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
+        'quantity' => 50,
+        'direction' => 'out',
+    ])->assertStatus(422);
+
+    $this->assertDatabaseHas('inventory', [
+        'id' => $this->inventory->id,
+        'quantity' => 10,
     ]);
 }
 }
