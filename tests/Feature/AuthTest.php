@@ -128,4 +128,23 @@ class AuthTest extends TestCase
         $this->getJson('/api/me')
             ->assertStatus(401);
     }
+
+    public function test_me_returns_has_store_false_for_new_tenant()
+{
+    $user = User::factory()->create(['role' => 'tenant_admin']);
+
+    $response = $this->actingAs($user)->getJson('/api/me');
+
+    $response->assertOk()->assertJsonFragment(['has_store' => false]);
+}
+
+public function test_me_returns_has_store_true_when_store_exists()
+{
+    $user = User::factory()->create(['role' => 'tenant_admin']);
+    \App\Models\Store::factory()->create(['tenant_id' => $user->tenant_id]);
+
+    $response = $this->actingAs($user)->getJson('/api/me');
+
+    $response->assertOk()->assertJsonFragment(['has_store' => true]);
+}
 }

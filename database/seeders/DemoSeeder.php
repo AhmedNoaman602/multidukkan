@@ -16,21 +16,21 @@ class DemoSeeder extends Seeder
     public function run(): void
     {
         $tenant = Tenant::create([
-            'name' => 'Abu Ahmed Store',
+            'name' => 'Noaman Tools',
         ]);
 
         $store = Store::create([
             'tenant_id' => $tenant->id,
             'name'      => 'Main Store',
-            'address'   => 'Cairo, Egypt',
+            'address'   => 'Alexandria, Egypt',
             'phone'     => '01000000000',
         ]);
 
         User::create([
             'tenant_id' => $tenant->id,
             'store_id'  => null,
-            'name'      => 'Ahmed',
-            'email'     => 'ahmed@multidukkan.com',
+            'name'      => 'Sherif',
+            'email'     => 'sherif@multidukkan.com',
             'password'  => bcrypt('password123'),
             'role'      => 'tenant_admin',
         ]);
@@ -38,8 +38,8 @@ class DemoSeeder extends Seeder
         User::create([
             'tenant_id' => $tenant->id,
             'store_id'  => $store->id,
-            'name'      => 'Manager',
-            'email'     => 'manager@multidukkan.com',
+            'name'      => 'Ahmed',
+            'email'     => 'ahmed@multidukkan.com',
             'password'  => bcrypt('password123'),
             'role'      => 'store_manager',
         ]);

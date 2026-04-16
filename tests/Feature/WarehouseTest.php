@@ -107,4 +107,32 @@ class WarehouseTest extends TestCase
             'name'=>'Warehouse',
         ])->assertStatus(422);
     }
+
+    public function test_warehouse_requires_store_id_when_admin_creates()
+{
+    $admin = User::factory()->create(['role' => 'tenant_admin', 'store_id' => null]);
+
+    $response = $this->actingAs($admin)->postJson('/api/warehouses', [
+        'name' => 'Main Warehouse',
+    ]);
+
+    $response->assertStatus(422);
+}
+
+public function test_warehouse_created_with_correct_store_id()
+{
+    $admin = User::factory()->create(['role' => 'tenant_admin', 'store_id' => null]);
+    $store = Store::factory()->create(['tenant_id' => $admin->tenant_id]);
+
+    $response = $this->actingAs($admin)->postJson('/api/warehouses', [
+        'name' => 'Main Warehouse',
+        'store_id' => $store->id,
+    ]);
+
+    $response->assertStatus(201);
+    $this->assertDatabaseHas('warehouses', [
+        'name' => 'Main Warehouse',
+        'store_id' => $store->id,
+    ]);
+}
 }

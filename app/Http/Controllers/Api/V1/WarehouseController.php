@@ -19,21 +19,35 @@ class WarehouseController extends Controller
         ->get();
         return WarehouseResource::collection($warehouses);
     }
+
     public function store(StoreWarehouseRequest $request)
-    {
-        $this->authorize('create', Warehouse::class);
-        
-        $user = auth()->user();
-        $warehouse = Warehouse::create([
-            'tenant_id' => $user->tenant_id,
-            'store_id' => $user->store_id ?? $request->store_id,
-            'name' => $request->name,
-            'location' => $request->location,
-        ]);
-        return (new WarehouseResource($warehouse))
+{
+    $this->authorize('create', Warehouse::class);
+
+    $user = auth()->user();
+
+    $storeId = $user->store_id ?? $request->store_id;
+
+    if (!$storeId) {
+        return response()->json([
+            'message' => 'store_id is required.'
+        ], 422);
+    }
+
+    $warehouse = Warehouse::create([
+        'tenant_id' => $user->tenant_id,
+        'store_id'  => $storeId,
+        'name'      => $request->name,
+        'address'   => $request->address,  
+        'phone'     => $request->phone,
+        'email'     => $request->email,
+    ]);
+
+    return (new WarehouseResource($warehouse))
         ->response()
         ->setStatusCode(201);
-    }
+}
+
     public function show(Warehouse $warehouse)
     {
         $this->authorize('view', $warehouse);

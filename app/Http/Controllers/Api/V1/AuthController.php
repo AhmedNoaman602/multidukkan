@@ -47,7 +47,8 @@ $request->validate([
             'role'      => $result->role,
             'tenant_id' => $result->tenant_id,
             'store_id'  => $result->store_id,
-            'business_name' => $result->tenant->name         
+            'business_name' => $result->tenant->name,
+            'has_store' => false,  // just registered, no stores yet      
         ]
     ], 201);
     }
@@ -77,6 +78,7 @@ if (!$user || !Hash::check($request->password, $user->password)) {
             'store_id'  => $user->store_id,
             'tenant_id' => $user->tenant_id,
             'business_name' => $user->tenant->name,
+            'has_store' => $user->tenant->stores()->exists(),
         ]
         ]);
 
@@ -107,6 +109,7 @@ if (!$user || !Hash::check($request->password, $user->password)) {
         'tenant_id'     => $user->tenant_id,
         'store_id'      => $user->store_id,
         'business_name' => $user->tenant->name,
+        'has_store' => $user->tenant->stores()->exists(),
     ]);
 }
 }
