@@ -63,7 +63,7 @@ class InventoryController extends Controller
 
     public function adjust(AdjustInventoryRequest $request, Inventory $inventory)
     {
-        $this->authorize('update', $inventory);
+        $this->authorize('adjust', $inventory);
         
         $user = auth()->user();
         if ($inventory->tenant_id !== $user->tenant_id) {

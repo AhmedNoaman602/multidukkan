@@ -25,7 +25,7 @@ class BelongsToTenant implements ValidationRule
         ->exists();
 
         if(!$exists){
-            $fail('The selected $attribute doesnt belong to this tenant.');
+            $fail('The selected :attribute does not belong to this tenant.');
         }
     }
 }
