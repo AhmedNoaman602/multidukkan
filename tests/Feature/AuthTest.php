@@ -147,4 +147,5 @@ public function test_me_returns_has_store_true_when_store_exists()
 
     $response->assertOk()->assertJsonFragment(['has_store' => true]);
 }
+
 }
