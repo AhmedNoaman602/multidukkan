@@ -26,12 +26,13 @@ class StoreProductRequest extends FormRequest
         $tenantId = Auth::user()->tenant_id;
         return [
             'name'      => 'required|string|max:255',
-            'sku'       => [
-                'required',
-                'string',
-                'max:100',
-                Rule::unique('products', 'sku')->where('tenant_id', $tenantId),
-            ],
+            'sku' => [
+    'required',
+    'string',
+    \Illuminate\Validation\Rule::unique('products', 'sku')
+        ->where('tenant_id', auth()->user()->tenant_id)
+        ->ignore($this->route('product')),
+],
             'price'     => 'required|numeric|min:0',
             'price_a'     => 'nullable|numeric|min:0',
             'price_b'     => 'nullable|numeric|min:0',
