@@ -19,6 +19,8 @@ class InventoryResource extends JsonResource
         'low_stock'      => $this->quantity <= $this->threshold,
         'product_name'   => $this->product->name,
         'warehouse_name' => $this->warehouse->name,
+        'store_id'       => $this->warehouse->store_id,
+        'store_name'     => $this->warehouse->store->name,
         'created_at'     => $this->created_at,
     ];
 }
