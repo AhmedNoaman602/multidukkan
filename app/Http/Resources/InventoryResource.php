@@ -7,7 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class InventoryResource extends JsonResource
 {
-   public function toArray(Request $request): array
+public function toArray(Request $request): array
 {
     return [
         'id'             => $this->id,
@@ -17,10 +17,10 @@ class InventoryResource extends JsonResource
         'quantity'       => $this->quantity,
         'threshold'      => $this->threshold,
         'low_stock'      => $this->quantity <= $this->threshold,
-        'product_name'   => $this->product->name,
-        'warehouse_name' => $this->warehouse->name,
-        'store_id'       => $this->warehouse->store_id,
-        'store_name'     => $this->warehouse->store->name,
+        'product_name'   => $this->product?->name ?? '—',
+        'warehouse_name' => $this->warehouse?->name ?? '—',
+        'store_id'       => $this->warehouse?->store_id ?? null,
+        'store_name'     => $this->warehouse?->store?->name ?? '—',
         'created_at'     => $this->created_at,
     ];
 }

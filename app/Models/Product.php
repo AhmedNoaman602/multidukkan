@@ -30,6 +30,13 @@ class Product extends Model
     protected $casts = [
         'price' => 'decimal:2',
         ];
+    
+protected static function booted(): void
+{
+    static::deleting(function (Product $product) {
+        $product->inventories()->delete();
+    });
+}
 
     public function tenant()
     {

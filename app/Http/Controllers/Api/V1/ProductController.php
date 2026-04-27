@@ -102,14 +102,26 @@ class ProductController extends Controller
      * Remove the specified resource from storage.
      */
     public function destroy(Product $product)
-    {
-        $this->authorize('delete', $product);
-        if ($product->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }        
-        
-        $product->delete();
-        
-        return response()->json(['message' => 'Product deleted successfully']);
+{
+    $this->authorize('delete', $product);
+
+    if ($product->tenant_id !== auth()->user()->tenant_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
     }
+
+    // Block deletion if product has stock
+    $hasStock = $product->inventories()
+        ->where('quantity', '>', 0)
+        ->exists();
+
+    if ($hasStock) {
+        return response()->json([
+            'message' => 'Cannot delete product with existing inventory. Reduce stock to zero first.'
+        ], 422);
+    }
+
+    $product->delete();
+
+    return response()->json(['message' => 'Product deleted successfully']);
+}
 }

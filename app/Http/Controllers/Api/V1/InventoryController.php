@@ -13,18 +13,19 @@ use App\Http\Requests\AdjustInventoryRequest;
 class InventoryController extends Controller
 {
     public function __construct(private InventoryService $inventoryService){}
-    public function index()
-    {
-        $this->authorize('viewAny', Inventory::class);
-        
-        $user = auth()->user();
-        $inventory = Inventory::where('tenant_id', $user->tenant_id)
-            ->when($user->store_id, function ($q) use ($user) {
-                $q->whereHas('warehouse', fn($w) => $w->where('store_id', $user->store_id));
-            })
-            ->get();
-        return InventoryResource::collection($inventory);
-    }
+   public function index()
+{
+    $this->authorize('viewAny', Inventory::class);
+
+    $user = auth()->user();
+    $inventory = Inventory::where('tenant_id', $user->tenant_id)
+        ->when($user->store_id, function ($q) use ($user) {
+            $q->whereHas('warehouse', fn($w) => $w->where('store_id', $user->store_id));
+        })
+        ->with(['warehouse.store', 'product'])  // ← add this
+        ->get();
+    return InventoryResource::collection($inventory);
+}
     public function show(Inventory $inventory)
     {
         $this->authorize('view', $inventory);
