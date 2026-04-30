@@ -80,7 +80,7 @@ public function getBalance(int $tenantId, int $customerId) : float{
 
     $debits = LedgerEntry::where('tenant_id', $tenantId)
     ->where('customer_id', $customerId)
-    ->whereIn('type', ['ORDER_CHARGE','REVERSAL'])
+    ->whereIn('type', ['ORDER_CHARGE','REVERSAL' , 'CREDIT_CONSUMED'])
     ->sum('amount');
 
     $credits = LedgerEntry::where('tenant_id', $tenantId)
@@ -112,6 +112,20 @@ public function addCredit(array $data) : LedgerEntry {
         'reference_id' => $data['customer_id'],
     ]);
 
+}
+
+public function consumeCredit(array $data): LedgerEntry
+{
+    return LedgerEntry::create([
+        'tenant_id'      => $data['tenant_id'],
+        'customer_id'    => $data['customer_id'],
+        'store_id'       => $data['store_id'],
+        'type'           => 'CREDIT_CONSUMED',
+        'amount'         => $data['amount'],
+        'description'    => 'Credit applied to order #' . $data['order_id'],
+        'reference_type' => 'payment',
+        'reference_id'   => $data['payment_id'],
+    ]);
 }
 
 }

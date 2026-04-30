@@ -24,6 +24,7 @@ class OrderController extends Controller
         $orders = Order::where('tenant_id', $user->tenant_id)
             ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
             ->with('items', 'payments', 'customer')
+            ->orderBy('created_at' , 'desc')
             ->get();
             
         return OrderResource::collection($orders);

@@ -123,8 +123,11 @@ class RoleTest extends TestCase
 
     public function test_admin_can_delete_product(): void
     {
+        $product = Product::factory()->create([
+            'tenant_id' => $this->tenant->id,
+        ]);
         $this->actingAs($this->admin)
-            ->deleteJson("/api/products/{$this->product->id}")
+            ->deleteJson("/api/products/{$product->id}")
             ->assertStatus(200);
     }
 
@@ -193,6 +196,7 @@ class RoleTest extends TestCase
         $this->actingAs($this->manager)
             ->postJson("/api/inventory/{$this->inventory->id}/adjust", [
                 'quantity' => 10,
+                'direction' => 'in',             
             ])->assertStatus(200);
     }
 
@@ -222,6 +226,7 @@ class RoleTest extends TestCase
         $this->actingAs($this->manager)
             ->postJson("/api/inventory/{$otherInventory->id}/adjust", [
                 'quantity' => 10,
+                'direction' => 'in',             
             ])->assertStatus(403);
     }
 
@@ -281,7 +286,7 @@ public function test_staff_can_create_order(): void
 
 public function test_staff_can_process_payment(): void
 {
-    $order = $this->actingAs($this->staff)
+    $this->actingAs($this->staff)
         ->postJson('/api/orders', [
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
@@ -292,11 +297,10 @@ public function test_staff_can_process_payment(): void
                     'warehouse_id' => $this->warehouse->id,
                 ],
             ],
-        ])->json('id');
+        ]);
 
     $this->actingAs($this->staff)
-        ->postJson('/api/payments', [
-            'order_id'    => $order,
+        ->postJson('/api/payments/auto', [
             'customer_id' => $this->customer->id,
             'amount'      => 100,
             'method'      => 'cash',
@@ -308,6 +312,7 @@ public function test_staff_cannot_adjust_inventory(): void
     $this->actingAs($this->staff)
         ->postJson("/api/inventory/{$this->inventory->id}/adjust", [
             'quantity' => 10,
+            'direction' => 'in',
         ])->assertStatus(403);
 }
 

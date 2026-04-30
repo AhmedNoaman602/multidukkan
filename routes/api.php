@@ -37,7 +37,7 @@ Route::get('/orders/{order}', [OrderController::class, 'show']);
 Route::patch('/orders/{order}', [OrderController::class, 'update']);
 
 Route::get('/payments', [PaymentController::class, 'index']);
-Route::post('/payments', [PaymentController::class, 'store']);
+Route::post('/payments/auto', [PaymentController::class, 'autoPayment']);
 
 Route::get('/customers', [CustomerController::class, 'index']);
 Route::get('/customers/{customer}', [CustomerController::class, 'show']);

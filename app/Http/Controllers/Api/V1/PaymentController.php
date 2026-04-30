@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePaymentRequest;
 use App\Services\PaymentService;
 use App\Models\Payment;
-
+use Illuminate\Http\Request;
 class PaymentController extends Controller
 {
     public function __construct(protected PaymentService $payment) {}
@@ -35,21 +35,30 @@ class PaymentController extends Controller
     ]);
 }
 
-    public function store(StorePaymentRequest $request)
-    {
-        try {
-            $this->authorize('create', Payment::class);
-            
-            $payment = $this->payment->processPayment(
-                $request->validated(),
-                auth()->user()
-            );
 
-            return response()->json($payment, 201);
-        } catch (\InvalidArgumentException $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
-        }
+    public function autoPayment(Request $request){
+
+         $this->authorize('create', Payment::class);
+
+        $data = $request->validate([
+            'customer_id' => 'required|exists:customers,id',
+            'amount'      => 'required|numeric|min:0.01',
+            'method'      => 'required|in:cash,card',
+        ]);
+try{
+        $payments = $this->payment->processAutoPayment(
+            $data,
+            auth()->user()
+        );
+        return response()->json([
+            'message'  => 'Payment distributed across ' . count($payments) . ' order(s).',
+            'payments' => $payments,
+        ],201);
+    }catch (\InvalidArgumentException $e) {
+        return response()->json(['message' => $e->getMessage()], 422);
     }
 
+    
+    }
    
 }

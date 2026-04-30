@@ -51,6 +51,7 @@ class OrderResource extends JsonResource
             'unit_price'   => $item->unit_price,
             'total'        => $item->unit_price * $item->quantity,
         ]),
+        'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         'created_at' => $this->created_at->toDateTimeString(),
     ];
 }

@@ -45,15 +45,16 @@ class ProductController extends Controller
             'secondary_unit'    => $request->secondary_unit,
             'conversion_factor' => $request->conversion_factor,
         ]);
-        if ($request->warehouse_id) {
-        Inventory::create([
-            'tenant_id'    => $user->tenant_id,
-            'warehouse_id' => $request->warehouse_id,
-            'product_id'   => $product->id,
-            'quantity'     => $request->quantity ?? 0,
-            'threshold'    => $request->threshold ?? 10,
-        ]);
-    }
+        foreach ($request->stocks ?? [] as $stock) {
+    if (empty($stock['warehouse_id'])) continue;
+    Inventory::create([
+        'tenant_id'    => $user->tenant_id,
+        'warehouse_id' => $stock['warehouse_id'],
+        'product_id'   => $product->id,
+        'quantity'     => $stock['quantity'] ?? 0,
+        'threshold'    => $stock['threshold'] ?? 10,
+    ]);
+}
         return (new ProductResource($product))
             ->response()
             ->setStatusCode(201);

@@ -42,9 +42,10 @@ class StoreProductRequest extends FormRequest
             'unit'      => 'nullable|string|max:20',
             'secondary_unit'    => 'nullable|string|max:50',
             'conversion_factor' => 'nullable|integer|min:2',
-            'warehouse_id' => 'nullable|exists:warehouses,id',
-            'quantity'     => 'nullable|integer|min:0',
-            'threshold'    => 'nullable|integer|min:0',
+            'stocks'                  => 'nullable|array',
+            'stocks.*.warehouse_id'   => 'required|exists:warehouses,id',
+            'stocks.*.quantity'       => 'nullable|integer|min:0',
+            'stocks.*.threshold'      => 'nullable|integer|min:0',
         ];
     }
 }

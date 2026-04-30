@@ -69,11 +69,8 @@ class BalanceVerificationTest extends TestCase
 
         $order = Order::first();
 
-        // 2. Pay 150 (50 overpayment)
-        $this->actingAs($this->user)->postJson('/api/payments', [
-            'tenant_id'   => $this->tenant->id,
-            'store_id'    => $this->store->id,
-            'order_id'    => $order->id,
+        // 2. Pay 150 (50 overpayment)`
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
             'customer_id' => $this->customer->id,
             'amount'      => 150.00,
             'method'      => 'cash',

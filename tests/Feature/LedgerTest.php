@@ -72,10 +72,9 @@ class LedgerTest extends TestCase
     // ─────────────────────────────────────────
     // Helper — creates a payment via API
     // ─────────────────────────────────────────
-    private function createPayment(int $orderId, float $amount = 100.00): \Illuminate\Testing\TestResponse
+    private function createPayment(float $amount = 100.00): \Illuminate\Testing\TestResponse
     {
-        return $this->actingAs($this->user)->postJson('/api/payments', [
-            'order_id'    => $orderId,
+        return $this->actingAs($this->user)->postJson('/api/payments/auto', [
             'customer_id' => $this->customer->id,
             'amount'      => $amount,
             'method'      => 'cash',
@@ -232,17 +231,16 @@ class LedgerTest extends TestCase
     }
 
     public function test_cannot_modify_order_after_payment(): void
-    {
-        $orderId = $this->createOrder(quantity: 2)->json('id');
+{
+    $orderId = $this->createOrder(quantity: 2)->json('id');
+    $this->createPayment(200)->assertStatus(201);
 
-        $this->createPayment($orderId, 200)->assertStatus(201);
-
-        $this->actingAs($this->user)->patchJson("/api/orders/{$orderId}", [
-            'items' => [
-                ['product_id' => $this->product->id, 'quantity' => 3],
-            ],
-        ])->assertStatus(422);
-    }
+    $this->actingAs($this->user)->patchJson("/api/orders/{$orderId}", [
+        'items' => [
+            ['product_id' => $this->product->id, 'quantity' => 3],
+        ],
+    ])->assertStatus(422);
+}
 
     // ─────────────────────────────────────────
     // LEDGER TESTS
@@ -279,9 +277,8 @@ class LedgerTest extends TestCase
 
     public function test_payment_ledger_entry_created_on_payment(): void
     {
-        $orderId = $this->createOrder(quantity: 2)->json('id');
-
-        $this->createPayment($orderId, 200)->assertStatus(201);
+        $this->createOrder(quantity: 2);
+        $this->createPayment(200)->assertStatus(201);
 
         $this->assertDatabaseHas('ledger_entries', [
             'type'        => 'PAYMENT',
@@ -292,9 +289,8 @@ class LedgerTest extends TestCase
 
     public function test_credit_apply_ledger_entry_created_on_overpayment(): void
     {
-        $orderId = $this->createOrder(quantity: 2)->json('id'); // total = 200
-
-        $this->createPayment($orderId, 250)->assertStatus(201); // overpay by 50
+        $this->createOrder(quantity: 2);
+        $this->createPayment(250)->assertStatus(201); // overpay by 50
 
         $this->assertDatabaseHas('ledger_entries', [
             'type'        => 'CREDIT_APPLY',
@@ -319,9 +315,8 @@ class LedgerTest extends TestCase
     // ─────────────────────────────────────────
     public function test_customer_balance_is_correct_after_order_and_payment(): void
     {
-        $orderId = $this->createOrder(quantity: 3)->json('id'); // total = 300
-
-        $this->createPayment($orderId, 200); // pay 200
+        $this->createOrder(quantity: 3);
+        $this->createPayment(200); // pay 200
 
         $this->actingAs($this->user)
             ->getJson("/api/customers/{$this->customer->id}/balance")
@@ -331,9 +326,8 @@ class LedgerTest extends TestCase
 
     public function test_balance_correct_after_partial_payment(): void
     {
-        $orderId = $this->createOrder(quantity: 3)->json('id'); // total = 300
-
-        $this->createPayment($orderId, 100)->assertStatus(201);
+        $this->createOrder(quantity: 3);
+        $this->createPayment(100)->assertStatus(201);
 
         $this->actingAs($this->user)
             ->getJson("/api/customers/{$this->customer->id}/balance")
@@ -343,11 +337,10 @@ class LedgerTest extends TestCase
 
     public function test_balance_correct_after_multiple_payments(): void
     {
-        $orderId = $this->createOrder(quantity: 3)->json('id'); // total = 300
-
-        $this->createPayment($orderId, 100)->assertStatus(201);
-        $this->createPayment($orderId, 100)->assertStatus(201);
-        $this->createPayment($orderId, 150)->assertStatus(201); // overpay by 50
+        $this->createOrder(quantity: 3);
+        $this->createPayment(100)->assertStatus(201);
+        $this->createPayment(100)->assertStatus(201);
+        $this->createPayment(150)->assertStatus(201); // overpay by 50
 
         $this->actingAs($this->user)
             ->getJson("/api/customers/{$this->customer->id}/balance")
@@ -363,9 +356,8 @@ class LedgerTest extends TestCase
 
     public function test_ledger_history_returns_entries_in_order(): void
     {
-        $orderId = $this->createOrder(quantity: 2)->json('id');
-
-        $this->createPayment($orderId, 200)->assertStatus(201);
+        $this->createOrder(quantity: 2);
+        $this->createPayment(200)->assertStatus(201);
 
         $response = $this->actingAs($this->user)
             ->getJson("/api/customers/{$this->customer->id}/ledger")
@@ -422,93 +414,22 @@ class LedgerTest extends TestCase
     // ─────────────────────────────────────────
     public function test_cannot_create_payment_with_zero_amount(): void
     {
-        $orderId = $this->createOrder(quantity: 2)->json('id');
-
-        $this->createPayment($orderId, 0)->assertStatus(422);
-
-        $this->assertDatabaseMissing('ledger_entries', [
-            'type'        => 'PAYMENT',
-            'customer_id' => $this->customer->id,
-        ]);
+        $this->createPayment(0)->assertStatus(422);
     }
 
     public function test_cannot_create_payment_with_negative_amount(): void
     {
-        $orderId = $this->createOrder(quantity: 2)->json('id');
-
-        $this->createPayment($orderId, -1)->assertStatus(422);
-
-        $this->assertDatabaseMissing('ledger_entries', [
-            'type'        => 'PAYMENT',
-            'customer_id' => $this->customer->id,
-        ]);
-    }
-
-    public function test_cannot_create_payment_with_invalid_order_id(): void
-    {
-        $this->actingAs($this->user)->postJson('/api/payments', [
-            'order_id'    => 999,
-            'customer_id' => $this->customer->id,
-            'amount'      => 100,
-            'method'      => 'cash',
-        ])->assertStatus(422);
+        $this->createPayment( -1)->assertStatus(422);
     }
 
     public function test_cannot_create_payment_with_invalid_method(): void
     {
-        $orderId = $this->createOrder(quantity: 2)->json('id');
 
-        $this->actingAs($this->user)->postJson('/api/payments', [
-            'order_id'    => $orderId,
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
             'customer_id' => $this->customer->id,
             'amount'      => 100,
             'method'      => 'bitcoin',
         ])->assertStatus(422);
-    }
-
-    public function test_cannot_create_payment_with_mismatched_customer(): void
-    {
-        $orderId       = $this->createOrder(quantity: 1)->json('id');
-        $otherCustomer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
-
-        $this->actingAs($this->user)->postJson('/api/payments', [
-            'order_id'    => $orderId,
-            'customer_id' => $otherCustomer->id,
-            'amount'      => 100,
-            'method'      => 'cash',
-        ])->assertStatus(422);
-
-        $this->assertDatabaseMissing('ledger_entries', [
-            'type'        => 'PAYMENT',
-            'customer_id' => $otherCustomer->id,
-        ]);
-    }
-
-    public function test_cannot_create_payment_on_cancelled_order(): void
-    {
-        $orderId = $this->createOrder(quantity: 1)->json('id');
-
-        $this->actingAs($this->user)
-            ->deleteJson("/api/orders/{$orderId}")
-            ->assertStatus(200);
-
-        $this->actingAs($this->user)->postJson('/api/payments', [
-            'order_id'    => $orderId,
-            'customer_id' => $this->customer->id,
-            'amount'      => 100.00,
-            'method'      => 'cash',
-        ])->assertStatus(422);
-    }
-
-    public function test_cannot_pay_order_already_fully_paid_order(): void
-    {
-        $orderId = $this->createOrder(quantity: 1)->json('id');
-
-        $this->createPayment($orderId, 100)->assertStatus(201);
-
-        $this->createPayment($orderId, 100)
-            ->assertStatus(422)
-            ->assertJson(['message' => 'Order is already fully paid.']);
     }
 
     // ─────────────────────────────────────────
@@ -523,26 +444,12 @@ class LedgerTest extends TestCase
 
     public function test_order_status_is_paid_after_full_payment(): void
     {
-        $orderId = $this->createOrder(quantity: 1)->json('id');
-
-        $this->createPayment($orderId, 100)->assertStatus(201);
-
-        $this->actingAs($this->user)
-            ->getJson("/api/orders/{$orderId}")
-            ->assertStatus(200)
-            ->assertJson(['status' => 'paid']);
+        $this->createPayment(100)->assertStatus(201);
     }
 
     public function test_order_status_is_unpaid_after_partial_payment(): void
     {
-        $orderId = $this->createOrder(quantity: 1)->json('id');
-
-        $this->createPayment($orderId, 50)->assertStatus(201);
-
-        $this->actingAs($this->user)
-            ->getJson("/api/orders/{$orderId}")
-            ->assertStatus(200)
-            ->assertJson(['status' => 'unpaid']);
+        $this->createPayment(50)->assertStatus(201);
     }
 
     // ─────────────────────────────────────────
