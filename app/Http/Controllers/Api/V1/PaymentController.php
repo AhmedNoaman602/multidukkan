@@ -24,6 +24,7 @@ class PaymentController extends Controller
         })
         ->when(request('date'), fn($q) => $q->whereDate('created_at', request('date')))
         ->when(request('year'), fn($q) => $q->whereYear('created_at', request('year')))
+        ->where('method' , '!=', 'credit')
         ->with('customer:id,name', 'order:id,store_id')
         ->orderBy('created_at', 'desc')
         ->get();
@@ -43,7 +44,7 @@ class PaymentController extends Controller
         $data = $request->validate([
             'customer_id' => 'required|exists:customers,id',
             'amount'      => 'required|numeric|min:0.01',
-            'method'      => 'required|in:cash,card',
+            'method'      => 'required|in:cash,bank_transfer,check',
         ]);
 try{
         $payments = $this->payment->processAutoPayment(
