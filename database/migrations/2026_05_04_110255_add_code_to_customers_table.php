@@ -10,19 +10,19 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::table('orders', function (Blueprint $table) {
-        $table->decimal('discount', 10, 2)->default(0)->after('notes');
-    });
-}
+    {
+        Schema::table('customers', function (Blueprint $table) {
+            $table->string('code')->nullable()->after('id');
+        });
+    }
 
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->dropColumn('discount');
+        Schema::table('customers', function (Blueprint $table) {
+           $table->dropColumn('code');
         });
     }
 };

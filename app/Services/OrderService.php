@@ -23,6 +23,22 @@ class OrderService
      */
      public function __construct(protected LedgerService $ledger , protected InventoryService $inventory){}
 
+     private function generateInvoiceNumber(int $tenantId): string
+{
+    $year = now()->year;
+
+    $last = Order::where('tenant_id', $tenantId)
+        ->whereYear('created_at', $year)
+        ->whereNotNull('invoice_number')
+        ->orderByDesc('id')
+        ->value('invoice_number');
+
+    $lastNumber = $last ? (int) substr($last, -3) : 0;
+    $next = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+
+    return "{$year}-{$next}";
+}
+
 public function createOrder(array $data): Order
 {
     return DB::transaction(function () use ($data) {
@@ -95,6 +111,7 @@ foreach ($aggregated as $itemData) {
             'created_by'  => $user->id,
             'notes'       => $data['notes'] ?? null,
             'discount' => $data['discount'] ?? 0,
+            'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
         ]);
 
         $totalAmount = 0;

@@ -10,6 +10,7 @@ class Order extends Model
     /** @use HasFactory<\Database\Factories\OrderFactory> */
     use HasFactory , SoftDeletes;
     protected $fillable = [
+        'invoice_number',
         'tenant_id',
         'store_id',
         'customer_id',

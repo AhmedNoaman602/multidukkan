@@ -38,10 +38,11 @@ class OrderResource extends JsonResource
 
     return [
         'id'         => $this->id,
+        'invoice_number' => $this->invoice_number,
         'tenant_id'  => $this->tenant_id,
         'store_id'   => $this->store_id,
         'customer_id'=> $this->customer_id,
-        'customer_name'=> $this->customer->name,
+        'customer_name' => $this->customer?->name ?? 'Deleted Customer',
         'created_by' => $this->created_by,
         'notes'      => $this->notes,
         'total'      => $total,

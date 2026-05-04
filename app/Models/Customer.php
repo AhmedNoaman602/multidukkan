@@ -10,6 +10,7 @@ class Customer extends Model
     /** @use HasFactory<\Database\Factories\CustomerFactory> */
     use HasFactory , SoftDeletes;
     protected $fillable = [
+        'code',
         'tenant_id',
         'name',
         'email',

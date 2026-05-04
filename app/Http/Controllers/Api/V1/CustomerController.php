@@ -21,6 +21,19 @@ class CustomerController extends Controller
         return CustomerResource::collection($customers);
     }
 
+    private function generateCustomerCode(int $tenantId): string
+{
+    $last = Customer::where('tenant_id', $tenantId)
+        ->whereNotNull('code')
+        ->orderByDesc('id')
+        ->value('code');
+
+    $lastNumber = $last ? (int) substr($last, 2) : 0;
+    $next = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+
+    return "C-{$next}";
+}
+
     /**
      * Store a newly created resource in storage.
      */
@@ -44,6 +57,7 @@ class CustomerController extends Controller
             'phone'               => $validated['phone'],
             'address'             => $validated['address'] ?? null,
             'price_tier'          => $validated['price_tier'] ?? 'default',
+            'code'                => $this->generateCustomerCode($user->tenant_id),
         ]);
 
         return (new CustomerResource($customer))
