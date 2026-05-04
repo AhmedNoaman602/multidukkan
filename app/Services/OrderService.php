@@ -94,6 +94,7 @@ foreach ($aggregated as $itemData) {
             'customer_id' => $data['customer_id'],
             'created_by'  => $user->id,
             'notes'       => $data['notes'] ?? null,
+            'discount' => $data['discount'] ?? 0,
         ]);
 
         $totalAmount = 0;
@@ -122,16 +123,19 @@ foreach ($aggregated as $itemData) {
         $balanceBefore = $this->ledger->getBalance($order->tenant_id , $order->customer_id);
         $creditAvailable = max(0 , -$balanceBefore);
         // ✅ Step 4 — charge ledger
+        $discount = max(0, min($data['discount'] ?? 0, $totalAmount));
+        $chargeAmount = round($totalAmount - $discount, 2);
+        
         $this->ledger->chargeOrder([
             'tenant_id'   => $order->tenant_id,
             'customer_id' => $order->customer_id,
             'store_id'    => $order->store_id,
             'order_id'    => $order->id,
-            'amount'      => $totalAmount,
+            'amount'      => $chargeAmount,
         ]);
 
         if($creditAvailable > 0){
-            $applyAmount = min($creditAvailable , $totalAmount);
+            $applyAmount = min($creditAvailable , $chargeAmount);
 
             $payment = Payment::create([
         'tenant_id'   => $order->tenant_id,
@@ -165,8 +169,11 @@ foreach ($aggregated as $itemData) {
    public function cancelOrder(Order $order): void
 {
     DB::transaction(function () use ($order) {
-        $total = $order->items()
+        $subtotal = $order->items()
             ->sum(DB::raw('unit_price * quantity'));
+        
+        $discount = (float) ($order->discount ?? 0);
+        $chargeAmount = max(0, round($subtotal - $discount, 2));
 
        foreach ($order->items as $item) {
     if ($item->warehouse_id) {
@@ -182,7 +189,7 @@ foreach ($aggregated as $itemData) {
             'customer_id' => $order->customer_id,
             'store_id'    => $order->store_id,
             'order_id'    => $order->id,
-            'amount'      => $total,
+            'amount'      => $chargeAmount,
         ]);
 
         $order->delete();

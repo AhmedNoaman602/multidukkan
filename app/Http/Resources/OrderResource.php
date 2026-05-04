@@ -31,7 +31,9 @@ class OrderResource extends JsonResource
      */
    public function toArray(Request $request): array
 {
-    $total     = $this->items->sum(fn($i) => $i->unit_price * $i->quantity);
+    $subtotal  = $this->items->sum(fn($i) => $i->unit_price * $i->quantity);
+    $discount  = (float) ($this->discount ?? 0);
+    $total     = max(0, round($subtotal - $discount, 2));
     $totalPaid = $this->payments->sum('amount');
 
     return [
