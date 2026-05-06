@@ -95,7 +95,36 @@ class ProductController extends Controller
             'price_d' => $request->price_d,
             'price_e' => $request->price_e,
             'unit'    => $request->unit ?? $product->unit,
+            'secondary_unit' => $request->secondary_unit,
+            'conversion_factor' => $request->conversion_factor,
         ]);
+
+        $user = auth()->user();
+
+        foreach ($request->stocks ?? [] as $stock) {
+        if (empty($stock['warehouse_id'])) continue;
+
+        $existing = Inventory::where('product_id', $product->id)
+            ->where('warehouse_id', $stock['warehouse_id'])
+            ->first();
+
+        if ($existing) {
+            $existing->update([
+                'quantity' => $stock['quantity'] ?? $existing->quantity,
+                'threshold' => $stock['threshold'] ?? $existing->threshold,
+            ]);
+        } else {
+            Inventory::create([
+                'tenant_id'    => $user->tenant_id,
+                'warehouse_id' => $stock['warehouse_id'],
+                'product_id'   => $product->id,
+                'quantity'     => $stock['quantity'] ?? 0,
+                'threshold'    => $stock['threshold'] ?? 10,
+            ]);
+        }
+    }
+
+
         return new ProductResource($product);
     }
 
