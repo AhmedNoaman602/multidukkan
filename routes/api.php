@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\WarehouseController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\UnitController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -69,4 +70,9 @@ Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
 Route::post('/inventory', [InventoryController::class, 'store']);
 Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);
 Route::post('/inventory/{inventory}/adjust', [InventoryController::class, 'adjust']);
+
+
+Route::get('/units', [UnitController::class, 'index']);
+Route::post('/units', [UnitController::class, 'store']);
+Route::delete('/units/{unit}', [UnitController::class, 'destroy']);
 });

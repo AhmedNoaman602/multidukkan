@@ -8,10 +8,12 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use App\Models\Unit;
 
 class AuthController extends Controller
 {
     public function register(Request $request){
+
 $request->validate([
         'business_name' => 'required|string|max:255',
         'name'          => 'required|string|max:255',
@@ -19,11 +21,21 @@ $request->validate([
         'password'      => 'required|string|min:8|confirmed',
     ]);
 
+
      $result = DB::transaction(function () use ($request) {
+        $defaultUnits = ['حبة', 'متر', 'كيلو', 'علبة', 'لفة', 'طن', 'لتر', 'كرتونة', 'رول'];
+        
         $tenant = \App\Models\Tenant::create([
             'name' => $request->business_name,
         ]);
 
+
+foreach ($defaultUnits as $unit) {
+    \App\Models\Unit::create([
+        'tenant_id' => $tenant->id,
+        'name'      => $unit,
+    ]);
+}
         $user = \App\Models\User::create([
             'tenant_id' => $tenant->id,
             'store_id'  => null,
