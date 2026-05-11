@@ -29,11 +29,15 @@ class LedgerEntry extends Model
     ];
 
     const TYPES = [
-        'ORDER_CHARGE',  
-        'PAYMENT',       
-        'CREDIT_APPLY',  
-        'REVERSAL',      
-    ];
+    'ORDER_CHARGE',
+    'PAYMENT',
+    'CREDIT_APPLY',
+    'CREDIT_CONSUMED',
+    'REVERSAL',
+    'PURCHASE_CHARGE',
+    'PURCHASE_REVERSAL',
+    'SUPPLIER_PAYMENT',
+];
 
     public function tenant()
     {
