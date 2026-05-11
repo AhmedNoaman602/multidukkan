@@ -2,7 +2,7 @@
 
 namespace App\Services;
 use App\Models\LedgerEntry;
-
+use App\Models\PurchaseOrder;
 /**
  * Service for managing the financial ledger of customers and tenants.
  * 
@@ -32,6 +32,21 @@ class LedgerService
 
    }
 
+   public function purchaseCharge(array $data): LedgerEntry
+{
+    return LedgerEntry::create([
+        'tenant_id'      => $data['tenant_id'],
+        'supplier_id'    => $data['supplier_id'],
+        'entity_type'    => 'supplier',
+        'entity_id'      => $data['supplier_id'],
+        'direction'      => 'debit',
+        'type'           => 'PURCHASE_CHARGE',
+        'amount'         => $data['total'],
+        'reference_type' => PurchaseOrder::class,
+        'reference_id'   => $data['purchase_order_id'],
+    ]);
+}
+
    public function applyAmount(array $data) : LedgerEntry {
 
     return LedgerEntry::create([
@@ -44,8 +59,22 @@ class LedgerService
         'reference_type' => 'payment',
         'reference_id' => $data['payment_id'],
     ]);
-
    }
+   
+   public function applySupplierPayment(array $data): LedgerEntry
+{
+    return LedgerEntry::create([
+        'tenant_id'      => $data['tenant_id'],
+        'supplier_id'    => $data['supplier_id'],
+        'entity_type'    => 'supplier',
+        'entity_id'      => $data['supplier_id'],
+        'direction'      => 'credit',
+        'type'           => 'SUPPLIER_PAYMENT',
+        'amount'         => $data['amount'],
+        'reference_type' => 'supplier_payment',
+        'reference_id'   => $data['payment_id'],
+    ]);
+}
 
    public function applyCreditOverPayment(array $data) : LedgerEntry
 {
@@ -76,6 +105,22 @@ public function reverseOrder(array $data) : LedgerEntry {
 
 }
 
+public function reversePurchaseOrder (array $data) : LedgerEntry {
+
+    return LedgerEntry::create([
+        'tenant_id'      => $data['tenant_id'],
+        'supplier_id'    => $data['supplier_id'],
+        'entity_type'    => 'supplier',
+        'entity_id'      => $data['supplier_id'],
+        'direction'      => 'credit',
+        'type'           => 'PURCHASE_REVERSAL',
+        'amount'         => $data['amount'],
+        'reference_type' => PurchaseOrder::class,
+        'reference_id'   => $data['purchase_order_id'],
+    ]);
+
+}
+
 public function getBalance(int $tenantId, int $customerId) : float{
 
     $debits = LedgerEntry::where('tenant_id', $tenantId)
@@ -87,6 +132,23 @@ public function getBalance(int $tenantId, int $customerId) : float{
     ->where('customer_id', $customerId)
     ->whereIn('type', ['PAYMENT', 'CREDIT_APPLY'])
     ->sum('amount');
+
+    return round($debits - $credits, 2);
+}
+
+public function getSupplierBalance(int $tenantId, int $supplierId): float
+{
+    $debits = LedgerEntry::where('tenant_id', $tenantId)
+        ->where('entity_type', 'supplier')
+        ->where('entity_id', $supplierId)
+        ->where('direction', 'debit')
+        ->sum('amount');
+
+    $credits = LedgerEntry::where('tenant_id', $tenantId)
+        ->where('entity_type', 'supplier')
+        ->where('entity_id', $supplierId)
+        ->where('direction', 'credit')
+        ->sum('amount');
 
     return round($debits - $credits, 2);
 }

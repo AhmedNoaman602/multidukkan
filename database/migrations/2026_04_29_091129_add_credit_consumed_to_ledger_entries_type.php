@@ -13,7 +13,7 @@ public function up(): void
 {
     if (DB::getDriverName() === 'mysql') {
         DB::statement("ALTER TABLE ledger_entries MODIFY COLUMN type 
-            ENUM('ORDER_CHARGE', 'PAYMENT', 'REVERSAL', 'CREDIT_APPLY', 'CREDIT_CONSUMED') 
+            ENUM('ORDER_CHARGE', 'PAYMENT', 'REVERSAL', 'CREDIT_APPLY', 'CREDIT_CONSUMED', 'PURCHASE_CHARGE', 'PURCHASE_REVERSAL', 'SUPPLIER_PAYMENT') 
             NOT NULL");
     }
 }

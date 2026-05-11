@@ -8,7 +8,6 @@ use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Store;
 use App\Models\Warehouse;
-use Illuminate\Support\Facades\Auth;
 
 class StoreOrderRequest extends FormRequest
 {

@@ -44,9 +44,12 @@ public function createOrder(array $data): Order
     return DB::transaction(function () use ($data) {
         $user = auth()->user();
         $customer = Customer::findOrFail($data['customer_id']);
-        // Add this before the validation loop in createOrder
-$aggregated = [];
-foreach ($data['items'] as $item) {
+       
+        //checking the stock code block
+        //first aggregate the items with the same product id and warehouse id
+        //then check the stock
+        $aggregated = [];
+        foreach ($data['items'] as $item) {
     $key = $item['product_id'] . '_' . ($item['warehouse_id'] ?? 'none');
     if (!isset($aggregated[$key])) {
         $aggregated[$key] = $item;
@@ -69,6 +72,7 @@ foreach ($aggregated as $itemData) {
         $this->inventory->checkStock($product->id, $warehouseId, $stockQuantity);
     }
 }
+// End of the stock checking code block
 
         $validatedItems = [];
         foreach ($data['items'] as $itemData) {
@@ -110,7 +114,7 @@ foreach ($aggregated as $itemData) {
             'customer_id' => $data['customer_id'],
             'created_by'  => $user->id,
             'notes'       => $data['notes'] ?? null,
-            'discount' => $data['discount'] ?? 0,
+            'discount'    => $data['discount'] ?? 0,
             'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
         ]);
 

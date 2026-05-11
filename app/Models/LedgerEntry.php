@@ -10,15 +10,19 @@ class LedgerEntry extends Model
     /** @use HasFactory<\Database\Factories\LedgerFactory> */
     use HasFactory;
     protected $fillable = [
-        'tenant_id',
-        'customer_id',
-        'store_id',
-        'type',
-        'amount',
-        'description',
-        'reference_id',
-        'reference_type',
-    ];
+    'tenant_id',
+    'customer_id',
+    'store_id',
+    'supplier_id',
+    'entity_type',
+    'entity_id',
+    'direction',
+    'type',
+    'amount',
+    'description',
+    'reference_id',
+    'reference_type',
+];
 
     protected $casts = [
         'amount' => 'decimal:2',

@@ -58,7 +58,7 @@ class OrderController extends Controller
     {
         $this->authorize('update', $order);
         
-        // Cannot Modify Order After Payment
+       
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }

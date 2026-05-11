@@ -82,7 +82,7 @@ public function processAutoPayment(array $data, User $user): array
         $method     = $data['method'];
 
         // Load all unpaid orders oldest first
-       $orders = \App\Models\Order::where('customer_id', $customerId)
+       $orders = Order::where('customer_id', $customerId)
     ->where('tenant_id', $user->tenant_id)
     ->whereColumn(
         DB::raw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.order_id = orders.id)'),
