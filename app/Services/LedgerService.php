@@ -153,12 +153,19 @@ public function getSupplierBalance(int $tenantId, int $supplierId): float
     return round($debits - $credits, 2);
 }
 
-public function getHistory(int $tenantId, int $customerId) : \Illuminate\Support\Collection{
+public function getHistory(int $tenantId, ?int $customerId = null, ?int $supplierId = null): \Illuminate\Support\Collection
+{
+    $query = LedgerEntry::where('tenant_id', $tenantId);
 
-    return LedgerEntry::where('tenant_id', $tenantId)
-    ->where('customer_id', $customerId)
-    ->orderBy('created_at', 'asc')
-    ->get(['id', 'type', 'amount', 'description', 'reference_type', 'reference_id', 'created_at']);
+    if ($supplierId) {
+        $query->where('entity_type', 'supplier')
+              ->where('entity_id', $supplierId);
+    } else {
+        $query->where('customer_id', $customerId);
+    }
+
+    return $query->orderBy('created_at', 'asc')
+        ->get(['id', 'type', 'amount', 'description', 'reference_type', 'reference_id', 'created_at']);
 }
 
 public function addCredit(array $data) : LedgerEntry {

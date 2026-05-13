@@ -8,6 +8,7 @@ use App\Models\Customer;
 use App\Services\LedgerService;
 use App\Http\Requests\StoreCreditRequest;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Supplier;
 
 class LedgerEntryController extends Controller
 {
@@ -64,4 +65,33 @@ class LedgerEntryController extends Controller
     ], 201);
 }
 
+public function supplierBalance(Supplier $supplier)
+{
+    $this->authorize('view', $supplier);
+
+    $balance = $this->ledger->getSupplierBalance($supplier->tenant_id, $supplier->id);
+
+    return response()->json([
+        'supplier_id'   => $supplier->id,
+        'supplier_name' => $supplier->name,
+        'balance'       => $balance,
+        'status' => $balance > 0 ? 'owes' : 'settled',
+    ]);
+}
+
+public function supplierHistory(Supplier $supplier)
+{
+    $this->authorize('view', $supplier);
+
+    $history = $this->ledger->getHistory($supplier->tenant_id, null, $supplier->id);
+    $balance = $this->ledger->getSupplierBalance($supplier->tenant_id, $supplier->id);
+
+    return response()->json([
+        'supplier_id'   => $supplier->id,
+        'supplier_name' => $supplier->name,
+        'balance'       => $balance,
+        'status' => $balance > 0 ? 'owes' : 'settled',
+        'history'       => $history,
+    ]);
+}
 }

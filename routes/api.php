@@ -90,7 +90,8 @@ Route::post('/suppliers', [SupplierController::class, 'store']);
 Route::get('/suppliers/{supplier}', [SupplierController::class, 'show']);
 Route::patch('/suppliers/{supplier}', [SupplierController::class, 'update']);
 Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->withTrashed();
-
+Route::get('/suppliers/{supplier}/balance', [LedgerEntryController::class, 'supplierBalance']);
+Route::get('/suppliers/{supplier}/ledger',  [LedgerEntryController::class, 'supplierHistory']);
 
 Route::post('/supplier-payments', [SupplierPaymentController::class, 'store']);
 Route::get('/supplier-payments', [SupplierPaymentController::class, 'index']);
