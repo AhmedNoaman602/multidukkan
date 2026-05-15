@@ -44,6 +44,7 @@ class LedgerService
         'amount'         => $data['total'],
         'reference_type' => PurchaseOrder::class,
         'reference_id'   => $data['purchase_order_id'],
+        'description' => 'Purchase order #' . $data['purchase_order_id'],
     ]);
 }
 
@@ -73,6 +74,7 @@ class LedgerService
         'amount'         => $data['amount'],
         'reference_type' => 'supplier_payment',
         'reference_id'   => $data['payment_id'],
+        'description' => 'Payment for purchase order #' . $data['payment_id'],
     ]);
 }
 
@@ -117,6 +119,7 @@ public function reversePurchaseOrder (array $data) : LedgerEntry {
         'amount'         => $data['amount'],
         'reference_type' => PurchaseOrder::class,
         'reference_id'   => $data['purchase_order_id'],
+        'description' => 'Reversal for cancelled purchase order #' . $data['purchase_order_id'],
     ]);
 
 }
