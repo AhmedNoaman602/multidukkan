@@ -45,7 +45,11 @@ class OrderResource extends JsonResource
         'customer_name' => $this->customer?->name ?? 'Deleted Customer',
         'created_by' => $this->created_by,
         'notes'      => $this->notes,
+        'subtotal'       => round($subtotal, 2),  
+        'discount'       => $discount,
         'total'      => $total,
+        'customer_phone' => $this->customer?->phone ?? '',
+        'store_name'     => $this->store?->name ?? '',
         'status'     => $this->resolveStatus($totalPaid, $total),
         'items_count' => $this->items->count(),
         'items'      => $this->items->map(fn($item) => [
