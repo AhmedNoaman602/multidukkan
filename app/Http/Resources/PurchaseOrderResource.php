@@ -19,15 +19,18 @@ class PurchaseOrderResource extends JsonResource
 
     return [
         'id'             => $this->id,
+        'invoice_number' => $this->invoice_number,
         'tenant_id'      => $this->tenant_id,
         'supplier_id'    => $this->supplier_id,
         'supplier_name'  => $this->supplier->name,
+        'supplier_phone' => $this->supplier->phone ?? '',
         'notes'          => $this->notes,
+        'subtotal'       => round($subtotal, 2), 
         'total'          => $total,
         'status'         => $this->resolveStatus($totalPaid, $total),
         'items_count'    => $this->items->count(),
         'items'          => $this->items->map(fn($item) => [
-            'product_name' => $item->product_name,
+            'product_name' => $item->product?->name ?? 'Deleted Product',
             'quantity'     => $item->quantity,
             'unit_price'   => $item->unit_price,
             'total'        => $item->unit_price * $item->quantity,
