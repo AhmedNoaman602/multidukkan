@@ -23,56 +23,56 @@ class PaymentService
      */
     public function __construct(protected LedgerService $ledger) {}
 
-//   public function processPayment(array $data , User $user) : Payment
-// {
-//     return DB::transaction(function () use ($data , $user) {
+  public function processDirectPayment(array $data , User $user) : Payment
+{
+    return DB::transaction(function () use ($data , $user) {
 
-//         $orderTotal = OrderItem::where('order_id', $data['order_id'])
-//             ->sum(DB::raw('unit_price * quantity'));
+        $orderTotal = OrderItem::where('order_id', $data['order_id'])
+            ->sum(DB::raw('unit_price * quantity'));
 
-//         $totalAlreadyPaid = Payment::where('order_id', $data['order_id'])
-//             ->sum('amount');
+        $totalAlreadyPaid = Payment::where('order_id', $data['order_id'])
+            ->sum('amount');
 
-//             if($totalAlreadyPaid >= $orderTotal){
-//                 throw new \InvalidArgumentException('Order is already fully paid.');
-//             }
+            if($totalAlreadyPaid >= $orderTotal){
+                throw new \InvalidArgumentException('Order is already fully paid.');
+            }
 
-//         $payment = Payment::create([
-//             'tenant_id'   => $user->tenant_id,
-//             'order_id'    => $data['order_id'],
-//             'customer_id' => $data['customer_id'],
-//             'amount'      => $data['amount'],
-//             'method'      => $data['method'],
-//             'paid_at'     => now(),
-//         ]);
+        $payment = Payment::create([
+            'tenant_id'   => $user->tenant_id,
+            'order_id'    => $data['order_id'],
+            'customer_id' => $data['customer_id'],
+            'amount'      => $data['amount'],
+            'method'      => $data['method'],
+            'paid_at'     => now(),
+        ]);
 
 
-//         $remaining     = max(0, $orderTotal - $totalAlreadyPaid);
-//         $appliedAmount = min($payment->amount, $remaining);
-//         $excess        = max(0, round($payment->amount - $remaining, 2));
+        $remaining     = max(0, $orderTotal - $totalAlreadyPaid);
+        $appliedAmount = min($payment->amount, $remaining);
+        $excess        = max(0, round($payment->amount - $remaining, 2));
 
-//         $this->ledger->applyAmount([
-//             'tenant_id'   => $user->tenant_id,
-//             'order_id' =>    $payment->order_id,
-//             'customer_id' => $payment->customer_id,
-//             'store_id'    => $user->store_id ?? $payment->order->store_id,
-//             'payment_id'  => $payment->id,
-//             'amount'      => $appliedAmount,
-//         ]);
+        $this->ledger->applyAmount([
+            'tenant_id'   => $user->tenant_id,
+            'order_id' =>    $payment->order_id,
+            'customer_id' => $payment->customer_id,
+            'store_id'    => $user->store_id ?? $payment->order->store_id,
+            'payment_id'  => $payment->id,
+            'amount'      => $appliedAmount,
+        ]);
 
-//             if ($excess > 0) {
-//                 $this->ledger->applyCreditOverPayment([
-//                     'tenant_id'   => $user->tenant_id,
-//                     'customer_id' => $payment->customer_id,
-//                     'store_id'    => $user->store_id ?? $payment->order->store_id,
-//                     'order_id'    => $payment->order_id,
-//                     'payment_id'  => $payment->id,
-//                     'amount'      => $excess,
-//                 ]);
-//             }
-//         return $payment;
-//     });
-// }
+            if ($excess > 0) {
+                $this->ledger->applyCreditOverPayment([
+                    'tenant_id'   => $user->tenant_id,
+                    'customer_id' => $payment->customer_id,
+                    'store_id'    => $user->store_id ?? $payment->order->store_id,
+                    'order_id'    => $payment->order_id,
+                    'payment_id'  => $payment->id,
+                    'amount'      => $excess,
+                ]);
+            }
+        return $payment;
+    });
+}
 
 public function processAutoPayment(array $data, User $user): array
 {

@@ -36,6 +36,30 @@ class PaymentController extends Controller
     ]);
 }
 
+public function store(Request $request){
+
+
+    $this->authorize('create', Payment::class);
+
+        $data = $request->validate([
+            'order_id'    => 'required|exists:orders,id',
+            'customer_id' => 'required|exists:customers,id',
+            'amount'      => 'required|numeric|min:0.01',
+            'method'      => 'required|in:cash,bank_transfer,check',
+        ]);
+
+         try {
+        $payment = $this->payment->processDirectPayment($data, auth()->user());
+        return response()->json([
+            'message' => 'Payment processed successfully.',
+            'payment' => $payment,
+        ], 201);
+    } catch (\InvalidArgumentException $e) {
+        return response()->json(['message' => $e->getMessage()], 422);
+    }
+    
+}
+
 
     public function autoPayment(Request $request){
 
