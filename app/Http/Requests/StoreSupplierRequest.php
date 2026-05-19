@@ -4,7 +4,8 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class StoreSupplierRequest extends FormRequest
 {
@@ -23,7 +24,7 @@ class StoreSupplierRequest extends FormRequest
      */
     public function rules(): array
     {
-
+        $tenantId = Auth::user()->tenant_id;
         return [
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['required', 'string', 'max:255'],
@@ -31,6 +32,13 @@ class StoreSupplierRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'area' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:255'],
+            'code'    => [
+            'sometimes',
+            'nullable',
+            'string',
+            Rule::unique('suppliers', 'code')
+                ->where('tenant_id', $tenantId)
+        ],
         ];
     }
 }
