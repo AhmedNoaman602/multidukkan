@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\SupplierPaymentController;
+use App\Http\Controllers\Api\V1\SupplierProductController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -89,11 +90,15 @@ Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::clas
 Route::get('/suppliers', [SupplierController::class, 'index']);
 Route::post('/suppliers', [SupplierController::class, 'store']);
 Route::get('/suppliers/{supplier}', [SupplierController::class, 'show']);
-Route::patch('/suppliers/{supplier}', [SupplierController::class, 'update']);
+Route::put('/suppliers/{supplier}', [SupplierController::class, 'update']);
 Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->withTrashed();
 Route::get('/suppliers/{supplier}/balance', [LedgerEntryController::class, 'supplierBalance']);
 Route::get('/suppliers/{supplier}/ledger',  [LedgerEntryController::class, 'supplierHistory']);
 
 Route::post('/supplier-payments', [SupplierPaymentController::class, 'store']);
 Route::get('/supplier-payments', [SupplierPaymentController::class, 'index']);
+
+Route::get('suppliers/{supplier}/products', [SupplierProductController::class, 'index']);
+Route::post('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'attach']);
+Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
 });

@@ -50,4 +50,8 @@ protected static function booted(): void
     {
         return $this->hasMany(Inventory::class);
     }
+    public function suppliers()
+    {
+        return $this->belongsToMany(Supplier::class, 'supplier_products');
+    }
 }
