@@ -13,18 +13,45 @@ use App\Http\Requests\AdjustInventoryRequest;
 class InventoryController extends Controller
 {
     public function __construct(private InventoryService $inventoryService){}
-   public function index()
+public function index(Request $request)
 {
     $this->authorize('viewAny', Inventory::class);
 
     $user = auth()->user();
-    $inventory = Inventory::where('tenant_id', $user->tenant_id)
+
+    $query = Inventory::where('tenant_id', $user->tenant_id)
         ->when($user->store_id, function ($q) use ($user) {
             $q->whereHas('warehouse', fn($w) => $w->where('store_id', $user->store_id));
         })
-        ->with(['warehouse.store', 'product'])  // ← add this
-        ->get();
-    return InventoryResource::collection($inventory);
+        ->when($request->search, function ($q) use ($request) {
+            $q->where(function ($q) use ($request) {
+                $q->whereHas('product', fn($p) =>
+                    $p->where('name', 'like', "%$request->search%"))
+                  ->orWhereHas('warehouse', fn($w) =>
+                    $w->where('name', 'like', "%$request->search%"));
+            });
+        })
+        ->when($request->warehouse_id, fn($q) =>
+            $q->where('warehouse_id', $request->warehouse_id)
+        )
+        ->with(['warehouse.store', 'product']);
+
+    if ($request->per_page === 'all') {
+        return response()->json([
+            'data' => InventoryResource::collection($query->get())->resolve(),
+        ]);
+    }
+
+    $inventory = $query->paginate(20);
+
+    return response()->json([
+        'data' => InventoryResource::collection($inventory)->resolve(),
+        'meta' => [
+            'current_page' => $inventory->currentPage(),
+            'last_page'    => $inventory->lastPage(),
+            'total'        => $inventory->total(),
+        ],
+    ]);
 }
     public function show(Inventory $inventory)
     {

@@ -13,15 +13,25 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
-    {
-        $this->authorize('viewAny', Product::class);
+    public function index(Request $request)
+{
+    $this->authorize('viewAny', Product::class);
 
-        $user = auth()->user();
-        $products = Product::where('tenant_id',$user->tenant_id)
-        ->get();
-        return ProductResource::collection($products);
+    $user = auth()->user();
+
+    $query = Product::where('tenant_id', $user->tenant_id)
+        ->when($request->search, function ($q) use ($request) {
+            $q->where('name', 'like', "%$request->search%")
+              ->orWhere('sku', 'like', "%$request->search%");
+        })
+        ->orderBy('name', 'asc');
+
+    if ($request->per_page === 'all') {
+        return ProductResource::collection($query->get());
     }
+
+    return ProductResource::collection($query->paginate(20));
+}
 
     /**
      * Store a newly created resource in storage.
