@@ -53,7 +53,7 @@ Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->
 Route::get('/customers/{customer}/balance', [LedgerEntryController::class, 'balance']);
 Route::get('/customers/{customer}/ledger', [LedgerEntryController::class, 'history']);
 Route::post('/customers/{customer}/credit', [LedgerEntryController::class, 'addCredit']);
-
+Route::post('customers/{customer}/refund', [CustomerController::class, 'refund']);
 
 Route::get('products', [ProductController::class, 'index']);
 Route::get('products/{product}', [ProductController::class, 'show']);

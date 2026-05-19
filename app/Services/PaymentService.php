@@ -28,7 +28,7 @@ class PaymentService
     return DB::transaction(function () use ($data , $user) {
         $order = Order::with('items', 'payments')->findOrFail($data['order_id']);
         $orderTotal      = $order->items->sum(fn($i) => $i->unit_price * $i->quantity); // SIMPLIFY
-        $totalAlreadyPaid = $order->payments->sum('amount'); 
+        $totalAlreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
 
         if($totalAlreadyPaid >= $orderTotal){
             throw new \InvalidArgumentException('Order is already fully paid.');
@@ -84,7 +84,7 @@ public function processAutoPayment(array $data, User $user): array
        $orders = Order::where('customer_id', $customerId)
     ->where('tenant_id', $user->tenant_id)
     ->whereColumn(
-        DB::raw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.order_id = orders.id)'),
+        DB::raw('(SELECT COALESCE(SUM(amount - refunded_amount), 0) FROM payments WHERE payments.order_id = orders.id)'),
         '<',
         DB::raw('(SELECT COALESCE(SUM(unit_price * quantity), 0) FROM order_items WHERE order_items.order_id = orders.id)')
     )
@@ -98,7 +98,7 @@ public function processAutoPayment(array $data, User $user): array
             if ($remaining <= 0) break;
 
             $orderTotal  = $order->items->sum(fn($i) => $i->unit_price * $i->quantity);
-            $alreadyPaid = $order->payments->sum('amount');
+            $alreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
             $orderOwed  = round($orderTotal - $alreadyPaid, 2);
 
             if ($orderOwed <= 0) continue;

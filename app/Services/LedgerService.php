@@ -3,6 +3,8 @@
 namespace App\Services;
 use App\Models\LedgerEntry;
 use App\Models\PurchaseOrder;
+use App\Models\Payment;
+use App\Models\Order;
 /**
  * Service for managing the financial ledger of customers and tenants.
  * 
@@ -128,7 +130,7 @@ public function getBalance(int $tenantId, int $customerId) : float{
 
     $debits = LedgerEntry::where('tenant_id', $tenantId)
     ->where('customer_id', $customerId)
-    ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED'])
+    ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED','REFUND' ])
     ->sum('amount');
 
     $credits = LedgerEntry::where('tenant_id', $tenantId)
@@ -200,4 +202,34 @@ public function consumeCredit(array $data): LedgerEntry
     ]);
 }
 
+public function issueRefund(array $data): LedgerEntry
+{
+    // In issueRefund(), replace payment_id lookup with:
+    if (!empty($data['order_id'])) {
+    $remaining = $data['amount'];
+    $payments = Payment::where('order_id', $data['order_id'])
+        ->orderBy('id', 'asc')
+        ->get();
+
+    foreach ($payments as $payment) {
+        if ($remaining <= 0) break;
+        $available = $payment->amount - ($payment->refunded_amount ?? 0);
+        if ($available <= 0) continue;
+        $toRefund = min($available, $remaining);
+        $payment->increment('refunded_amount', $toRefund);
+        $remaining -= $toRefund;
+    }
+}
+
+    return LedgerEntry::create([
+        'tenant_id'      => $data['tenant_id'],
+        'customer_id'    => $data['customer_id'],
+        'store_id'       => $data['store_id'],
+        'type'           => 'REFUND',
+        'amount'         => $data['amount'],
+        'description'    => 'Cash refund — ' . ($data['notes'] ?? $data['method']),
+        'reference_type' => 'payment',
+        'reference_id'   => $data['payment_id'] ?? $data['customer_id'],
+    ]);
+}
 }

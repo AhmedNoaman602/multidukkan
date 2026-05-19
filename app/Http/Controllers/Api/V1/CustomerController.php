@@ -7,11 +7,17 @@ use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Http\Resources\CustomerResource;
 use Illuminate\Support\Facades\DB;
+use App\Services\LedgerService;
+use App\Http\Requests\RefundCustomerRequest;
+
 class CustomerController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+
+    public function __construct(protected LedgerService $ledgerService) {}
+
     public function index(Request $request)
 {
     $this->authorize('viewAny', Customer::class);
@@ -32,7 +38,7 @@ class CustomerController extends Controller
 
     $debits = DB::table('ledger_entries')
         ->whereIn('customer_id', $customerIds)
-        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED'])
+        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED','REFUND'])
         ->sum('amount');
 
     $credits = DB::table('ledger_entries')
@@ -152,4 +158,37 @@ class CustomerController extends Controller
         $customer->delete();
         return response()->json(['message' => 'Customer deleted successfully']);
     }
+
+    public function refund(RefundCustomerRequest $request, Customer $customer)
+{
+    $this->authorize('update', $customer);
+
+    if ($customer->tenant_id !== auth()->user()->tenant_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    $validated = $request->validated();
+
+    $entry = $this->ledgerService->issueRefund([
+        'tenant_id'   => $customer->tenant_id,
+        'customer_id' => $customer->id,
+        'store_id'    => auth()->user()->store_id,
+        'amount'      => $validated['amount'],
+        'method'      => $validated['method'],
+        'notes'       => $validated['notes'] ?? null,
+        'order_id'    => $validated['order_id'] ?? null,
+    ]);
+
+    $newBalance = $this->ledgerService->getBalance(
+        $customer->tenant_id,
+        $customer->id
+    );
+
+    return response()->json([
+        'message'         => 'Refund issued successfully.',
+        'refunded_amount' => $validated['amount'],
+        'new_balance'     => $newBalance,
+        'entry_id'        => $entry->id,
+    ]);
+}
 }
