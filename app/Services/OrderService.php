@@ -141,18 +141,23 @@ foreach ($aggregated as $itemData) {
 
             $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
         }
+        
         $balanceBefore = $this->ledger->getBalance($order->tenant_id , $order->customer_id);
         $creditAvailable = max(0 , -$balanceBefore);
         // ✅ Step 4 — charge ledger
         $discount = max(0, min($data['discount'] ?? 0, $totalAmount));
         $chargeAmount = round($totalAmount - $discount, 2);
-        
+        $order->update([
+            'total' => round($totalAmount - $discount, 2),
+        ]);
+
         $this->ledger->chargeOrder([
             'tenant_id'   => $order->tenant_id,
             'customer_id' => $order->customer_id,
             'store_id'    => $order->store_id,
             'order_id'    => $order->id,
             'amount'      => $chargeAmount,
+            'invoice_number' => $order->invoice_number,
         ]);
 
         if($creditAvailable > 0){
@@ -173,6 +178,7 @@ foreach ($aggregated as $itemData) {
         'store_id'    => $order->store_id,
         'payment_id'  => $payment->id,
         'amount'      => $applyAmount,
+        'invoice_number' => $order->invoice_number,
     ]);
     $this->ledger->consumeCredit([
         'tenant_id'   => $order->tenant_id,
@@ -181,6 +187,7 @@ foreach ($aggregated as $itemData) {
         'order_id'    => $order->id,
         'payment_id'  => $payment->id,
         'amount'      => $applyAmount,
+        'invoice_number' => $order->invoice_number,
     ]);
         }
 
@@ -190,11 +197,7 @@ foreach ($aggregated as $itemData) {
    public function cancelOrder(Order $order): void
 {
     DB::transaction(function () use ($order) {
-        $subtotal = $order->items()
-            ->sum(DB::raw('unit_price * quantity'));
-        
-        $discount = (float) ($order->discount ?? 0);
-        $chargeAmount = max(0, round($subtotal - $discount, 2));
+        $chargeAmount = $order->total;
 
        foreach ($order->items as $item) {
     if ($item->warehouse_id) {
@@ -211,6 +214,7 @@ foreach ($aggregated as $itemData) {
             'store_id'    => $order->store_id,
             'order_id'    => $order->id,
             'amount'      => $chargeAmount,
+            'invoice_number' => $order->invoice_number,
         ]);
 
         $order->delete();
