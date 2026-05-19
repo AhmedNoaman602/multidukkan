@@ -9,6 +9,7 @@ use App\Http\Requests\StorePurchaseOrderRequest;
 use App\Http\Requests\UpdatePurchaseOrderRequest;
 use App\Http\Resources\PurchaseOrderResource;
 use App\Services\PurchaseOrderService;
+use Illuminate\Support\Facades\DB;
 
 class PurchaseOrderController extends Controller
 {
@@ -16,17 +17,59 @@ class PurchaseOrderController extends Controller
         protected PurchaseOrderService $purchaseOrderService
     ) {}
 
-    public function index()
-    {
-        $this->authorize('viewAny', PurchaseOrder::class);
-        $user = auth()->user();
-        $purchaseOrders = PurchaseOrder::where('tenant_id', $user->tenant_id)
-            ->orderBy('created_at', 'desc')
-            ->with('supplier', 'items.product', 'supplierPayments')
-            ->get();
+    public function index(Request $request)
+{
+    $this->authorize('viewAny', PurchaseOrder::class);
 
-        return PurchaseOrderResource::collection($purchaseOrders);
-    }
+    $user = auth()->user();
+
+    $years = PurchaseOrder::where('tenant_id', $user->tenant_id)
+        ->selectRaw('YEAR(created_at) as year')
+        ->distinct()
+        ->orderBy('year', 'desc')
+        ->pluck('year');
+
+    $query = PurchaseOrder::where('tenant_id', $user->tenant_id)
+        ->when($request->search, function ($q) use ($request) {
+            $q->where(function ($q) use ($request) {
+                $q->where('invoice_number', 'like', "%$request->search%")
+                  ->orWhereHas('supplier', fn($q) =>
+                      $q->where('name', 'like', "%$request->search%"));
+            });
+        })
+        ->when($request->year, fn($q) =>
+            $q->whereYear('created_at', $request->year)
+        );
+
+    $totalSpent = (clone $query)->sum('total');
+
+    $paidAmount = DB::table('supplier_payments')
+        ->whereIn('purchase_order_id', (clone $query)->select('id'))
+        ->sum('amount');
+
+    $unpaidAmount = max(0, round($totalSpent - $paidAmount, 2));
+
+    $purchaseOrders = $query
+        ->with('supplier', 'items.product', 'supplierPayments')
+        ->orderBy('created_at', 'desc')
+        ->paginate(20);
+
+    return response()->json([
+        'data' => PurchaseOrderResource::collection($purchaseOrders)->resolve(),
+        'meta' => [
+            'current_page' => $purchaseOrders->currentPage(),
+            'last_page'    => $purchaseOrders->lastPage(),
+            'total'        => $purchaseOrders->total(),
+        ],
+        'years' => $years,
+        'stats' => [
+            'total_orders'  => $purchaseOrders->total(),
+            'total_spent'   => round($totalSpent, 2),
+            'unpaid_amount' => $unpaidAmount,
+            'paid_amount'   => round($paidAmount, 2),
+        ],
+    ]);
+}
 
     public function store(StorePurchaseOrderRequest $request)
     {

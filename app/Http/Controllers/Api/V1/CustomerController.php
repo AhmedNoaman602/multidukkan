@@ -6,20 +6,57 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Http\Resources\CustomerResource;
+use Illuminate\Support\Facades\DB;
 class CustomerController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
-    {
-        $this->authorize('viewAny', Customer::class);
-        
-        $user = auth()->user();
-        $customers = Customer::where('tenant_id',$user->tenant_id)
-        ->get();
-        return CustomerResource::collection($customers);
-    }
+    public function index(Request $request)
+{
+    $this->authorize('viewAny', Customer::class);
+
+    $user = auth()->user();
+
+    $query = Customer::where('tenant_id', $user->tenant_id)
+        ->when($request->search, fn($q) => $q
+            ->where(function ($q) use ($request) {
+                $q->where('name', 'like', "%{$request->search}%")
+                  ->orWhere('phone', 'like', "%{$request->search}%")
+                  ->orWhere('code', 'like', "%{$request->search}%");
+            })
+        )
+        ->orderBy('name', 'asc');
+
+    $customerIds = (clone $query)->select('id');
+
+    $debits = DB::table('ledger_entries')
+        ->whereIn('customer_id', $customerIds)
+        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED'])
+        ->sum('amount');
+
+    $credits = DB::table('ledger_entries')
+        ->whereIn('customer_id', $customerIds)
+        ->whereIn('type', ['PAYMENT', 'CREDIT_APPLY', 'REVERSAL'])
+        ->sum('amount');
+
+    $totalOutstanding = max(0, round($debits - $credits, 2));
+
+    $customers = $query->paginate(20);
+
+    return response()->json([
+        'data' => CustomerResource::collection($customers)->resolve(),
+        'meta' => [
+            'current_page' => $customers->currentPage(),
+            'last_page'    => $customers->lastPage(),
+            'total'        => $customers->total(),
+        ],
+        'stats' => [
+            'total_customers'   => $customers->total(),
+            'total_outstanding' => $totalOutstanding,
+        ],
+    ]);
+}
 
     private function generateCustomerCode(int $tenantId): string
 {

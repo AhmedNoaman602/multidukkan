@@ -8,6 +8,7 @@ use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
@@ -16,19 +17,58 @@ class OrderController extends Controller
     ) {}
 
     public function index(Request $request)
-    {
-        $this->authorize('viewAny', Order::class);
-        
-        $user = auth()->user();
+{
+    $this->authorize('viewAny', Order::class);
 
-        $orders = Order::where('tenant_id', $user->tenant_id)
-            ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
-            ->with('items', 'payments', 'customer')
-            ->orderBy('created_at' , 'desc')
-            ->get();
-            
-        return OrderResource::collection($orders);
-    }
+    $user = auth()->user();
+
+    $years = Order::where('tenant_id', $user->tenant_id)
+        ->selectRaw('YEAR(created_at) as year')
+        ->distinct()
+        ->orderBy('year', 'desc')
+        ->pluck('year');
+
+    // Extract base query into variable so we can clone it for stats
+    $query = Order::where('tenant_id', $user->tenant_id)
+        ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
+        ->when($request->search, function ($q) use ($request) {
+            $q->where(function ($q) use ($request) {
+                $q->where('invoice_number', 'like', "%$request->search%")
+                  ->orWhereHas('customer', fn($q) =>
+                      $q->where('name', 'like', "%$request->search%"));
+            });
+        })
+        ->when($request->year, fn($q) =>
+            $q->whereYear('created_at', $request->year)
+        );
+
+
+    $totalRevenue = (clone $query)->sum('total');
+    $paidAmount = DB::table('payments')
+    ->whereIn('order_id', (clone $query)->select('id'))
+    ->sum('amount');
+    $unpaidAmount = round($totalRevenue - $paidAmount, 2);
+
+    $orders = $query->with('items', 'payments', 'customer')
+        ->orderBy('created_at', 'desc')
+        ->paginate(20);
+
+    return response()->json([
+        'data' => OrderResource::collection($orders)->resolve(),
+        'meta' => [
+            'current_page' => $orders->currentPage(),
+            'last_page'    => $orders->lastPage(),
+            'total'        => $orders->total(),
+        ],
+        'years' => $years,
+        'stats' => [
+            'total_orders'  => $orders->total(),
+            'total_revenue' => round($totalRevenue, 2),
+            'unpaid_amount' => round($unpaidAmount, 2),
+            'paid_amount'   => round($paidAmount, 2),
+        ],
+    ]);
+}
 
    public function store(StoreOrderRequest $request)
 {

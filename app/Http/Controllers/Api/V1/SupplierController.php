@@ -7,16 +7,56 @@ use App\Http\Requests\StoreSupplierRequest;
 use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
 use App\Http\Resources\SupplierResource;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SupplierController extends Controller
 {
-    public function index()
-    {
-        $this->authorize('viewAny', Supplier::class);
-        $user = auth()->user();
-        $suppliers = Supplier::where('tenant_id', $user->tenant_id)->get();
-        return SupplierResource::collection($suppliers);
-    }
+    public function index(Request $request)
+{
+    $this->authorize('viewAny', Supplier::class);
+
+    $user = auth()->user();
+
+    $query = Supplier::where('tenant_id', $user->tenant_id)
+        ->when($request->search, function ($q) use ($request) {
+            $q->where('name', 'like', "%$request->search%")
+              ->orWhere('phone', 'like', "%$request->search%")
+              ->orWhere('code', 'like', "%$request->search%");
+        })
+        ->orderBy('name', 'asc');
+
+    $supplierIds = (clone $query)->select('id');
+
+    $debits = DB::table('ledger_entries')
+        ->whereIn('supplier_id', $supplierIds)
+        ->where('entity_type', 'supplier')
+        ->where('direction', 'debit')
+        ->sum('amount');
+
+    $credits = DB::table('ledger_entries')
+        ->whereIn('supplier_id', $supplierIds)
+        ->where('entity_type', 'supplier')
+        ->where('direction', 'credit')
+        ->sum('amount');
+
+    $totalOwed = max(0, round($debits - $credits, 2));
+
+    $suppliers = $query->paginate(20);
+
+    return response()->json([
+        'data' => SupplierResource::collection($suppliers)->resolve(),
+        'meta' => [
+            'current_page' => $suppliers->currentPage(),
+            'last_page'    => $suppliers->lastPage(),
+            'total'        => $suppliers->total(),
+        ],
+        'stats' => [
+            'total_suppliers' => $suppliers->total(),
+            'total_owed'      => $totalOwed,
+        ],
+    ]);
+}
 
     public function store(StoreSupplierRequest $request)
     {
