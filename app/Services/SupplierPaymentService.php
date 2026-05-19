@@ -39,6 +39,7 @@ if (!empty($data['purchase_order_id'])) {
         'supplier_id'       => $supplierId,
         'payment_id'        => $payment->id,
         'amount'            => $applyAmount,
+        'invoice_number'   => $order->invoice_number,
     ]);
 
     return [$payment];
@@ -82,6 +83,7 @@ if (!empty($data['purchase_order_id'])) {
             'supplier_id' => $supplierId,
             'payment_id' => $payment->id,
             'amount' => $applyAmount,
+            'invoice_number'=> $order->invoice_number
         ]);
 
         $remaining = round($remaining - $applyAmount, 2);

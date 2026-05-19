@@ -26,16 +26,13 @@ class PaymentService
   public function processDirectPayment(array $data , User $user) : Payment
 {
     return DB::transaction(function () use ($data , $user) {
+        $order = Order::with('items', 'payments')->findOrFail($data['order_id']);
+        $orderTotal      = $order->items->sum(fn($i) => $i->unit_price * $i->quantity); // SIMPLIFY
+        $totalAlreadyPaid = $order->payments->sum('amount'); 
 
-        $orderTotal = OrderItem::where('order_id', $data['order_id'])
-            ->sum(DB::raw('unit_price * quantity'));
-
-        $totalAlreadyPaid = Payment::where('order_id', $data['order_id'])
-            ->sum('amount');
-
-            if($totalAlreadyPaid >= $orderTotal){
-                throw new \InvalidArgumentException('Order is already fully paid.');
-            }
+        if($totalAlreadyPaid >= $orderTotal){
+            throw new \InvalidArgumentException('Order is already fully paid.');
+        }
 
         $payment = Payment::create([
             'tenant_id'   => $user->tenant_id,
@@ -58,6 +55,7 @@ class PaymentService
             'store_id'    => $user->store_id ?? $payment->order->store_id,
             'payment_id'  => $payment->id,
             'amount'      => $appliedAmount,
+            'invoice_number' => $order->invoice_number,
         ]);
 
             if ($excess > 0) {
@@ -68,6 +66,7 @@ class PaymentService
                     'order_id'    => $payment->order_id,
                     'payment_id'  => $payment->id,
                     'amount'      => $excess,
+                    'invoice_number' => $order->invoice_number,
                 ]);
             }
         return $payment;
@@ -122,6 +121,7 @@ public function processAutoPayment(array $data, User $user): array
                 'store_id'    => $user->store_id ?? $order->store_id,
                 'payment_id'  => $payment->id,
                 'amount'      => $applyAmount,
+                'invoice_number' => $order->invoice_number,
             ]);
 
             $remaining  = round($remaining - $applyAmount, 2);

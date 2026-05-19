@@ -25,7 +25,7 @@ class LedgerService
         'store_id' => $data['store_id'],
         'type' => 'ORDER_CHARGE',
         'amount' => $data['amount'],
-        'description' => 'Order charge #'. $data['order_id'],
+        'description' => 'Order charge ' . $data['invoice_number'],
         'reference_type' => 'order',
         'reference_id' => $data['order_id'],
     ]);
@@ -44,7 +44,7 @@ class LedgerService
         'amount'         => $data['total'],
         'reference_type' => PurchaseOrder::class,
         'reference_id'   => $data['purchase_order_id'],
-        'description' => 'Purchase order #' . $data['purchase_order_id'],
+        'description' => 'Purchase order ' . $data['invoice_number'],
     ]);
 }
 
@@ -56,7 +56,7 @@ class LedgerService
         'store_id' => $data['store_id'],
         'type' => 'PAYMENT',
         'amount' => $data['amount'],
-        'description' => 'Payment for order #'. $data['order_id'],
+        'description' => 'Payment for order ' . $data['invoice_number'],
         'reference_type' => 'payment',
         'reference_id' => $data['payment_id'],
     ]);
@@ -74,7 +74,7 @@ class LedgerService
         'amount'         => $data['amount'],
         'reference_type' => 'supplier_payment',
         'reference_id'   => $data['payment_id'],
-        'description' => 'Payment for purchase order #' . $data['payment_id'],
+        'description' => 'Payment for purchase order ' . $data['invoice_number'],
     ]);
 }
 
@@ -86,7 +86,7 @@ class LedgerService
         'store_id' => $data['store_id'],
         'type' => 'CREDIT_APPLY',
         'amount' => $data['amount'],
-        'description' => 'overpayment credit for order #'. $data['order_id'],
+        'description' => 'Overpayment credit for order ' . $data['invoice_number'],
         'reference_type' => 'payment',
         'reference_id' => $data['payment_id'],
     ]);
@@ -100,7 +100,7 @@ public function reverseOrder(array $data) : LedgerEntry {
         'store_id' => $data['store_id'],
         'type' => 'REVERSAL',
         'amount' => $data['amount'],
-        'description' => 'Reversal for cancelled order #'. $data['order_id'],
+        'description' => 'Reversal for cancelled order ' . $data['invoice_number'],
         'reference_type' => 'order',
         'reference_id' => $data['order_id'],
     ]);
@@ -119,7 +119,7 @@ public function reversePurchaseOrder (array $data) : LedgerEntry {
         'amount'         => $data['amount'],
         'reference_type' => PurchaseOrder::class,
         'reference_id'   => $data['purchase_order_id'],
-        'description' => 'Reversal for cancelled purchase order #' . $data['purchase_order_id'],
+        'description' => 'Purchase order ' . $data['invoice_number'],
     ]);
 
 }
@@ -128,12 +128,12 @@ public function getBalance(int $tenantId, int $customerId) : float{
 
     $debits = LedgerEntry::where('tenant_id', $tenantId)
     ->where('customer_id', $customerId)
-    ->whereIn('type', ['ORDER_CHARGE','REVERSAL' , 'CREDIT_CONSUMED'])
+    ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED'])
     ->sum('amount');
 
     $credits = LedgerEntry::where('tenant_id', $tenantId)
     ->where('customer_id', $customerId)
-    ->whereIn('type', ['PAYMENT', 'CREDIT_APPLY'])
+    ->whereIn('type', ['PAYMENT', 'CREDIT_APPLY','REVERSAL' ])
     ->sum('amount');
 
     return round($debits - $credits, 2);
@@ -194,7 +194,7 @@ public function consumeCredit(array $data): LedgerEntry
         'store_id'       => $data['store_id'],
         'type'           => 'CREDIT_CONSUMED',
         'amount'         => $data['amount'],
-        'description'    => 'Credit applied to order #' . $data['order_id'],
+        'description'    => 'Credit applied to order ' . $data['invoice_number'],
         'reference_type' => 'payment',
         'reference_id'   => $data['payment_id'],
     ]);

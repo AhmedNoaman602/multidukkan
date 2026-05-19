@@ -100,6 +100,7 @@ class PurchaseOrderService
             'tenant_id'   => $purchaseOrder->tenant_id,
             'supplier_id' => $purchaseOrder->supplier_id,
             'purchase_order_id'=> $purchaseOrder->id,
+            'invoice_number'=> $purchaseOrder->invoice_number,
             'total'      => $purchaseOrder->total,
         ]);
             return $purchaseOrder;
@@ -126,6 +127,7 @@ class PurchaseOrderService
             'tenant_id'   => $purchaseOrder->tenant_id,
             'supplier_id' => $purchaseOrder->supplier_id,
             'purchase_order_id'    => $purchaseOrder->id,
+            'invoice_number' => $purchaseOrder->invoice_number,
             'amount'      => $chargeAmount,
         ]);
 
