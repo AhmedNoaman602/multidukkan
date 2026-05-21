@@ -42,7 +42,7 @@ class OrderResource extends JsonResource
         'tenant_id'  => $this->tenant_id,
         'store_id'   => $this->store_id,
         'customer_id'=> $this->customer_id,
-        'customer_name' => $this->customer?->name ?? 'Deleted Customer',
+        'customer_name' => $this->customer_name_snapshot ?? $this->customer?->name ?? 'Unknown',
         'created_by' => $this->created_by,
         'notes'      => $this->notes,
         'subtotal'       => round($subtotal, 2),  
@@ -58,6 +58,7 @@ class OrderResource extends JsonResource
             'unit_price'   => $item->unit_price,
             'total'        => $item->unit_price * $item->quantity,
         ]),
+        'amount_paid' => $totalPaid,
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         'created_at' => $this->created_at->toDateTimeString(),
     ];

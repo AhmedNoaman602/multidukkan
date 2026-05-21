@@ -9,6 +9,7 @@ use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
+use App\Models\LedgerEntry;
 
 class OrderController extends Controller
 {
@@ -95,24 +96,53 @@ class OrderController extends Controller
     }
 
     public function update(Request $request, Order $order)
-    {
-        $this->authorize('update', $order);
-        
-       
-        if ($order->tenant_id != auth()->user()->tenant_id) {
+{
+    $this->authorize('update', $order);
+
+    if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 
-    if ($order->payments()->exists()) {
-        return response()->json([
-            'message' => 'Cannot modify an order that has payments.'
-        ], 422);
+    $hasPayments = $order->payments()->exists();
+
+    $validated = $request->validate([
+        'order_date' => ['sometimes', 'date'],
+        'notes'      => ['sometimes', 'nullable', 'string', 'max:1000'],
+        'discount'   => ['sometimes', 'numeric', 'min:0'],
+    ]);
+
+if (isset($validated['discount']) && $hasPayments && $validated['discount'] != $order->discount) {
+    return response()->json([
+        'message' => 'Discount cannot be changed after payments have been made.'
+    ], 422);
+}
+
+    if (isset($validated['order_date'])) {
+        $order->created_at = $validated['order_date'];
     }
 
-        // $order->update($request->validated());
-
-        return new OrderResource($order->load('items', 'payments' , 'customer'));
+    if (array_key_exists('notes', $validated)) {
+        $order->notes = $validated['notes'];
     }
+
+    if (isset($validated['discount'])) {
+        $order->load('items');
+        $subtotal      = $order->items->sum(fn($i) => $i->unit_price * $i->quantity);
+        $newTotal      = max(0, round($subtotal - $validated['discount'], 2));
+        $order->discount = $validated['discount'];
+        $order->total    = $newTotal;
+
+        // Keep ORDER_CHARGE ledger entry in sync
+        LedgerEntry::where('reference_type', 'order')
+            ->where('reference_id', $order->id)
+            ->where('type', 'ORDER_CHARGE')
+            ->update(['amount' => $newTotal]);
+    }
+
+    $order->save();
+
+    return new OrderResource($order->load('items', 'payments', 'customer'));
+}
 
     public function destroy(Request $request, Order $order)
     {

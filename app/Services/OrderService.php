@@ -112,6 +112,7 @@ foreach ($aggregated as $itemData) {
             'tenant_id'   => $user->tenant_id,
             'store_id'    => $user->store_id ?? $data['store_id'],
             'customer_id' => $data['customer_id'],
+            'customer_name_snapshot' => $customer->name, 
             'created_by'  => $user->id,
             'notes'       => $data['notes'] ?? null,
             'discount'    => $data['discount'] ?? 0,
@@ -194,32 +195,58 @@ foreach ($aggregated as $itemData) {
         return $order->load('items');
     });
 }
-   public function cancelOrder(Order $order): void
+
+public function cancelOrder(Order $order): void
 {
     DB::transaction(function () use ($order) {
-        $chargeAmount = $order->total;
+        // 1. Restore stock
+        foreach ($order->items as $item) {
+            if ($item->warehouse_id) {
+                $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
+                    ? $item->quantity * $item->product->conversion_factor
+                    : $item->quantity;
 
-       foreach ($order->items as $item) {
-    if ($item->warehouse_id) {
-        $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
-            ? $item->quantity * $item->product->conversion_factor
-            : $item->quantity;
+                $this->inventory->restoreStock(
+                    $item->product_id,
+                    $item->warehouse_id,
+                    $stockQuantity,
+                    $order->id,
+                    Order::class
+                );
+            }
+        }
 
-        $this->inventory->restoreStock($item->product_id, $item->warehouse_id, $stockQuantity, $order->id, Order::class);
-    }
-}
+        // 2. Calculate total paid (full or partial payments)
+        $totalPaid = Payment::where('order_id', $order->id)
+            ->get()
+            ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+
+        // 3. Reverse the order charge
         $this->ledger->reverseOrder([
-            'tenant_id'   => $order->tenant_id,
-            'customer_id' => $order->customer_id,
-            'store_id'    => $order->store_id,
-            'order_id'    => $order->id,
-            'amount'      => $chargeAmount,
+            'tenant_id'      => $order->tenant_id,
+            'customer_id'    => $order->customer_id,
+            'store_id'       => $order->store_id,
+            'order_id'       => $order->id,
+            'amount'         => $order->total,
             'invoice_number' => $order->invoice_number,
         ]);
 
+        // 4. If order was paid (fully or partially), auto-refund
+        if ($totalPaid > 0) {
+            $this->ledger->issueRefund([
+                'tenant_id'      => $order->tenant_id,
+                'customer_id'    => $order->customer_id,
+                'store_id'       => $order->store_id,
+                'order_id'       => $order->id,
+                'amount'         => $totalPaid,
+                'method'         => 'cash',
+                'notes'          => "Auto-refund for cancelled order {$order->invoice_number}",
+                'invoice_number' => $order->invoice_number,
+            ]);
+        }
+
+        // 5. Delete the order
         $order->delete();
     });
 }
 }
-
-

@@ -17,6 +17,11 @@ use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\SupplierProductController;
 
+use Prism\Prism\Facades\Prism;
+use Prism\Prism\Enums\Provider;
+use Prism\Prism\ValueObjects\Messages\UserMessage;
+use Prism\Prism\ValueObjects\Messages\SystemMessage;
+
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 
@@ -101,4 +106,35 @@ Route::get('/supplier-payments', [SupplierPaymentController::class, 'index']);
 Route::get('suppliers/{supplier}/products', [SupplierProductController::class, 'index']);
 Route::post('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'attach']);
 Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
+});
+
+Route::get('/test-ai', function () {
+    $response = Prism::text()
+        ->using(Provider::Groq, 'llama-3.1-8b-instant')
+        ->withSystemPrompt('You are a helpful assistant.')
+        ->withMaxTokens(200)
+        ->withMessages([
+            new UserMessage('Say hello in Arabic and English. Keep it short.'),
+        ])
+        ->generate();
+
+    return response()->json([
+        'message' => $response->text,
+        'tokens_used' => $response->usage->promptTokens + $response->usage->completionTokens,
+    ]);
+});
+
+Route::get('/test-ai-raw', function () {
+    $response = \Illuminate\Support\Facades\Http::withHeaders([
+        'Content-Type' => 'application/json',
+        'Authorization' => 'Bearer ' . env('GROQ_API_KEY'),
+    ])->post('https://api.groq.com/openai/v1/chat/completions', [
+        'model' => 'llama-3.1-8b-instant',
+        'messages' => [
+            ['role' => 'user', 'content' => 'Say hello in Arabic and English. Keep it short.']
+        ],
+        'max_tokens' => 200,
+    ]);
+
+    return $response->json();
 });

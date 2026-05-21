@@ -9,7 +9,8 @@ use App\Http\Resources\CustomerResource;
 use Illuminate\Support\Facades\DB;
 use App\Services\LedgerService;
 use App\Http\Requests\RefundCustomerRequest;
-
+use App\Http\Requests\StoreCustomerRequest;
+use App\Http\Requests\UpdateCustomerRequest;
 class CustomerController extends Controller
 {
     /**
@@ -29,7 +30,8 @@ class CustomerController extends Controller
             ->where(function ($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")
                   ->orWhere('phone', 'like', "%{$request->search}%")
-                  ->orWhere('code', 'like', "%{$request->search}%");
+                  ->orWhere('code', 'like', "%{$request->search}%")
+                  ->orWhere('area', 'like', "%{$request->search}%");  
             })
         )
         ->orderBy('name', 'asc');
@@ -80,18 +82,13 @@ class CustomerController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreCustomerRequest $request)
     {
         $this->authorize('create', Customer::class);
         
         $user = auth()->user();
 
-        $validated = $request->validate([
-            'name' => 'required',
-            'phone' => 'required',
-            'address' => 'nullable',
-            'price_tier' => 'nullable|in:default,a,b,c,d,e',
-        ]);
+        $validated = $request->validated();
 
         $customer = Customer::create([
             'tenant_id'           => $user->tenant_id,
@@ -99,14 +96,17 @@ class CustomerController extends Controller
             'name'                => $validated['name'],
             'phone'               => $validated['phone'],
             'address'             => $validated['address'] ?? null,
+            'area'                => $validated['area'] ?? null,  
             'price_tier'          => $validated['price_tier'] ?? 'default',
-            'code'                => $this->generateCustomerCode($user->tenant_id),
+            'code'                => $request->code ?? $this->generateCustomerCode($user->tenant_id),  
         ]);
 
         return (new CustomerResource($customer))
                 ->response()
                 ->setStatusCode(201);    
     }
+
+    
 
     /**
      * Display the specified resource.
@@ -125,7 +125,7 @@ class CustomerController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Customer $customer)
+    public function update(UpdateCustomerRequest $request, Customer $customer)
     {
         $this->authorize('update', $customer);
         
@@ -133,13 +133,7 @@ class CustomerController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $validated = $request->validate([
-            'name'       => 'sometimes|string|max:255',
-            'phone'      => 'sometimes|string|max:20',
-            'address'    => 'nullable|string|max:255',
-            'price_tier' => 'sometimes|nullable|in:default,a,b,c,d,e',
-        ]);        
-        
+        $validated = $request->validated();
         $customer->update($validated);
         return new CustomerResource($customer);
     }
