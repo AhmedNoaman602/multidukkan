@@ -22,6 +22,7 @@ use Prism\Prism\Enums\Provider;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
 use Prism\Prism\ValueObjects\Messages\SystemMessage;
 use App\Services\AIService;
+use App\Http\Controllers\Api\V1\AIController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -110,18 +111,8 @@ Route::post('suppliers/{supplier}/products/{product}', [SupplierProductControlle
 Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
 });
 
-Route::get('/test-ai', function () {
-    $ai = new AIService();
+Route::get('/test-ai', [AIController::class, 'test']);
 
-    $response = $ai->generate(
-        systemPrompt: 'You are a helpful assistant.',
-        userMessage: 'Say hello in Arabic and English. Keep it short.',
-    );
-
-    return response()->json([
-        'message' => $response,
-    ]);
-});
 
 Route::get('/test-ai-raw', function () {
     $response = \Illuminate\Support\Facades\Http::withHeaders([
