@@ -21,6 +21,8 @@ use Prism\Prism\Facades\Prism;
 use Prism\Prism\Enums\Provider;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
 use Prism\Prism\ValueObjects\Messages\SystemMessage;
+use App\Services\AIService;
+
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -109,18 +111,15 @@ Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductControl
 });
 
 Route::get('/test-ai', function () {
-    $response = Prism::text()
-        ->using(Provider::Groq, 'llama-3.1-8b-instant')
-        ->withSystemPrompt('You are a helpful assistant.')
-        ->withMaxTokens(200)
-        ->withMessages([
-            new UserMessage('Say hello in Arabic and English. Keep it short.'),
-        ])
-        ->generate();
+    $ai = new AIService();
+
+    $response = $ai->generate(
+        systemPrompt: 'You are a helpful assistant.',
+        userMessage: 'Say hello in Arabic and English. Keep it short.',
+    );
 
     return response()->json([
-        'message' => $response->text,
-        'tokens_used' => $response->usage->promptTokens + $response->usage->completionTokens,
+        'message' => $response,
     ]);
 });
 
