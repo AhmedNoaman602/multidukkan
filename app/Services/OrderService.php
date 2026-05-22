@@ -115,6 +115,7 @@ foreach ($aggregated as $itemData) {
             'created_by'  => $user->id,
             'notes'       => $data['notes'] ?? null,
             'discount'    => $data['discount'] ?? 0,
+            'customer_name_snapshot' => $customer->name,
             'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
         ]);
         if (isset($data['order_date'])) {

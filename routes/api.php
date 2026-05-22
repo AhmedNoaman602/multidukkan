@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\SupplierProductController;
+use App\Http\Controllers\Api\V1\AIController;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -101,4 +102,7 @@ Route::get('/supplier-payments', [SupplierPaymentController::class, 'index']);
 Route::get('suppliers/{supplier}/products', [SupplierProductController::class, 'index']);
 Route::post('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'attach']);
 Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
+
+Route::post('/ai/describe-product', [AIController::class, 'describeProduct']);
 });
+

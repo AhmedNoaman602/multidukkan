@@ -14,6 +14,7 @@ class Order extends Model
         'tenant_id',
         'store_id',
         'customer_id',
+        'customer_name_snapshot',
         'created_by',
         'notes',
         'discount',
