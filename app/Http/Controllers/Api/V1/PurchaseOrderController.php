@@ -29,7 +29,7 @@ class PurchaseOrderController extends Controller
         ->orderBy('year', 'desc')
         ->pluck('year');
 
-    $query = PurchaseOrder::where('tenant_id', $user->tenant_id)
+        $query = PurchaseOrder::where('tenant_id', $user->tenant_id)
         ->when($request->search, function ($q) use ($request) {
             $q->where(function ($q) use ($request) {
                 $q->where('invoice_number', 'like', "%$request->search%")
@@ -39,6 +39,18 @@ class PurchaseOrderController extends Controller
         })
         ->when($request->year, fn($q) =>
             $q->whereYear('created_at', $request->year)
+        )
+        ->when($request->month, fn($q) =>
+            $q->whereMonth('created_at', $request->month)
+        )
+        ->when($request->date_from, fn($q) =>
+            $q->whereDate('created_at', '>=', $request->date_from)
+        )
+        ->when($request->date_to, fn($q) =>
+            $q->whereDate('created_at', '<=', $request->date_to)
+        )
+        ->when($request->date_exact, fn($q) =>
+            $q->whereDate('created_at', $request->date_exact)
         );
 
     $totalSpent = (clone $query)->sum('total');
@@ -51,7 +63,7 @@ class PurchaseOrderController extends Controller
 
     $purchaseOrders = $query
         ->with('supplier', 'items.product', 'supplierPayments')
-        ->orderBy('created_at', 'desc')
+        ->orderBy('id', 'desc')
         ->paginate(20);
 
     return response()->json([

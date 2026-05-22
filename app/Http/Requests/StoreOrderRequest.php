@@ -33,6 +33,7 @@ class StoreOrderRequest extends FormRequest
             'items.*.quantity'     => 'required|integer|min:1',
             'items.*.unit_type' => 'nullable|in:base,secondary',
             'discount' => 'nullable|numeric|min:0',
+            'order_date' => 'nullable|date|before_or_equal:today',
         ];
     }
 }

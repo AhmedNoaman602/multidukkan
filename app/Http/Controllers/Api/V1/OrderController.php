@@ -22,6 +22,13 @@ class OrderController extends Controller
 
     $user = auth()->user();
 
+    $months = Order::where('tenant_id', $user->tenant_id)
+    ->selectRaw('MONTH(created_at) as month, YEAR(created_at) as year')
+    ->distinct()
+    ->orderBy('year', 'desc')
+    ->orderBy('month', 'desc')
+    ->get();
+
     $years = Order::where('tenant_id', $user->tenant_id)
         ->selectRaw('YEAR(created_at) as year')
         ->distinct()
@@ -30,17 +37,29 @@ class OrderController extends Controller
 
     // Extract base query into variable so we can clone it for stats
     $query = Order::where('tenant_id', $user->tenant_id)
-        ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
-        ->when($request->search, function ($q) use ($request) {
-            $q->where(function ($q) use ($request) {
-                $q->where('invoice_number', 'like', "%$request->search%")
-                  ->orWhereHas('customer', fn($q) =>
-                      $q->where('name', 'like', "%$request->search%"));
-            });
-        })
-        ->when($request->year, fn($q) =>
-            $q->whereYear('created_at', $request->year)
-        );
+    ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
+    ->when($request->search, function ($q) use ($request) {
+        $q->where(function ($q) use ($request) {
+            $q->where('invoice_number', 'like', "%$request->search%")
+              ->orWhereHas('customer', fn($q) =>
+                  $q->where('name', 'like', "%$request->search%"));
+        });
+    })
+    ->when($request->year, fn($q) =>
+        $q->whereYear('created_at', $request->year)
+    )
+    ->when($request->month, fn($q) =>
+        $q->whereMonth('created_at', $request->month)
+    )
+    ->when($request->date_from, fn($q) =>
+        $q->whereDate('created_at', '>=', $request->date_from)
+    )
+    ->when($request->date_to, fn($q) =>
+        $q->whereDate('created_at', '<=', $request->date_to)
+    )
+    ->when($request->date_exact, fn($q) =>
+    $q->whereDate('created_at', $request->date_exact)
+);
 
 
     $totalRevenue = (clone $query)->sum('total');
@@ -50,7 +69,7 @@ class OrderController extends Controller
     $unpaidAmount = round($totalRevenue - $paidAmount, 2);
 
     $orders = $query->with('items', 'payments', 'customer')
-        ->orderBy('created_at', 'desc')
+        ->orderBy('id', 'desc')
         ->paginate(20);
 
     return response()->json([
@@ -60,6 +79,7 @@ class OrderController extends Controller
             'last_page'    => $orders->lastPage(),
             'total'        => $orders->total(),
         ],
+        'months' => $months,
         'years' => $years,
         'stats' => [
             'total_orders'  => $orders->total(),

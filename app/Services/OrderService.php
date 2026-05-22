@@ -117,6 +117,12 @@ foreach ($aggregated as $itemData) {
             'discount'    => $data['discount'] ?? 0,
             'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
         ]);
+        if (isset($data['order_date'])) {
+            $order->timestamps = false;
+            $order->created_at = $data['order_date'];
+            $order->save();
+            $order->timestamps = true;
+        }
 
         $totalAmount = 0;
         foreach ($validatedItems as $v) {
