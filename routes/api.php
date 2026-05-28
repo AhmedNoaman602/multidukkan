@@ -104,5 +104,6 @@ Route::post('suppliers/{supplier}/products/{product}', [SupplierProductControlle
 Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
 
 Route::post('/ai/describe-product', [AIController::class, 'describeProduct']);
+Route::get('/ai/insights', [AIController::class, 'insights']);
 });
 
