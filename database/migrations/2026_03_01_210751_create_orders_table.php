@@ -11,20 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('orders', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('store_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('customer_id')->constrained()->cascadeOnDelete();
-
-            $table->foreignId('created_by')->nullable()
-            ->constrained('users')
-            ->nullOnDelete();
-
-            $table->text('notes')->nullable();
-            $table->softDeletes();
-            $table->timestamps();
-        });
+       Schema::create('orders', function (Blueprint $table) {
+    $table->id();
+    $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+    $table->foreignId('store_id')->constrained()->cascadeOnDelete();
+    $table->foreignId('customer_id')->constrained()->cascadeOnDelete();
+    $table->string('customer_name_snapshot')->nullable();
+    $table->foreignId('created_by')->nullable()
+        ->constrained('users')
+        ->nullOnDelete();
+    $table->text('notes')->nullable();
+    $table->softDeletes();
+    $table->timestamps();
+});
     }
 
     /**
