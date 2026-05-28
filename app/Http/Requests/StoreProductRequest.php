@@ -29,7 +29,7 @@ class StoreProductRequest extends FormRequest
             'sku' => [
     'required',
     'string',
-    \Illuminate\Validation\Rule::unique('products', 'sku')
+    Rule::unique('products', 'sku')
         ->where('tenant_id', auth()->user()->tenant_id)
         ->ignore($this->route('product')),
 ],
