@@ -56,6 +56,10 @@ class OrderResource extends JsonResource
             'product_name' => $item->product_name,
             'quantity'     => $item->quantity,
             'unit_price'   => $item->unit_price,
+            'unit_type'    => $item->unit_type,
+            'unit_label'   => $item->unit_type === 'secondary' 
+                        ? ($item->product?->secondary_unit ?? $item->unit_type)
+                        : ($item->product?->unit ?? 'base'),
             'total'        => $item->unit_price * $item->quantity,
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
