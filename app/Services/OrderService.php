@@ -28,8 +28,7 @@ class OrderService
     $year = now()->year;
 
     $last = Order::where('tenant_id', $tenantId)
-        ->whereYear('created_at', $year)
-        ->whereNotNull('invoice_number')
+        ->where('invoice_number', 'like', "{$year}-%")
         ->orderByDesc('id')
         ->value('invoice_number');
 
