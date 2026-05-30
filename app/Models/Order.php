@@ -40,4 +40,13 @@ class Order extends Model
     {
         return $this->hasMany(Payment::class);
     }
+
+    public function scopeWhereUnpaid($query)
+{
+    return $query->whereRaw('total > (
+        SELECT COALESCE(SUM(amount - COALESCE(refunded_amount, 0)), 0)
+        FROM payments
+        WHERE payments.order_id = orders.id
+    )');
+}
 }

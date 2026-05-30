@@ -38,7 +38,7 @@ class Supplier extends Model
                     ->where('entity_type' , 'supplier');
     }
     public function products()
-    {
-        return $this->belongsToMany(Product::class, 'supplier_products');
-    }
+{
+    return $this->hasMany(Product::class);
+}
 }

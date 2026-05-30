@@ -25,6 +25,7 @@ class Product extends Model
         'unit',
         'secondary_unit',
         'conversion_factor',
+        'supplier_id',
     ];
 
     protected $attributes = [
@@ -54,8 +55,8 @@ protected static function booted(): void
     {
         return $this->hasMany(Inventory::class);
     }
-    public function suppliers()
-    {
-        return $this->belongsToMany(Supplier::class, 'supplier_products');
-    }
+    public function supplier()
+{
+    return $this->belongsTo(Supplier::class);
+}
 }
