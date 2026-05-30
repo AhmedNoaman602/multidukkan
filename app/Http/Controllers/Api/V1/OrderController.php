@@ -9,6 +9,7 @@ use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
@@ -65,7 +66,8 @@ class OrderController extends Controller
     $totalRevenue = (clone $query)->sum('total');
     $paidAmount = DB::table('payments')
     ->whereIn('order_id', (clone $query)->select('id'))
-    ->sum('amount');
+    ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
+
     $unpaidAmount = round($totalRevenue - $paidAmount, 2);
 
     $orders = $query->with('items', 'payments', 'customer')
@@ -137,16 +139,21 @@ class OrderController extends Controller
     public function destroy(Request $request, Order $order)
     {
         $this->authorize('delete', $order);
+
+        if ($order->tenant_id != auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
         
         if ($order->trashed()) {
             return response()->json(['message' => 'Order already cancelled'], 422);
         }
 
-        if ($order->tenant_id != auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-        $this->order->cancelOrder($order);
+        try{
+            $this->order->cancelOrder($order);
 
-        return response()->json(['message' => 'Order cancelled and ledger reversed successfully'], 200);
+            return response()->json(['message' => 'Order cancelled and ledger reversed successfully'], 200);
+        }catch(ValidationException $e){
+            return response()->json(['message' => $e->getMessage()], 422);
+        } 
     }
 }
