@@ -102,6 +102,7 @@ Route::get('/supplier-payments', [SupplierPaymentController::class, 'index']);
 Route::get('suppliers/{supplier}/products', [SupplierProductController::class, 'index']);
 Route::post('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'attach']);
 Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
+Route::get('/suppliers/{supplier}/stock', [SupplierController::class, 'products']);
 
 Route::post('/ai/describe-product', [AIController::class, 'describeProduct']);
 Route::get('/ai/insights', [AIController::class, 'insights']);
