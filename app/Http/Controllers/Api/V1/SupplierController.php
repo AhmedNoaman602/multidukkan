@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSupplierRequest;
 use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
+use App\Models\Product;
 use App\Http\Resources\SupplierResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -120,4 +121,28 @@ class SupplierController extends Controller
 
         return "S-{$next}";
     }
+
+    public function products(Supplier $supplier)
+{
+    $this->authorize('view', $supplier);
+
+    if ($supplier->tenant_id !== auth()->user()->tenant_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
+    $products = Product::where('supplier_id', $supplier->id)
+        ->where('tenant_id', $supplier->tenant_id)
+        ->with('inventories')
+        ->get()
+        ->map(fn($product) => [
+            'id'          => $product->id,
+            'name'        => $product->name,
+            'sku'         => $product->sku,
+            'unit'        => $product->unit,
+            'price'       => $product->price,
+            'total_stock' => $product->inventories->sum('quantity'),
+        ]);
+
+    return response()->json(['data' => $products]);
+}
 }

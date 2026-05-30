@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Store;
 use App\Http\Resources\StoreResource;
+use Illuminate\Validation\ValidationException;
 
 class StoreController extends Controller
 {
@@ -77,15 +78,18 @@ class StoreController extends Controller
     }
 
     public function destroy(Store $store)
-    {
-        $this->authorize('delete', $store);
-        
-        if ($store->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+{
+    $this->authorize('delete', $store);
 
-        $store->delete();
-
-        return response()->json(['message' => 'Store deleted successfully']);
+    if ($store->tenant_id !== auth()->user()->tenant_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
     }
+
+    try {
+        $store->delete();
+        return response()->json(['message' => 'Store deleted successfully']);
+    } catch (ValidationException $e) {
+        return response()->json(['message' => $e->errors()['store'][0]], 422);
+    }
+}
 }

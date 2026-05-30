@@ -54,6 +54,7 @@ class ProductController extends Controller
             'unit'      => $request->unit ?? 'pcs',
             'secondary_unit'    => $request->secondary_unit,
             'conversion_factor' => $request->conversion_factor,
+            'supplier_id' => $request->supplier_id,
         ]);
         foreach ($request->stocks ?? [] as $stock) {
     if (empty($stock['warehouse_id'])) continue;
@@ -105,6 +106,7 @@ class ProductController extends Controller
             'price_d' => $request->price_d,
             'price_e' => $request->price_e,
             'unit'    => $request->unit ?? $product->unit,
+            'supplier_id' => $request->supplier_id,
             'secondary_unit' => $request->secondary_unit,
             'conversion_factor' => $request->conversion_factor,
         ]);

@@ -33,6 +33,7 @@ class StoreProductRequest extends FormRequest
         ->where('tenant_id', auth()->user()->tenant_id)
         ->ignore($this->route('product')),
 ],
+            'supplier_id' => 'nullable|exists:suppliers,id',
             'price'     => 'required|numeric|min:0',
             'price_a'     => 'nullable|numeric|min:0',
             'price_b'     => 'nullable|numeric|min:0',

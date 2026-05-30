@@ -32,7 +32,7 @@ class CustomerController extends Controller
                   ->orWhere('code', 'like', "%{$request->search}%");
             })
         )
-        ->orderBy('name', 'asc');
+        ->orderBy('code', 'asc');
 
     $customerIds = (clone $query)->select('id');
 
@@ -147,17 +147,21 @@ class CustomerController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Customer $customer)
-    {
-        $this->authorize('delete', $customer);
-        
-        if ($customer->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-        
-        $customer->delete();
-        return response()->json(['message' => 'Customer deleted successfully']);
+   public function destroy(Customer $customer)
+{
+    $this->authorize('delete', $customer);
+
+    if ($customer->tenant_id !== auth()->user()->tenant_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
     }
+
+    try {
+        $customer->delete();
+        return response()->json(['message' => 'Customer deleted successfully.']);
+    } catch (ValidationException $e) {
+        return response()->json(['message' => $e->errors()['customer'][0]],422);
+    }
+}
 
     public function refund(RefundCustomerRequest $request, Customer $customer)
 {
