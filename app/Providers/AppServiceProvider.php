@@ -25,6 +25,9 @@ use App\Policies\StorePolicy;
 use App\Policies\SupplierPolicy;
 use App\Policies\PurchaseOrderPolicy;
 use App\Policies\SupplierPaymentPolicy;
+use App\Observers\StoreObserver;
+use App\Observers\CustomerObserver;
+use App\Observers\OrderObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -47,5 +50,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Supplier::class, SupplierPolicy::class);
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(SupplierPayment::class, SupplierPaymentPolicy::class);
+        Store::observe(StoreObserver::class);
+        Customer::observe(CustomerObserver::class);
+        Order::observe(OrderObserver::class);
     }
 }
