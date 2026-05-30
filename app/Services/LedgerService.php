@@ -5,6 +5,8 @@ use App\Models\LedgerEntry;
 use App\Models\PurchaseOrder;
 use App\Models\Payment;
 use App\Models\Order;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 /**
  * Service for managing the financial ledger of customers and tenants.
  * 
@@ -204,22 +206,32 @@ public function consumeCredit(array $data): LedgerEntry
 
 public function issueRefund(array $data): LedgerEntry
 {
-    // In issueRefund(), replace payment_id lookup with:
     if (!empty($data['order_id'])) {
-    $remaining = $data['amount'];
-    $payments = Payment::where('order_id', $data['order_id'])
-        ->orderBy('id', 'asc')
-        ->get();
+        // 1. Validate first
+        $totalPaid = Payment::where('order_id', $data['order_id'])
+            ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
 
-    foreach ($payments as $payment) {
-        if ($remaining <= 0) break;
-        $available = $payment->amount - ($payment->refunded_amount ?? 0);
-        if ($available <= 0) continue;
-        $toRefund = min($available, $remaining);
-        $payment->increment('refunded_amount', $toRefund);
-        $remaining -= $toRefund;
+        if ($data['amount'] > $totalPaid) {
+            throw ValidationException::withMessages([
+                'amount' => "Refund amount exceeds total paid ({$totalPaid} EGP).",
+            ]);
+        }
+
+        // 2. Then fetch and update
+        $remaining = $data['amount'];
+        $payments  = Payment::where('order_id', $data['order_id'])
+            ->orderBy('id', 'asc')
+            ->get();
+
+        foreach ($payments as $payment) {
+            if ($remaining <= 0) break;
+            $available = $payment->amount - ($payment->refunded_amount ?? 0);
+            if ($available <= 0) continue;
+            $toRefund = min($available, $remaining);
+            $payment->increment('refunded_amount', $toRefund);
+            $remaining -= $toRefund;
+        }
     }
-}
 
     return LedgerEntry::create([
         'tenant_id'      => $data['tenant_id'],
