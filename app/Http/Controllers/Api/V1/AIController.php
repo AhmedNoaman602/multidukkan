@@ -11,29 +11,21 @@ class AIController extends Controller
 {
     public function __construct(protected AIService $ai) {}
 
-    public function test(): JsonResponse
-    {
-        $response = $this->ai->generate(
-            systemPrompt: 'You are a helpful assistant.',
-            userMessage: 'Say hello in Arabic and English. Keep it short.',
-        );
-
-        return response()->json([
-            'message' => $response,
-        ]);
-    }
-
     public function describeProduct(Request $request): JsonResponse
 {
     $validated = $request->validate([
         'name'  => 'required|string',
         'price' => 'required|numeric|min:0',
     ]);
-
-    $description = $this->ai->generateDescription(
+try{
+ $description = $this->ai->generateDescription(
         productName: $validated['name'],
         price:       (float) $validated['price'],
     );
+}catch (\RuntimeException $e) {
+    return response()->json(['message' => $e->getMessage()], 503);
+}
+   
 
     if (empty($description['ar']) && empty($description['en'])) {
         return response()->json(['message' => 'Failed to generate description'], 500);
@@ -90,8 +82,42 @@ public function insights(): JsonResponse
         'products'       => array_values($productSales),
     ];
 
+try {
     $insights = $this->ai->generateInsights($salesData, $user->tenant->name ?? 'صاحب المتجر');
+} catch (\RuntimeException $e) {
+    return response()->json(['message' => $e->getMessage()], 503);
+}
 
 return response()->json($insights);
+}
+
+public function chat(Request $request): JsonResponse
+{
+    $validated = $request->validate([
+        'message'         => 'required|string|max:500',
+        'history'         => 'nullable|array',
+        'history.*.role'  => 'required|in:user,assistant',
+        'history.*.content' => 'required|string',
+    ]);
+
+    $user = auth()->user();
+
+    try {
+        $reply = $this->ai->chat(
+            message:  $validated['message'],
+            history:  $validated['history'] ?? [],
+            tenantId: $user->tenant_id,
+        );
+    } catch (\RuntimeException $e) {
+        return response()->json(['message' => $e->getMessage()], 503);
+    }
+
+    return response()->json([
+        'reply'   => $reply,
+        'history' => array_merge($validated['history'] ?? [], [
+            ['role' => 'user',      'content' => $validated['message']],
+            ['role' => 'assistant', 'content' => $reply],
+        ]),
+    ]);
 }
 }

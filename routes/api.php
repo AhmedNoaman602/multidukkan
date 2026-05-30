@@ -106,5 +106,6 @@ Route::get('/suppliers/{supplier}/stock', [SupplierController::class, 'products'
 
 Route::post('/ai/describe-product', [AIController::class, 'describeProduct']);
 Route::get('/ai/insights', [AIController::class, 'insights']);
+Route::post('/ai/chat', [AIController::class, 'chat']);
 });
 

@@ -6,6 +6,7 @@ use Prism\Prism\Facades\Prism;
 use Prism\Prism\Enums\Provider;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
 use Illuminate\Support\Facades\Log;
+use Prism\Prism\ValueObjects\Messages\AssistantMessage;
 
 class AIService
 {
@@ -18,8 +19,7 @@ class AIService
     public function __construct()
     {
         $this->provider = Provider::Groq;
-        $this->model = 'llama-3.1-8b-instant';
-    }
+$this->model = 'llama-3.3-70b-versatile';    }
 
     public function generate(string $systemPrompt, string $userMessage, int $maxTokens = 500){
         try{
@@ -33,9 +33,9 @@ class AIService
                 ->generate();
             return $response->text;
         } catch (\Exception $e) {
-            Log::error('AI Service Error: ' . $e->getMessage());
-            return '';
-        }
+    Log::error('AI Service Error: ' . $e->getMessage());
+    throw new \RuntimeException('AI service is currently unavailable. Please try again.');
+}
     }
 
     public function generateDescription(string $productName, float $price): array
@@ -115,4 +115,48 @@ public function generateInsights(array $salesData, string $tenantName = 'صاح�
         'trend'       => ['title' => '', 'body' => ''],
     ];
 }
+
+public function chat(string $message, array $history, int $tenantId): string
+{
+    $products = \App\Models\Product::where('tenant_id', $tenantId)
+        ->with('inventories')
+        ->get();
+
+    $catalog = $products->map(function ($product) {
+        $totalStock = $product->inventories->sum('quantity');
+        return "- {$product->name}: {$totalStock} وحدة — السعر: {$product->price} جنيه";
+    })->join("\n");
+
+    $systemPrompt = "أنت مساعد ذكي لمتجر أدوات. ساعد العملاء في الاستفسار عن المنتجات والأسعار والمخزون. كن مختصراً ومفيداً. تحدث بالعربية دائماً.
+
+المنتجات المتاحة حالياً:
+{$catalog}";
+
+    $messages = collect($history)
+        ->map(fn($msg) => $msg['role'] === 'user'
+            ? new UserMessage($msg['content'])
+            : new AssistantMessage($msg['content'])
+        )->toArray();
+
+    $messages[] = new UserMessage($message);
+
+    try {
+        $response = Prism::text()
+            ->using($this->provider, $this->model)
+            ->withSystemPrompt($systemPrompt)
+            ->withMaxTokens(300)
+            ->withMessages($messages)
+            ->generate();
+
+        if (empty($response->text)) {
+            throw new \RuntimeException('AI returned empty response.');
+        }
+
+        return $response->text;
+    } catch (\Exception $e) {
+        Log::error('AI Chat Error: ' . $e->getMessage());
+        throw new \RuntimeException('AI service is currently unavailable. Please try again.');
+    }
+}
+
 }
