@@ -29,8 +29,8 @@ class DemoSeeder extends Seeder
         User::create([
             'tenant_id' => $tenant->id,
             'store_id'  => null,
-            'name'      => 'Sherif',
-            'email'     => 'sherif@multidukkan.com',
+            'name'      => 'Noaman',
+            'email'     => 'noaman@multidukkan.com',
             'password'  => bcrypt('password123'),
             'role'      => 'tenant_admin',
         ]);
