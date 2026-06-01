@@ -94,13 +94,42 @@ return response()->json($insights);
 public function chat(Request $request): JsonResponse
 {
     $validated = $request->validate([
-        'message'         => 'required|string|max:500',
-        'history'         => 'nullable|array',
-        'history.*.role'  => 'required|in:user,assistant',
+        'message'           => 'required|string|max:500',
+        'history'           => 'nullable|array',
+        'history.*.role'    => 'required|in:user,assistant',
         'history.*.content' => 'required|string',
     ]);
 
     $user = auth()->user();
+
+    $lowStockKeywords = ['منخفض', 'قليل', 'نفذ', 'مخزون قليل', 'low stock'];
+
+    $isLowStockQuestion = collect($lowStockKeywords)
+        ->some(fn($keyword) => str_contains($validated['message'], $keyword));
+
+    if ($isLowStockQuestion) {
+        $products = \App\Models\Product::where('tenant_id', $user->tenant_id)
+            ->with('inventories')
+            ->get();
+
+        $lowStock = $products->filter(
+            fn($p) => $p->inventories->some(fn($inv) => $inv->quantity <= $inv->threshold)
+        );
+
+        $reply = $lowStock->isEmpty()
+            ? 'لا توجد منتجات منخفضة المخزون حالياً. كل المنتجات فوق الحد الأدنى.'
+            : 'المنتجات المنخفضة المخزون:' . "\n" . $lowStock->map(
+                fn($p) => "- {$p->name}: {$p->inventories->sum('quantity')} وحدة (الحد الأدنى: {$p->inventories->min('threshold')})"
+            )->join("\n");
+
+        return response()->json([
+            'reply'   => $reply,
+            'history' => array_merge($validated['history'] ?? [], [
+                ['role' => 'user',      'content' => $validated['message']],
+                ['role' => 'assistant', 'content' => $reply],
+            ]),
+        ]);
+    }
 
     try {
         $reply = $this->ai->chat(

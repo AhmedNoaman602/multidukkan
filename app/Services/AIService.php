@@ -19,7 +19,8 @@ class AIService
     public function __construct()
     {
         $this->provider = Provider::Groq;
-$this->model = 'llama-3.3-70b-versatile';    }
+        $this->model = 'llama-3.3-70b-versatile';    
+}
 
     public function generate(string $systemPrompt, string $userMessage, int $maxTokens = 500){
         try{
@@ -122,21 +123,35 @@ public function chat(string $message, array $history, int $tenantId): string
         ->with('inventories')
         ->get();
 
-    $catalog = $products->map(function ($product) {
-        $totalStock = $product->inventories->sum('quantity');
-        return "- {$product->name}: {$totalStock} وحدة — السعر: {$product->price} جنيه";
+$lowStockProducts = $products->filter(function ($product) {
+    return $product->inventories->some(
+        fn($inv) => $inv->quantity <= $inv->threshold
+    );
+});
+
+$lowStockText = $lowStockProducts->isEmpty()
+    ? 'لا توجد منتجات منخفضة المخزون حالياً.'
+    : $lowStockProducts->map(function ($product) {
+        return "- {$product->name}: {$product->inventories->sum('quantity')} وحدة";
     })->join("\n");
 
-    $systemPrompt = "أنت مساعد ذكي لمتجر أدوات. ساعد العملاء في الاستفسار عن المنتجات والأسعار والمخزون. كن مختصراً ومفيداً. تحدث بالعربية دائماً.
+    $catalog = $products->map(function ($product) {
+        $totalStock = $product->inventories->sum('quantity');
+        return "- {$product->name}: {$totalStock} وحدة (الحد الأدنى: {$product->inventories->min('threshold')}) — السعر: {$product->price} جنيه";  
+        })->join("\n");
+$systemPrompt = " لا تكرر كلام العميل أو تعيد صياغة سؤاله. اذهب مباشرة للإجابة.أنت مساعد ذكي لمتجر أدوات. ساعد العملاء في الاستفسار عن المنتجات والأسعار والمخزون. كن مختصراً ومفيداً. تحدث بالعربية دائماً.
 
 المنتجات المتاحة حالياً:
-{$catalog}";
+{$catalog}
+
+المنتجات المنخفضة المخزون:
+{$lowStockText}";
 
     $messages = collect($history)
         ->map(fn($msg) => $msg['role'] === 'user'
             ? new UserMessage($msg['content'])
             : new AssistantMessage($msg['content'])
-        )->toArray();
+        )->all();
 
     $messages[] = new UserMessage($message);
 
