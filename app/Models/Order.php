@@ -18,7 +18,8 @@ class Order extends Model
         'created_by',
         'notes',
         'discount',
-        'total'
+        'total',
+        'order_date'
     ];
     public function tenant()
     {

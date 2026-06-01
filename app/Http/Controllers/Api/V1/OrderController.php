@@ -124,17 +124,22 @@ class OrderController extends Controller
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
+    
+    $validated = $request->validate([
+    'notes'      => 'sometimes|nullable|string|max:500',
+    'order_date' => 'sometimes|date|before_or_equal:today',
+    'discount'   => 'sometimes|numeric|min:0',
+]);
 
-    if ($order->payments()->exists()) {
+try {
+        $order->update($validated);
+        return new OrderResource($order->load('items', 'payments', 'customer'));
+
+    } catch (ValidationException $e) {
         return response()->json([
-            'message' => 'Cannot modify an order that has payments.'
+            'message' => $e->errors()['order'][0],
         ], 422);
-    }
-
-        // $order->update($request->validated());
-
-        return new OrderResource($order->load('items', 'payments' , 'customer'));
-    }
+    }    }
 
     public function destroy(Request $request, Order $order)
     {

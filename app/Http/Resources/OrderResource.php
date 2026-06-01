@@ -64,6 +64,7 @@ class OrderResource extends JsonResource
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         'created_at' => $this->created_at->toDateTimeString(),
+        'order_date' => $this->order_date,
     ];
 }
 private function resolveStatus(float $totalPaid, float $total): string
