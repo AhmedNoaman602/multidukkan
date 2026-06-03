@@ -244,4 +244,19 @@ public function issueRefund(array $data): LedgerEntry
         'reference_id'   => $data['payment_id'] ?? $data['customer_id'],
     ]);
 }
+
+public function getCreditBalance(int $tenantId, int $customerId): float
+{
+    $credits = LedgerEntry::where('tenant_id', $tenantId)
+        ->where('customer_id', $customerId)
+        ->whereIn('type', ['CREDIT_APPLY'])
+        ->sum('amount');
+
+    $consumed = LedgerEntry::where('tenant_id', $tenantId)
+        ->where('customer_id', $customerId)
+        ->whereIn('type', ['CREDIT_CONSUMED'])
+        ->sum('amount');
+
+    return max(0, round($credits - $consumed, 2));
+}
 }
