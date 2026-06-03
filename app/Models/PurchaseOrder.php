@@ -13,6 +13,7 @@ class PurchaseOrder extends Model
         'invoice_number',
         'tenant_id',
         'supplier_id',
+        'supplier_name_snapshot',
         'total',
         'notes',
     ];

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('invoice_number');
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
             $table->foreignId('supplier_id')->constrained()->cascadeOnDelete();
+            $table->string('supplier_name_snapshot')->nullable();
             $table->decimal('total', 10, 2);
             $table->text('notes')->nullable();
             $table->softDeletes();

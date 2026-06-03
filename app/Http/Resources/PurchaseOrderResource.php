@@ -22,7 +22,7 @@ class PurchaseOrderResource extends JsonResource
         'invoice_number' => $this->invoice_number,
         'tenant_id'      => $this->tenant_id,
         'supplier_id'    => $this->supplier_id,
-        'supplier_name'  => $this->supplier->name,
+        'supplier_name'  => $this->supplier_name_snapshot ?? $this->supplier?->name ?? 'Deleted Supplier',
         'supplier_phone' => $this->supplier->phone ?? '',
         'notes'          => $this->notes,
         'subtotal'       => round($subtotal, 2), 

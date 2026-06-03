@@ -66,6 +66,7 @@ class PurchaseOrderService
            $purchaseOrder = PurchaseOrder::create([
             'tenant_id'   => $user->tenant_id,
             'supplier_id' => $data['supplier_id'],
+            'supplier_name_snapshot'  => Supplier::find($data['supplier_id'])?->name,
             'created_by'  => $user->id,
             'notes'       => $data['notes'] ?? null,
             'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
