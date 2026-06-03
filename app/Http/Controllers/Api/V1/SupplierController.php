@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Http\Resources\SupplierResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class SupplierController extends Controller
 {
@@ -105,8 +106,12 @@ class SupplierController extends Controller
         if ($supplier->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $supplier->delete();
-        return response()->json(['message' => 'Supplier deleted successfully']);
+        try{
+            $supplier->delete();
+            return response()->json(['message' => 'Supplier deleted successfully.']);
+        }catch(ValidationException $e){
+            return response()->json(['message' => $e->errors()['supplier'][0]],422);    
+        }
     }
 
     private function generateSupplierCode(int $tenantId): string
