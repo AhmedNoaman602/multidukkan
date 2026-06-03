@@ -55,6 +55,7 @@ Route::get('/customers/{customer}/balance', [LedgerEntryController::class, 'bala
 Route::get('/customers/{customer}/ledger', [LedgerEntryController::class, 'history']);
 Route::post('/customers/{customer}/credit', [LedgerEntryController::class, 'addCredit']);
 Route::post('customers/{customer}/refund', [CustomerController::class, 'refund']);
+Route::get('/customers/{customer}/summary', [LedgerEntryController::class, 'summary']);
 
 Route::get('products', [ProductController::class, 'index']);
 Route::get('products/{product}', [ProductController::class, 'show']);
