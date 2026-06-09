@@ -30,6 +30,20 @@ class LedgerEntryController extends Controller
         ], 200);
     }
 
+    public function supplierBalance(Supplier $supplier)
+{
+    $this->authorize('view', $supplier);
+
+    $balance = $this->ledger->getSupplierBalance($supplier->tenant_id, $supplier->id);
+
+    return response()->json([
+        'supplier_id'   => $supplier->id,
+        'supplier_name' => $supplier->name,
+        'balance'       => $balance,
+        'status' => $balance > 0 ? 'owes' : 'settled',
+    ]);
+}
+
     public function history(Customer $customer)
     {
         $this->authorize('view', $customer);
@@ -44,6 +58,22 @@ class LedgerEntryController extends Controller
             'balance' => $balance,
         ], 200);
     }
+
+    public function supplierHistory(Supplier $supplier)
+{
+    $this->authorize('view', $supplier);
+
+    $history = $this->ledger->getHistory($supplier->tenant_id, null, $supplier->id);
+    $balance = $this->ledger->getSupplierBalance($supplier->tenant_id, $supplier->id);
+
+    return response()->json([
+        'supplier_id'   => $supplier->id,
+        'supplier_name' => $supplier->name,
+        'balance'       => $balance,
+        'status' => $balance > 0 ? 'owes' : 'settled',
+        'history'       => $history,
+    ]);
+}
 
     public function addCredit(Customer $customer, StoreCreditRequest $request)
 {
@@ -66,37 +96,6 @@ class LedgerEntryController extends Controller
         'new_balance' => $balance,
     ], 201);
 }
-
-public function supplierBalance(Supplier $supplier)
-{
-    $this->authorize('view', $supplier);
-
-    $balance = $this->ledger->getSupplierBalance($supplier->tenant_id, $supplier->id);
-
-    return response()->json([
-        'supplier_id'   => $supplier->id,
-        'supplier_name' => $supplier->name,
-        'balance'       => $balance,
-        'status' => $balance > 0 ? 'owes' : 'settled',
-    ]);
-}
-
-public function supplierHistory(Supplier $supplier)
-{
-    $this->authorize('view', $supplier);
-
-    $history = $this->ledger->getHistory($supplier->tenant_id, null, $supplier->id);
-    $balance = $this->ledger->getSupplierBalance($supplier->tenant_id, $supplier->id);
-
-    return response()->json([
-        'supplier_id'   => $supplier->id,
-        'supplier_name' => $supplier->name,
-        'balance'       => $balance,
-        'status' => $balance > 0 ? 'owes' : 'settled',
-        'history'       => $history,
-    ]);
-}
-
 
 
 public function summary(Customer $customer)
@@ -161,7 +160,7 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
         'id'               => $o->id,
         'invoice_number'   => $o->invoice_number,
         'total'            => $total,
-        'paid'             => round($paid, 2),
+        'paid'             => round(min($paid, $total), 2),
         'amount_remaining' => $amountRemaining,
         'status'           => $amountRemaining > 0 ? 'unpaid' : 'paid',
         'order_date'       => $o->order_date,
