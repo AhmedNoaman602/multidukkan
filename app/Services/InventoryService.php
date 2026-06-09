@@ -3,6 +3,8 @@
 namespace App\Services;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
+use App\Models\Product;
+use App\Models\Warehouse;
 use InvalidArgumentException;
 
 class InventoryService
@@ -17,8 +19,8 @@ class InventoryService
         ->where('product_id', $productId)
         ->first();
 
-    $product = \App\Models\Product::find($productId);
-    $warehouse = \App\Models\Warehouse::find($warehouseId);
+    $product = Product::find($productId);
+    $warehouse = Warehouse::find($warehouseId);
 
     $productName = $product?->name ?? "Product ID {$productId}";
     $warehouseName = $warehouse?->name ?? "Warehouse ID {$warehouseId}";
