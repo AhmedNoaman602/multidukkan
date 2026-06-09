@@ -7,9 +7,10 @@ use App\Http\Requests\StorePaymentRequest;
 use App\Services\PaymentService;
 use App\Models\Payment;
 use Illuminate\Http\Request;
+use App\Services\LedgerService;
 class PaymentController extends Controller
 {
-    public function __construct(protected PaymentService $payment) {}
+    public function __construct(protected PaymentService $payment , protected LedgerService $ledger) {}
 
  public function index()
 {
@@ -58,6 +59,23 @@ public function store(Request $request){
         return response()->json(['message' => $e->getMessage()], 422);
     }
     
+}
+
+public function update(Request $request, Payment $payment)
+{
+    $this->authorize('update', $payment);
+
+    $data = $request->validate([
+        'amount' => 'required|numeric|min:0.01',
+        'method' => 'required|in:cash,bank_transfer,check',
+    ]);
+
+    $this->ledger->adjustPayment($payment, $data['amount'], $data['method']);
+
+    return response()->json([
+        'message' => 'Payment adjusted successfully.',
+        'payment' => $payment->fresh(),
+    ]);
 }
 
 
