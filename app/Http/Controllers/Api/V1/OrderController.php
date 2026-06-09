@@ -8,6 +8,7 @@ use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
+use App\Models\OrderItem;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -161,4 +162,30 @@ try {
             return response()->json(['message' => $e->getMessage()], 422);
         } 
     }
+
+    public function updateItem(Request $request, Order $order, OrderItem $item){
+        $this->authorize('update', $order);
+
+        if ($order->tenant_id != auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        
+    if ($order->payments()->exists()) {
+    return response()->json(['message' => 'Cannot edit items on an order with payments.'], 422);
+    }
+
+    $request->validate([
+    'quantity'   => 'nullable|numeric|min:1',
+    'unit_price' => 'nullable|numeric|min:0',
+]);
+
+// At least one must be present
+if (!$request->quantity && !$request->unit_price) {
+    return response()->json(['message' => 'Provide quantity or unit_price to update.'], 422);
+}
+
+$this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
+return new OrderResource($order->load('items', 'payments', 'customer'));
+    }
+    
 }
