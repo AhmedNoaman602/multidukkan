@@ -40,6 +40,7 @@ class StoreProductRequest extends FormRequest
             'price_c'     => 'nullable|numeric|min:0',
             'price_d'     => 'nullable|numeric|min:0',
             'price_e'     => 'nullable|numeric|min:0',
+            'cost_price' => 'nullable|numeric|min:0',
             'unit'      => 'nullable|string|max:20',
             'secondary_unit'    => 'nullable|string|max:50',
             'conversion_factor' => 'nullable|integer|min:2',

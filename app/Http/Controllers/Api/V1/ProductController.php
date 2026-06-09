@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
 use App\Models\Product;
 use App\Models\Inventory;
 use App\Http\Resources\ProductResource;
@@ -51,6 +52,7 @@ class ProductController extends Controller
             'price_c'   => $request->price_c,
             'price_d'   => $request->price_d,
             'price_e'   => $request->price_e,
+            'cost_price' => $request->cost_price,
             'unit'      => $request->unit ?? 'pcs',
             'secondary_unit'    => $request->secondary_unit,
             'conversion_factor' => $request->conversion_factor,
@@ -88,7 +90,7 @@ class ProductController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(StoreProductRequest $request, Product $product)
+    public function update(UpdateProductRequest $request, Product $product)
     {
         $this->authorize('update', $product);
 
@@ -105,6 +107,7 @@ class ProductController extends Controller
             'price_c' => $request->price_c,
             'price_d' => $request->price_d,
             'price_e' => $request->price_e,
+            'cost_price' => $request->cost_price,
             'unit'    => $request->unit ?? $product->unit,
             'supplier_id' => $request->supplier_id,
             'secondary_unit' => $request->secondary_unit,

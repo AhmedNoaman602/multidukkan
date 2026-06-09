@@ -19,12 +19,34 @@ class ProductResource extends JsonResource
         'tenant_id'         => $this->tenant_id,
         'name'              => $this->name,
         'sku'               => $this->sku,
+        'cost_price'        => $this->cost_price,
         'price'             => $this->price,
         'price_a'           => $this->price_a,
         'price_b'           => $this->price_b,
         'price_c'           => $this->price_c,
         'price_d'           => $this->price_d,
         'price_e'           => $this->price_e,
+        'profit_margin'   => $this->cost_price !== null 
+    ? round($this->price - $this->cost_price, 2) 
+    : null,
+
+    'profit_margin_a' => $this->cost_price !== null 
+    ? round(($this->price_a ?? $this->price) - $this->cost_price, 2) 
+    : null,
+
+    'profit_margin_b' => $this->cost_price !== null 
+    ? round(($this->price_b ?? $this->price) - $this->cost_price, 2) 
+    : null,
+    'profit_margin_c' => $this->cost_price !== null 
+    ? round(($this->price_c ?? $this->price) - $this->cost_price, 2) 
+    : null,
+    'profit_margin_d' => $this->cost_price !== null 
+    ? round(($this->price_d ?? $this->price) - $this->cost_price, 2) 
+    : null,
+    'profit_margin_e' => $this->cost_price !== null 
+    ? round(($this->price_e ?? $this->price) - $this->cost_price, 2) 
+    : null,
+
         'unit'              => $this->unit,
         'secondary_unit'    => $this->secondary_unit,
         'conversion_factor' => $this->conversion_factor,
