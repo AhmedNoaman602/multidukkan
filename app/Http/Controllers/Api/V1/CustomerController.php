@@ -9,7 +9,7 @@ use App\Http\Resources\CustomerResource;
 use Illuminate\Support\Facades\DB;
 use App\Services\LedgerService;
 use App\Http\Requests\RefundCustomerRequest;
-
+use Illuminate\Validation\ValidationException;
 class CustomerController extends Controller
 {
     /**
@@ -181,6 +181,8 @@ class CustomerController extends Controller
         'method'      => $validated['method'],
         'notes'       => $validated['notes'] ?? null,
         'order_id'    => $validated['order_id'] ?? null,
+        'payment_id_target'  => $validated['payment_id_target'] ?? null, 
+
     ]);
 
     $newBalance = $this->ledgerService->getBalance(

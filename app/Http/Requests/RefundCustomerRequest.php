@@ -35,6 +35,8 @@ class RefundCustomerRequest extends FormRequest
         'method'  => ['required', 'in:cash,bank_transfer,check'],
         'notes'   => ['nullable', 'string', 'max:500'],
         'order_id' => ['nullable', 'integer', 'exists:orders,id'],
+        'payment_id_target'  => ['nullable', 'integer', 'exists:payments,id'], // ← add
+
     ];
 }
 
@@ -44,6 +46,10 @@ public function withValidator($validator): void
         $customer   = $this->route('customer');
         $tenantId   = $customer->tenant_id;
         $customerId = $customer->id;
+
+        if ($this->payment_id_target) {
+            return;
+        }
 
         if ($this->order_id) {
             $totalPaid     = Payment::where('order_id', $this->order_id)->sum('amount');
@@ -60,19 +66,8 @@ public function withValidator($validator): void
             }
 
         } else {
-            // General refund — only allowed when customer has credit balance
-            $balance = $this->ledgerService->getBalance($tenantId, $customerId);
-
-            if ($balance >= 0) {
-                $validator->errors()->add('payment_id', 'Please select a specific payment to refund.');
-                return;
-            }
-
-            $refundable = round(abs($balance), 2);
-
-            if ($this->amount > $refundable) {
-                $validator->errors()->add('amount', "Refund cannot exceed {$refundable} EGP.");
-            }
+            $validator->errors()->add('order_id', 'Please select a specific order or payment to refund from.');
+            return;
         }
     });
 }
