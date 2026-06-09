@@ -35,6 +35,7 @@ class OrderResource extends JsonResource
     $discount  = (float) ($this->discount ?? 0);
     $total     = max(0, round($subtotal - $discount, 2));
     $totalPaid = $this->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+    $displayPaid = min($totalPaid, $total);
 
     return [
         'id'         => $this->id,
@@ -48,11 +49,13 @@ class OrderResource extends JsonResource
         'subtotal'       => round($subtotal, 2),  
         'discount'       => $discount,
         'total'      => $total,
+        'paid' => $displayPaid,
         'customer_phone' => $this->customer?->phone ?? '',
         'store_name'     => $this->store?->name ?? '',
         'status'     => $this->resolveStatus($totalPaid, $total),
         'items_count' => $this->items->count(),
         'items'      => $this->items->map(fn($item) => [
+            'id' => $item->id,
             'product_name' => $item->product_name,
             'quantity'     => $item->quantity,
             'unit_price'   => $item->unit_price,
