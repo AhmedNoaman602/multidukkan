@@ -84,6 +84,17 @@ class PurchaseOrderService
                 'warehouse_id' => $v['warehouseId'],
                 'total'        => $v['unitPrice'] * $v['quantity'],
             ]);
+            
+            $currentStock = $v['product']->inventories->sum('quantity');
+            $currentCost = $v['product']->cost_price ?? $v['unitPrice'];
+            $newQty = $v['stockQty'];
+    if ($currentStock + $newQty > 0) {
+    $newAvg = ($currentStock * $currentCost + $newQty * $v['unitPrice']) / ($currentStock + $newQty);
+    } else {
+    $newAvg = $v['unitPrice'];
+    }            
+    $v['product']->update(['cost_price' => round($newAvg , 2)]);
+
             if ($v['warehouseId']) {
                 $this->inventory->restoreStock(
                     $v['product']->id,
