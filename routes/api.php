@@ -41,10 +41,12 @@ Route::post('/orders', [OrderController::class, 'store']);
 Route::delete('/orders/{order}', [OrderController::class, 'destroy'])->withTrashed();
 Route::get('/orders/{order}', [OrderController::class, 'show']);
 Route::patch('/orders/{order}', [OrderController::class, 'update']);
+Route::patch('/orders/{order}/items/{item}', [OrderController::class, 'updateItem']);
 
 Route::get('/payments', [PaymentController::class, 'index']);
 Route::post('/payments/auto', [PaymentController::class, 'autoPayment']);
 Route::post('/payments', [PaymentController::class, 'store']);
+Route::patch('/payments/{payment}', [PaymentController::class, 'update']);
 
 Route::get('/customers', [CustomerController::class, 'index']);
 Route::get('/customers/{customer}', [CustomerController::class, 'show']);
