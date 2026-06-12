@@ -24,11 +24,6 @@ class OrderObserver
 
     public function updating(Order $order): void
     {
-        if ($order->isDirty('discount') && $order->payments()->exists()) {
-            throw ValidationException::withMessages([
-                'order' => 'Cannot change the discount on an order that has payments.',
-            ]);
-        }
     }
 
     public function deleting(Order $order): void
