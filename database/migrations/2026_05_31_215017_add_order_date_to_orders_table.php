@@ -13,7 +13,11 @@ return new class extends Migration
     public function up(): void
 {
     Schema::table('orders', function (Blueprint $table) {
-        $table->date('order_date')->default(DB::raw('(DATE(created_at))'))->after('discount');
+        if (config('database.default') === 'sqlite') {
+            $table->date('order_date')->default(DB::raw('CURRENT_DATE'))->after('discount');
+        } else {
+            $table->date('order_date')->default(DB::raw('(DATE(created_at))'))->after('discount');
+        }
     });
 }
 
