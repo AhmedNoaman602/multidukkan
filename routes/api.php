@@ -42,6 +42,7 @@ Route::delete('/orders/{order}', [OrderController::class, 'destroy'])->withTrash
 Route::get('/orders/{order}', [OrderController::class, 'show']);
 Route::patch('/orders/{order}', [OrderController::class, 'update']);
 Route::patch('/orders/{order}/items/{item}', [OrderController::class, 'updateItem']);
+Route::post('/orders/{order}/items', [OrderController::class, 'addItem']);
 
 Route::get('/payments', [PaymentController::class, 'index']);
 Route::post('/payments/auto', [PaymentController::class, 'autoPayment']);
