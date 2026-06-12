@@ -9,7 +9,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use App\Models\Unit;
-
+use App\Models\Tenant;
+use App\Models\Customer;
 class AuthController extends Controller
 {
     public function register(Request $request){
@@ -25,18 +26,18 @@ $request->validate([
      $result = DB::transaction(function () use ($request) {
         $defaultUnits = ['حبة', 'متر', 'كيلو', 'علبة', 'لفة', 'طن', 'لتر', 'كرتونة', 'رول'];
         
-        $tenant = \App\Models\Tenant::create([
+        $tenant = Tenant::create([
             'name' => $request->business_name,
         ]);
 
 
 foreach ($defaultUnits as $unit) {
-    \App\Models\Unit::create([
+    Unit::create([
         'tenant_id' => $tenant->id,
         'name'      => $unit,
     ]);
 }
-        $user = \App\Models\User::create([
+        $user = User::create([
             'tenant_id' => $tenant->id,
             'store_id'  => null,
             'name'      => $request->name,
@@ -44,6 +45,13 @@ foreach ($defaultUnits as $unit) {
             'password'  => bcrypt($request->password),
             'role'      => 'tenant_admin',
         ]);
+
+        Customer::create([
+    'tenant_id' => $tenant->id,
+    'name'      => 'زبون نقدي',
+    'phone'     => '00000000000',
+    'is_walk_in' => true,  // hidden flag
+]);
 
         return $user;
     });
@@ -90,6 +98,9 @@ if (!$user || !Hash::check($request->password, $user->password)) {
             'store_id'  => $user->store_id,
             'tenant_id' => $user->tenant_id,
             'business_name' => $user->tenant->name,
+            'walk_in_customer_id' => Customer::where('tenant_id', $user->tenant_id)
+    ->where('is_walk_in', true)
+    ->value('id'),
             'has_store' => $user->tenant->stores()->exists(),
         ]
         ]);
@@ -121,6 +132,9 @@ if (!$user || !Hash::check($request->password, $user->password)) {
         'tenant_id'     => $user->tenant_id,
         'store_id'      => $user->store_id,
         'business_name' => $user->tenant->name,
+        'walk_in_customer_id' => Customer::where('tenant_id', $user->tenant_id)
+    ->where('is_walk_in', true)
+    ->value('id'),
         'has_store' => $user->tenant->stores()->exists(),
     ]);
 }

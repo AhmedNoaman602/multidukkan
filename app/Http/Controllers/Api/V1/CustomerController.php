@@ -25,6 +25,7 @@ class CustomerController extends Controller
     $user = auth()->user();
 
     $query = Customer::where('tenant_id', $user->tenant_id)
+        ->where('is_walk_in', false)
         ->when($request->search, fn($q) => $q
             ->where(function ($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")

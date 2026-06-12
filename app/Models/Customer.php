@@ -16,6 +16,7 @@ class Customer extends Model
         'email',
         'phone',
         'address',
+        'is_walk_in',
         'price_tier',
     ];
     public function tenant()
