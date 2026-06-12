@@ -133,8 +133,8 @@ class OrderController extends Controller
 ]);
 
 try {
-        $order->update($validated);
-        return new OrderResource($order->load('items', 'payments', 'customer'));
+        $order = $this->order->updateOrder($order, $validated);
+        return new OrderResource($order);
 
     } catch (ValidationException $e) {
         return response()->json([
@@ -169,10 +169,6 @@ try {
         if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        
-    if ($order->payments()->exists()) {
-    return response()->json(['message' => 'Cannot edit items on an order with payments.'], 422);
-    }
 
     $request->validate([
     'quantity'   => 'nullable|numeric|min:1',
@@ -185,6 +181,26 @@ if (!$request->quantity && !$request->unit_price) {
 }
 
 $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
+return new OrderResource($order->load('items', 'payments', 'customer'));
+    }
+
+
+    public function addItem(Request $request, Order $order){
+        $this->authorize('update', $order);
+
+        if ($order->tenant_id != auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+    $request->validate([
+    'product_id' => 'required|exists:products,id',
+    'warehouse_id' => 'required|exists:warehouses,id',
+    'quantity'   => 'required|numeric|min:1',
+    'unit_type'    => 'nullable|in:base,secondary',
+    'unit_price' => 'nullable|numeric|min:0',
+]);
+
+$this->order->addItem($order, $request->all());
 return new OrderResource($order->load('items', 'payments', 'customer'));
     }
     
