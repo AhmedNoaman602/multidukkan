@@ -5,7 +5,7 @@ use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\Warehouse;
-use InvalidArgumentException;
+use Illuminate\Validation\ValidationException;
 
 class InventoryService
 {
@@ -27,9 +27,9 @@ class InventoryService
     $available = $inventory?->quantity ?? 0;
 
     if (!$inventory || $inventory->quantity < $quantity) {
-        throw new InvalidArgumentException(
-            "لا يوجد مخزون كافي لـ {$productName} في {$warehouseName}. المتاح: {$available}"
-        );
+        throw ValidationException::withMessages([
+            'message' => "لا يوجد مخزون كافي لـ {$productName} في {$warehouseName}. المتاح: {$available}"
+        ]);
     }
 }
 
@@ -68,16 +68,23 @@ class InventoryService
         'reference_type' => $referenceType,
     ]);
    }
-   public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction): void{
+   public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base'): void{
         $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
             ->firstOrFail();
 
+        if ($unitType === 'secondary') {
+            $product = Product::find($productId);
+            if ($product?->conversion_factor) {
+                $quantity = $quantity * $product->conversion_factor;
+            }
+        }
+
     if ($direction === 'out') {
         if ($inventory->quantity < $quantity) {
-            throw new InvalidArgumentException(
-                "لا يمكن إزالة {$quantity}. المتاح فقط: {$inventory->quantity}"
-            );
+            throw ValidationException::withMessages([
+                'message' => "لا يمكن إزالة {$quantity}. المتاح فقط: {$inventory->quantity}"
+            ]);
         }
         $inventory->decrement('quantity', $quantity);
         $type = InventoryTransaction::TYPE_ADJUSTMENT_OUT;

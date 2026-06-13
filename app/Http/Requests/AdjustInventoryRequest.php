@@ -16,6 +16,6 @@ class AdjustInventoryRequest extends FormRequest
         return [
             'quantity' => 'required|integer|min:1',
             'direction' => 'required|in:in,out',
-        ];
+            'unit_type' => 'sometimes|in:base,secondary',];
     }
 }
