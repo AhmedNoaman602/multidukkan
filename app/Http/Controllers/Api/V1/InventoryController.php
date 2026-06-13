@@ -10,6 +10,7 @@ use App\Models\Inventory;
 use Illuminate\Http\Request;
 use App\Services\InventoryService;
 use App\Http\Requests\AdjustInventoryRequest;
+use Illuminate\Validation\ValidationException;
 class InventoryController extends Controller
 {
     public function __construct(private InventoryService $inventoryService){}
@@ -42,7 +43,7 @@ public function index(Request $request)
         ]);
     }
 
-    $inventory = $query->paginate(20);
+    $inventory = $query->paginate(15);
 
     return response()->json([
         'data' => InventoryResource::collection($inventory)->resolve(),
@@ -103,10 +104,14 @@ public function index(Request $request)
             $inventory->product_id,
             $inventory->warehouse_id,
             $request->quantity,
-            $request->direction
+            $request->direction,
+            $request->unit_type ?? 'base'
         );
-    } catch (\InvalidArgumentException $e) {
-        return response()->json(['message' => $e->getMessage()], 422);
+    } catch (ValidationException $e) {
+        return response()->json([
+            'message' => 'Validation error',
+            'errors' => $e->errors(),
+        ], 422);
     }
         return new InventoryResource($inventory->fresh());
     }

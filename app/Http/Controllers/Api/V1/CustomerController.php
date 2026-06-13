@@ -49,7 +49,7 @@ class CustomerController extends Controller
 
     $totalOutstanding = max(0, round($debits - $credits, 2));
 
-    $customers = $query->paginate(20);
+    $customers = $query->paginate(15);
 
     return response()->json([
         'data' => CustomerResource::collection($customers)->resolve(),

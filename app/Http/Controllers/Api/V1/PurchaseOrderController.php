@@ -64,7 +64,7 @@ class PurchaseOrderController extends Controller
     $purchaseOrders = $query
         ->with('supplier', 'items.product', 'supplierPayments')
         ->orderBy('id', 'desc')
-        ->paginate(20);
+        ->paginate(10);
 
     return response()->json([
         'data' => PurchaseOrderResource::collection($purchaseOrders)->resolve(),

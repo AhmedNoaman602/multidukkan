@@ -73,7 +73,7 @@ class OrderController extends Controller
 
     $orders = $query->with('items', 'payments', 'customer')
         ->orderBy('id', 'desc')
-        ->paginate(20);
+        ->paginate(10);
 
     return response()->json([
         'data' => OrderResource::collection($orders)->resolve(),
@@ -102,8 +102,8 @@ class OrderController extends Controller
         return (new OrderResource($order->load('items', 'payments', 'customer')))
             ->response()
             ->setStatusCode(201);
-    } catch (\InvalidArgumentException $e) {
-        return response()->json(['message' => $e->getMessage()], 422);
+    } catch (\ValidationException $e) {
+        return response()->json(['message' => $e->errors()], 422);
     }
 }
 
