@@ -7,6 +7,7 @@ use Prism\Prism\Enums\Provider;
 use Prism\Prism\ValueObjects\Messages\UserMessage;
 use Illuminate\Support\Facades\Log;
 use Prism\Prism\ValueObjects\Messages\AssistantMessage;
+use App\Models\Product;
 
 /**
  * Service class for interacting with AI models using the Prism library.
@@ -184,7 +185,7 @@ JSON only: {\"ar\": \"...\", \"en\": \"...\"}";
     public function chat(string $message, array $history, int $tenantId): string
     {
         // Retrieve products with inventory details for this specific tenant
-        $products = \App\Models\Product::where('tenant_id', $tenantId)
+        $products = Product::where('tenant_id', $tenantId)
             ->with('inventories')
             ->get();
 

@@ -51,36 +51,40 @@ class OrderService
 
             // Fetch the customer details from the database or fail with a 404 response if the customer doesn't exist.
             $customer = Customer::findOrFail($data['customer_id']);
+            $productIds = collect($data['items'])->pluck('product_id')->unique();
+            $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
 
-            // --- STOCK CHECKING BLOCK ---
-            // First, we aggregate order items by combining quantities for duplicate products in the same warehouse.
-            // This ensures we check the total requested quantity for each product/warehouse combination at once.
+
             $aggregated = [];
-            foreach ($data['items'] as $item) {
-                $key = $item['product_id'].'_'.($item['warehouse_id'] ?? 'none');
-                if (! isset($aggregated[$key])) {
-                    $aggregated[$key] = $item;
-                } else {
-                    $aggregated[$key]['quantity'] += $item['quantity'];
-                }
-            }
+foreach ($data['items'] as $item) {
+    $key = $item['product_id'].'_'.($item['warehouse_id'] ?? 'none');
+    $product = $products[$item['product_id']];
+    $unitType = $item['unit_type'] ?? 'base';
 
-            // Next, we check if there is sufficient stock in the warehouse for each aggregated item.
-            // If the unit type is 'secondary', we convert the quantity to the base unit using the product's conversion factor.
-            foreach ($aggregated as $itemData) {
-                $product = Product::findOrFail($itemData['product_id']);
-                $warehouseId = $itemData['warehouse_id'] ?? null;
-                $unitType = $itemData['unit_type'] ?? 'base';
+    $stockQty = $unitType === 'secondary' && $product->conversion_factor
+        ? $item['quantity'] * $product->conversion_factor
+        : $item['quantity'];
 
-                $stockQuantity = $unitType === 'secondary' && $product->conversion_factor
-                    ? $itemData['quantity'] * $product->conversion_factor
-                    : $itemData['quantity'];
+    if (!isset($aggregated[$key])) {
+        $aggregated[$key] = [
+            'product_id'   => $item['product_id'],
+            'warehouse_id' => $item['warehouse_id'] ?? null,
+            'stockQty'     => $stockQty,
+        ];
+    } else {
+        $aggregated[$key]['stockQty'] += $stockQty;
+    }
+}
 
-                // If a warehouse is specified, call the inventory service to check if we have enough stock.
-                if ($warehouseId) {
-                    $this->inventory->checkStock($product->id, $warehouseId, $stockQuantity);
-                }
-            }
+foreach ($aggregated as $itemData) {
+    if ($itemData['warehouse_id']) {
+        $this->inventory->checkStock(
+            $itemData['product_id'],
+            $itemData['warehouse_id'],
+            $itemData['stockQty']
+        );
+    }
+}
             // --- END OF STOCK CHECKING BLOCK ---
 
             // --- ITEM VALIDATION AND PRICE CALCULATION BLOCK ---
@@ -88,7 +92,7 @@ class OrderService
             // and calculate the correct price based on the customer's specific pricing tier (A, B, C, D, E, or default).
             $validatedItems = [];
             foreach ($data['items'] as $itemData) {
-                $product = Product::findOrFail($itemData['product_id']);
+                $product = $products[$itemData['product_id']];
                 $warehouseId = $itemData['warehouse_id'] ?? null;
                 $unitType = $itemData['unit_type'] ?? 'base';
 
@@ -144,11 +148,25 @@ class OrderService
                 $order->timestamps = true;
             }
 
+            $mergedItems = [];
+foreach ($validatedItems as $v) {
+    // Key now includes unit_type — only merges truly identical rows
+    $key = $v['product']->id . '_' . $v['warehouseId'] . '_' . $v['unitType'];
+    
+    if (isset($mergedItems[$key])) {
+        $mergedItems[$key]['quantity'] += $v['quantity'];
+        $mergedItems[$key]['stockQty'] += $v['stockQty'];
+        // unitPrice stays — same product + same unit type = same price
+    } else {
+        $mergedItems[$key] = $v;
+    }
+}
+
             // --- ORDER ITEMS & STOCK DEDUCTION BLOCK ---
             // For each validated item, create the line item record in the database and deduct the physical stock from the inventory.
             // Also, compute the running total price of all items in the order.
             $totalAmount = 0;
-            foreach ($validatedItems as $v) {
+            foreach ($mergedItems as $v) {
                 $orderItem = $order->items()->create([
                     'product_id' => $v['product']->id,
                     'product_name' => $v['product']->name,
@@ -248,6 +266,7 @@ class OrderService
 
         // Step 1 — stock delta
         if ($delta > 0) {
+             $this->inventory->checkStock($item->product_id, $item->warehouse_id, $delta);
             $this->inventory->deductStock(
                 $item->product_id, $item->warehouse_id,
                 $delta, $order->id, Order::class
@@ -301,17 +320,33 @@ class OrderService
     ? $price * $product->conversion_factor
     : $price);
 
-      $this->inventory->deductStock($product->id,$warehouseId, $stockQuantity, $order->id,Order::class);
 
-      $order->items()->create([
-        'product_id' => $product->id,
-        'product_name' => $product->name,
-        'warehouse_id' => $warehouseId,
-        'quantity' => $data['quantity'],
-        'unit_price' => $unitPrice,
-        'unit_type' => $unitType,
-        'total' => $data['quantity'] * $unitPrice,
-      ]);
+
+     $existingItem = $order->items()
+        ->where('product_id', $product->id)
+        ->where('warehouse_id', $warehouseId)
+        ->where('unit_type', $unitType)
+        ->first();
+
+    if ($existingItem) {
+        // Just bump the quantity on the existing row
+        $existingItem->update([
+            'quantity' => $existingItem->quantity + $data['quantity'],
+        ]);
+    } else {
+        // Create a new row
+        $order->items()->create([   
+            'product_id'   => $product->id,
+            'product_name' => $product->name,
+            'warehouse_id' => $warehouseId,
+            'quantity'     => $data['quantity'],
+            'unit_price'   => $unitPrice,
+            'unit_type'    => $unitType,
+            'total'        => $data['quantity'] * $unitPrice,
+        ]);
+    }
+          $this->inventory->deductStock($product->id,$warehouseId, $stockQuantity, $order->id,Order::class);
+
 
       $newTotal = $order->items()->sum(DB::raw('unit_price * quantity'));
       $discount = (float) ($order->discount ?? 0);
