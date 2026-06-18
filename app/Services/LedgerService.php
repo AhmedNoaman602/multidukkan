@@ -247,6 +247,24 @@ class LedgerService
     }
 
     /**
+ * Restore credit to customer when an order paid via credit is cancelled.
+ * Reverses the CREDIT_CONSUMED entry by creating a new CREDIT_APPLY entry.
+ */
+public function restoreCredit(array $data): LedgerEntry
+{
+    return LedgerEntry::create([
+        'tenant_id'      => $data['tenant_id'],
+        'customer_id'    => $data['customer_id'],
+        'store_id'       => $data['store_id'],
+        'type'           => 'CREDIT_APPLY',
+        'amount'         => $data['amount'],
+        'description'    => 'Credit restored — cancelled order ' . $data['invoice_number'],
+        'reference_type' => 'order',
+        'reference_id'   => $data['order_id'],
+    ]);
+}
+
+    /**
      * Process a cash refund for a customer.
      * Eagerly validates that the refund amount does not exceed the total paid amount (either for a specific payment or across the whole order),
      * updates the payment records with the refunded amount, and creates a ledger refund entry.
@@ -256,6 +274,11 @@ class LedgerService
         if (!empty($data['payment_id_target'])) {
             // Case 1: Refund from a specific target payment.
             $payment = Payment::findOrFail($data['payment_id_target']);
+            if ($payment->is_auto_reversible) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Credit payments cannot be refunded as cash. Cancel the order instead.'
+                ]);
+            }
             $available = $payment->amount - ($payment->refunded_amount ?? 0);
             
             // Validate that we aren't refunding more than what was paid on this specific payment.
@@ -264,7 +287,6 @@ class LedgerService
                     'amount' => "Cannot refund more than {$available} EGP from this payment."
                 ]);
             }
-            
             // Increment the payment's refunded counter.
             $payment->increment('refunded_amount', $data['amount']);
 
@@ -272,6 +294,7 @@ class LedgerService
             // Case 2: Refund from an entire order.
             // 1. Calculate total paid amount on this order that has not yet been refunded.
             $totalPaid = Payment::where('order_id', $data['order_id'])
+                ->where('is_auto_reversible', false)
                 ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
 
             // Validate that the refund request doesn't exceed the total amount paid on the order.
@@ -284,6 +307,7 @@ class LedgerService
             // 2. Fetch all payments for this order and distribute the refund amount across them (FIFO order).
             $remaining = $data['amount'];
             $payments  = Payment::where('order_id', $data['order_id'])
+                ->where('is_auto_reversible', false)
                 ->orderBy('id', 'asc')
                 ->get();
 

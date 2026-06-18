@@ -26,14 +26,19 @@ class OrderObserver
     {
     }
 
-    public function deleting(Order $order): void
-    {
-        if($order->payments()->exists()) {
-            throw ValidationException::withMessages([
-                'order' => 'Cannot delete an order with payments. Remove payments first.',
-            ]);
-        }
+ public function deleting(Order $order): void
+{
+    $hasUnrefundedPayments = $order->payments()
+        ->where('is_auto_reversible', false)
+        ->whereRaw('amount > COALESCE(refunded_amount, 0)')
+        ->exists();
+
+    if ($hasUnrefundedPayments) {
+        throw ValidationException::withMessages([
+            'order' => 'Cannot delete an order with payments. Remove payments first.',
+        ]);
     }
+}
 
     /**
      * Handle the Order "deleted" event.

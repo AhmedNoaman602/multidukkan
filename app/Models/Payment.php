@@ -16,6 +16,7 @@ class Payment extends Model
         'amount',
         'method',
         'paid_at',
+        'is_auto_reversible',
     ];
 
     public function tenant()

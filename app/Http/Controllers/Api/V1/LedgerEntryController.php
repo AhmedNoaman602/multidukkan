@@ -122,7 +122,6 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
     return $paid < $calcTotal($o);
 })->count();
 
-    $credit = $this->ledger->getCreditBalance($tenantId, $customer->id);
 
     $payments = Payment::where('customer_id', $customer->id)
         ->whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
@@ -138,13 +137,13 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
             'paid_at'        => $p->paid_at,
             'invoice_number' => $p->order?->invoice_number ?? '—',
             'order_id'       => $p->order_id,
+            'is_auto_reversible' => (bool) $p->is_auto_reversible,
         ]);
 
     return response()->json([
         'customer_id'   => $customer->id,
         'customer_name' => $customer->name,
         'balance'       => $balance,
-        'credit'        => $credit,
         'status'        => $balance > 0 ? 'owes' : ($balance < 0 ? 'credit' : 'settled'),
         'stats' => [
             'total_orders'  => $orders->count(),
@@ -164,6 +163,10 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
         'amount_remaining' => $amountRemaining,
         'status'           => $amountRemaining > 0 ? 'unpaid' : 'paid',
         'order_date'       => $o->order_date,
+        'refundable' => round(
+    $o->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)), 
+    2
+),
     ];
 })->values(),
         'payments' => $payments,

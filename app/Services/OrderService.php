@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Handles the full lifecycle of customer orders.
@@ -30,7 +31,8 @@ class OrderService
     {
         $year = now()->year;
 
-        $last = Order::where('tenant_id', $tenantId)
+        $last = Order::withTrashed()
+            ->where('tenant_id', $tenantId)
             ->where('invoice_number', 'like', "{$year}-%")
             ->orderByDesc('id')
             ->value('invoice_number');
@@ -193,8 +195,8 @@ foreach ($validatedItems as $v) {
             // --- LEDGER & CREDIT CHARGING BLOCK ---
             // Check the customer's current balance before processing this order.
             // A negative balance indicates the customer has an active credit line available.
-            $balanceBefore = $this->ledger->getBalance($order->tenant_id, $order->customer_id);
-            $creditAvailable = max(0, -$balanceBefore);
+             $balanceBefore = $this->ledger->getBalance($order->tenant_id, $order->customer_id);
+             $creditAvailable = max(0, -$balanceBefore);
 
             // Calculate the discount and determine the final charge amount for the order (total amount minus the discount).
             $discount = max(0, min($data['discount'] ?? 0, $totalAmount));
@@ -227,6 +229,7 @@ foreach ($validatedItems as $v) {
                     'customer_id' => $order->customer_id,
                     'amount' => $applyAmount,
                     'method' => 'credit',
+                    'is_auto_reversible' => true,
                     'paid_at' => now(),
                 ]);
 
@@ -296,6 +299,7 @@ foreach ($validatedItems as $v) {
 
     public function addItem(Order $order, array $data)
     {
+        return DB::transaction(function () use ($order, $data) {
         $product = Product::findOrFail($data['product_id']);
         $warehouseId = $data['warehouse_id'];
         $unitType = $data['unit_type'] ?? 'base';
@@ -353,7 +357,8 @@ foreach ($validatedItems as $v) {
       $newTotal = max(0, round($newTotal - $discount, 2));
 
       $this->ledger->adjustOrderCharge($order, $newTotal);
-    }
+    });
+}
 
     // OrderService@updateOrder
 public function updateOrder(Order $order, array $data): Order
@@ -379,30 +384,77 @@ public function updateOrder(Order $order, array $data): Order
      *
      * Called by: OrderController@destroy
      */
-    public function cancelOrder(Order $order): void
-    {
-        DB::transaction(function () use ($order) {
-            $chargeAmount = $order->total;
+   public function cancelOrder(Order $order): void
+{
+    DB::transaction(function () use ($order) {
+        $chargeAmount = $order->total;
 
-            foreach ($order->items as $item) {
-                if ($item->warehouse_id) {
-                    $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
-                        ? $item->quantity * $item->product->conversion_factor
-                        : $item->quantity;
+        // Block cancel if real money payments exist and aren't fully refunded
+        $hasUnrefundedPayments = $order->payments()
+            ->where('is_auto_reversible', false)
+            ->whereRaw('amount > COALESCE(refunded_amount, 0)')
+            ->exists();
 
-                    $this->inventory->restoreStock($item->product_id, $item->warehouse_id, $stockQuantity, $order->id, Order::class);
-                }
-            }
-            $this->ledger->reverseOrder([
-                'tenant_id' => $order->tenant_id,
-                'customer_id' => $order->customer_id,
-                'store_id' => $order->store_id,
-                'order_id' => $order->id,
-                'amount' => $chargeAmount,
-                'invoice_number' => $order->invoice_number,
+        if ($hasUnrefundedPayments) {
+            throw ValidationException::withMessages([
+                'order' => 'Please refund all payments before cancelling this order.'
             ]);
+        }
 
-            $order->delete();
-        });
-    }
+        // Calculate credit portion
+        $creditPayments = $order->payments()
+    ->where('is_auto_reversible', true)
+    ->get();
+
+    $creditPaymentsTotal = $creditPayments->sum('amount');
+
+// Restore credit for each credit payment
+foreach ($creditPayments as $payment) {
+    $this->ledger->restoreCredit([
+        'tenant_id'      => $order->tenant_id,
+        'customer_id'    => $order->customer_id,
+        'store_id'       => $order->store_id,
+        'order_id'       => $order->id,
+        'payment_id'     => $payment->id,
+        'amount'         => $payment->amount,
+        'invoice_number' => $order->invoice_number,
+    ]);
+}
+
+        // Restore stock
+        foreach ($order->items as $item) {
+            if ($item->warehouse_id) {
+                $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
+                    ? $item->quantity * $item->product->conversion_factor
+                    : $item->quantity;
+
+                $this->inventory->restoreStock(
+                    $item->product_id,
+                    $item->warehouse_id,
+                    $stockQuantity,
+                    $order->id,
+                    Order::class
+                );
+            }
+        }
+
+      // Only REVERSAL the cash portion
+$reversalAmount = $chargeAmount - $creditPaymentsTotal;
+if ($reversalAmount > 0) {
+    $this->ledger->reverseOrder([
+        'tenant_id'      => $order->tenant_id,
+        'customer_id'    => $order->customer_id,
+        'store_id'       => $order->store_id,
+        'order_id'       => $order->id,
+        'amount'         => $reversalAmount,
+        'invoice_number' => $order->invoice_number,
+    ]);
+}
+$order->payments()
+    ->whereIn('id', $creditPayments->pluck('id'))
+    ->delete(); 
+
+    $order->delete();
+    });
+}
 }
