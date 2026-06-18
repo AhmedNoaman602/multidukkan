@@ -77,7 +77,8 @@ class AIService
     public function generateDescription(string $productName, float $price): array
     {
         // Define system guidelines to enforce JSON structure only
-        $systemPrompt = 'You are a retail copywriter. Respond with valid JSON only. No explanation, no markdown, no code blocks. Use exactly this structure: {"ar": "Arabic description", "en": "English description"}';
+        $systemPrompt = 'You are writing product descriptions for a construction tools and hardware shop. 
+The product is a tool, not food. Write a professional, practical description without. Respond with valid JSON only. No explanation, no markdown, no code blocks. Use exactly this structure: {"ar": "Arabic description", "en": "English description"}';
 
         // Provide the product details for the generation task
         $userMessage = "Write a 1-2 sentence product description for:
