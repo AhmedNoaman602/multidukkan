@@ -18,6 +18,7 @@ class Customer extends Model
         'address',
         'is_walk_in',
         'price_tier',
+        'area',
     ];
     public function tenant()
     {

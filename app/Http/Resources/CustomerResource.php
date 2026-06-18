@@ -22,6 +22,7 @@ class CustomerResource extends JsonResource
             'phone' => $this->phone,
             'price_tier' => $this->price_tier,
             'address' => $this->address,
+            'area' => $this->area,
             'created_at' => $this->created_at->toDateTimeString(),
         ];
     }

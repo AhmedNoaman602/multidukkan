@@ -30,7 +30,8 @@ class CustomerController extends Controller
             ->where(function ($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")
                   ->orWhere('phone', 'like', "%{$request->search}%")
-                  ->orWhere('code', 'like', "%{$request->search}%");
+                  ->orWhere('code', 'like', "%{$request->search}%")
+                  ->orWhere('area', 'like', "%{$request->search}%");
             })
         )
         ->orderBy('code', 'asc');
@@ -88,10 +89,12 @@ class CustomerController extends Controller
         $user = auth()->user();
 
         $validated = $request->validate([
+            'code' => 'nullable',
             'name' => 'required',
             'phone' => 'required',
             'address' => 'nullable',
             'price_tier' => 'nullable|in:default,a,b,c,d,e',
+            'area' => 'nullable',
         ]);
 
         $customer = Customer::create([
@@ -101,6 +104,7 @@ class CustomerController extends Controller
             'phone'               => $validated['phone'],
             'address'             => $validated['address'] ?? null,
             'price_tier'          => $validated['price_tier'] ?? 'default',
+            'area'                => $validated['area'] ?? null,
             'code'                => $this->generateCustomerCode($user->tenant_id),
         ]);
 
@@ -139,6 +143,8 @@ class CustomerController extends Controller
             'phone'      => 'sometimes|string|max:20',
             'address'    => 'nullable|string|max:255',
             'price_tier' => 'sometimes|nullable|in:default,a,b,c,d,e',
+            'area' => 'nullable|string|max:255',
+            'code' => 'nullable|string|max:255',
         ]);        
         
         $customer->update($validated);
