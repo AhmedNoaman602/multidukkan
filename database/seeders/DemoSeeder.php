@@ -51,11 +51,11 @@ $warehouses = [
 ];
 
 $products = [
-    ['name' => 'شاكوش كبير',        'sku' => 'HAM-001', 'price' => 150, 'price_a' => 130, 'price_b' => 120, 'price_c' => 110, 'price_d' => 100, 'price_e' => 90,  'unit' => 'حبة'],
-    ['name' => 'شاكوش صغير',        'sku' => 'HAM-002', 'price' => 85,  'price_a' => 75,  'price_b' => 70,  'price_c' => 65,  'price_d' => 60,  'price_e' => 55,  'unit' => 'حبة'],
-    ['name' => 'مفك براغي',          'sku' => 'SCR-001', 'price' => 65,  'price_a' => 58,  'price_b' => 54,  'price_c' => 50,  'price_d' => 46,  'price_e' => 42,  'unit' => 'حبة'],
-    ['name' => 'كماشة',              'sku' => 'PLR-001', 'price' => 120, 'price_a' => 105, 'price_b' => 98,  'price_c' => 90,  'price_d' => 82,  'price_e' => 75,  'unit' => 'حبة'],
-    ['name' => 'متر قياس 5م',        'sku' => 'TAP-001', 'price' => 45,  'price_a' => 40,  'price_b' => 37,  'price_c' => 34,  'price_d' => 31,  'price_e' => 28,  'unit' => 'حبة'],
+    ['name' => 'شاكوش كبير',        'sku' => 'HAM-001', 'price' => 150, 'price_a' => 130, 'price_b' => 120, 'price_c' => 110, 'price_d' => 100, 'price_e' => 90,  'unit' => 'حته'],
+    ['name' => 'شاكوش صغير',        'sku' => 'HAM-002', 'price' => 85,  'price_a' => 75,  'price_b' => 70,  'price_c' => 65,  'price_d' => 60,  'price_e' => 55,  'unit' => 'حته'],
+    ['name' => 'مفك براغي',          'sku' => 'SCR-001', 'price' => 65,  'price_a' => 58,  'price_b' => 54,  'price_c' => 50,  'price_d' => 46,  'price_e' => 42,  'unit' => 'حته'],
+    ['name' => 'كماشة',              'sku' => 'PLR-001', 'price' => 120, 'price_a' => 105, 'price_b' => 98,  'price_c' => 90,  'price_d' => 82,  'price_e' => 75,  'unit' => 'حته'],
+    ['name' => 'متر قياس 5م',        'sku' => 'TAP-001', 'price' => 45,  'price_a' => 40,  'price_b' => 37,  'price_c' => 34,  'price_d' => 31,  'price_e' => 28,  'unit' => 'حته'],
     ['name' => 'مسامير كيس 1 كيلو', 'sku' => 'NAI-001', 'price' => 30,  'price_a' => 27,  'price_b' => 25,  'price_c' => 23,  'price_d' => 21,  'price_e' => 19,  'unit' => 'كيس'],
 ];
 
