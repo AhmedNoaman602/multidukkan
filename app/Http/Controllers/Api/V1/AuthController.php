@@ -68,6 +68,9 @@ foreach ($defaultUnits as $unit) {
             'tenant_id' => $result->tenant_id,
             'store_id'  => $result->store_id,
             'business_name' => $result->tenant->name,
+            'walk_in_customer_id' => Customer::where('tenant_id', $result->tenant_id)
+            ->where('is_walk_in', true)
+            ->value('id'),
             'has_store' => false,  // just registered, no stores yet      
         ]
     ], 201);
