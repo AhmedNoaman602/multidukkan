@@ -23,18 +23,26 @@ class SupplierObserver
         //
     }
 
-    public function deleting(Supplier $supplier): void{
-        if ($supplier->products()->exists()) {
-            throw ValidationException::withMessages([
-                'supplier' => 'Cannot delete supplier with existing products.',
-            ]);
-        }
-        if ($supplier->purchases()->exists()) {
-            throw ValidationException::withMessages([
-                'supplier' => 'Cannot delete supplier with existing purchases.',
-            ]);
-        }
+public function deleting(Supplier $supplier): void
+{
+    if ($supplier->products()->exists()) {
+        throw ValidationException::withMessages([
+            'supplier' => 'Cannot delete supplier with existing products.',
+        ]);
     }
+
+    if ($supplier->purchaseOrders()->exists()) { 
+        throw ValidationException::withMessages([
+            'supplier' => 'Cannot delete supplier with existing purchase orders.',
+        ]);
+    }
+
+    if ($supplier->supplierPayments()->exists()) { 
+        throw ValidationException::withMessages([
+            'supplier' => 'Cannot delete supplier with existing payments.',
+        ]);
+    }
+}
 
     /**
      * Handle the Supplier "deleted" event.

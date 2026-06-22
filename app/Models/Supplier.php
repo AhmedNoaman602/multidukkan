@@ -37,8 +37,9 @@ class Supplier extends Model
         return $this->hasMany(LedgerEntry::class , 'entity_id')
                     ->where('entity_type' , 'supplier');
     }
-    public function products()
+
+public function products()
 {
-    return $this->hasMany(Product::class);
+    return $this->belongsToMany(Product::class, 'supplier_products');
 }
 }

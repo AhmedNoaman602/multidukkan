@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Supplier;
 use App\Services\InventoryService;
 use App\Services\LedgerService;
+use App\Models\Inventory;
 
 class PurchaseOrderService
 {
@@ -73,6 +74,16 @@ class PurchaseOrderService
             'total'       => 0,
            ]);
 
+           $productIds = collect($validatedItems)
+    ->pluck('product.id')
+    ->unique()
+    ->values();
+
+$stockMap = Inventory::whereIn('product_id', $productIds)
+    ->selectRaw('product_id, SUM(quantity) as total_stock')
+    ->groupBy('product_id')
+    ->pluck('total_stock', 'product_id');
+
            $totalAmount=0;
            foreach($validatedItems as $v){
             $purchaseOrderItem = $purchaseOrder->items()->create([
@@ -85,14 +96,16 @@ class PurchaseOrderService
                 'total'        => $v['unitPrice'] * $v['quantity'],
             ]);
             
-            $currentStock = $v['product']->inventories->sum('quantity');
-            $currentCost = $v['product']->cost_price ?? $v['unitPrice'];
-            $newQty = $v['stockQty'];
-    if ($currentStock + $newQty > 0) {
-    $newAvg = ($currentStock * $currentCost + $newQty * $v['unitPrice']) / ($currentStock + $newQty);
-    } else {
+           $currentStock   = $stockMap[$v['product']->id] ?? 0;
+$currentCost    = $v['product']->cost_price ?? $v['unitPrice'];
+$effectiveStock = $currentStock;
+
+if ($effectiveStock + $v['stockQty'] > 0) {
+    $newAvg = ($effectiveStock * $currentCost + $v['stockQty'] * $v['unitPrice']) 
+              / ($effectiveStock + $v['stockQty']);
+} else {
     $newAvg = $v['unitPrice'];
-    }            
+}          
     $v['product']->update(['cost_price' => round($newAvg , 2)]);
 
             if ($v['warehouseId']) {
