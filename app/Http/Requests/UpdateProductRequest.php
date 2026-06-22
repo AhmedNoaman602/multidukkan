@@ -31,7 +31,11 @@ class UpdateProductRequest extends FormRequest
             'secondary_unit'     => ['nullable', 'string'],
             'conversion_factor'  => ['nullable', 'integer', 'min:1'],
             'stocks'             => ['nullable', 'array'],
-            'stocks.*.warehouse_id' => ['required_with:stocks', 'integer', 'exists:warehouses,id'],
+            'stocks.*.warehouse_id' => [
+                'required_with:stocks',
+                'integer',
+                new BelongsToTenant(Warehouse::class, $tenantId),
+            ],
             'stocks.*.threshold'    => ['nullable', 'integer', 'min:0'],
             'stocks.*.quantity'     => ['nullable', 'integer', 'min:0'],
         ];

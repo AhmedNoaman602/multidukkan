@@ -26,6 +26,7 @@ class Product extends Model
         'secondary_unit',
         'conversion_factor',
         'supplier_id',
+        'opening_quantity',
     ];
 
     protected $attributes = [

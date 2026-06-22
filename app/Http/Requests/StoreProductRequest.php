@@ -5,6 +5,8 @@ namespace App\Http\Requests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use App\Rules\BelongsToTenant;
+use App\Models\Warehouse;
 
 class StoreProductRequest extends FormRequest
 {
@@ -41,12 +43,16 @@ class StoreProductRequest extends FormRequest
             'price_d'     => 'nullable|numeric|min:0',
             'price_e'     => 'nullable|numeric|min:0',
             'cost_price' => 'nullable|numeric|min:0',
+            'opening_quantity' => 'nullable|integer|min:0',
             'unit'      => 'nullable|string|max:20',
             'secondary_unit'    => 'nullable|string|max:50',
             'conversion_factor' => 'nullable|integer|min:2',
             'stocks'                  => 'nullable|array',
-            'stocks.*.warehouse_id'   => 'required|exists:warehouses,id',
-            'stocks.*.quantity'       => 'nullable|integer|min:0',
+'stocks.*.warehouse_id' => [
+    'required',
+    'integer',
+    new BelongsToTenant(Warehouse::class, $tenantId),
+],            'stocks.*.quantity'       => 'nullable|integer|min:0',
             'stocks.*.threshold'      => 'nullable|integer|min:0',
         ];
     }
