@@ -46,7 +46,8 @@ public function store(Request $request){
             'order_id'    => 'required|exists:orders,id',
             'customer_id' => 'required|exists:customers,id',
             'amount'      => 'required|numeric|min:0.01',
-            'method'      => 'required|in:cash,bank_transfer,check',
+            'method'      => 'required|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
+            'payment_reference' => 'nullable|string|max:255',
         ]);
 
          try {
@@ -67,7 +68,8 @@ public function update(Request $request, Payment $payment)
 
     $data = $request->validate([
         'amount' => 'required|numeric|min:0.01',
-        'method' => 'required|in:cash,bank_transfer,check',
+        'method' => 'required|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
+        'payment_reference' => 'nullable|string|max:255',
     ]);
 
     $this->ledger->adjustPayment($payment, $data['amount'], $data['method']);
@@ -86,7 +88,8 @@ public function update(Request $request, Payment $payment)
         $data = $request->validate([
             'customer_id' => 'required|exists:customers,id',
             'amount'      => 'required|numeric|min:0.01',
-            'method'      => 'required|in:cash,bank_transfer,check',
+            'method'      => 'required|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
+            'payment_reference' => 'nullable|string|max:255',
         ]);
 try{
         $payments = $this->payment->processAutoPayment(

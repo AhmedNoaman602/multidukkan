@@ -134,6 +134,7 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
             'refunded_amount'=> $p->refunded_amount ?? 0,
             'net_amount'     => $p->amount - ($p->refunded_amount ?? 0),
             'method'         => $p->method,
+            'payment_reference'  => $p->payment_reference, 
             'paid_at'        => $p->paid_at,
             'invoice_number' => $p->order?->invoice_number ?? '—',
             'order_id'       => $p->order_id,

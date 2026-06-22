@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\OrderItem;
 use App\Models\User;
 use App\Models\Order;
+use Illuminate\Validation\ValidationException;
 /**
  * Service for processing payments and managing their impact on the ledger.
  * 
@@ -22,6 +23,8 @@ class PaymentService
      * Create a new class instance.
      */
     public function __construct(protected LedgerService $ledger) {}
+
+    //extracting a private distributeAmount method that both use
 
     public function processDirectPayment(array $data , User $user) : Payment
     {
@@ -40,7 +43,7 @@ $orderTotal = max(0, round(
 
             // If the order has already been fully paid off, reject any new direct payment attempts.
             if($totalAlreadyPaid >= $orderTotal){
-                throw new \InvalidArgumentException('Order is already fully paid.');
+                throw new \ValidationException('Order is already fully paid.');
             }
 
             // Calculate how much is left to pay on the order, how much of the new payment applies to it,
@@ -56,6 +59,7 @@ $orderTotal = max(0, round(
                 'customer_id' => $data['customer_id'],
                 'amount'      => $appliedAmount,
                 'method'      => $data['method'],
+                'payment_reference'  => $data['payment_reference'] ?? null,
                 'paid_at'     => now(),
             ]);
 
@@ -79,6 +83,7 @@ $orderTotal = max(0, round(
                     excludeOrderId: $order->id,
                     user: $user,
                     method: $data['method'],
+                    paymentReference: $data['payment_reference'] ?? null,
                 );
 
                 // If there is still money left over after trying to pay off all other unpaid orders,
@@ -146,6 +151,7 @@ $orderTotal = max(0, round(
                     'customer_id' => $customerId,
                     'amount'      => $applyAmount,
                     'method'      => $method,
+                    'payment_reference'  => $data['payment_reference'] ?? null,
                     'paid_at'     => now(),
                 ]);
 
@@ -188,6 +194,7 @@ $orderTotal = max(0, round(
         int $excludeOrderId,
         User $user,
         string $method,
+        ?string $paymentReference = null,
     ): float {
         // Query other unpaid orders (excluding the one that was just paid) starting from the oldest.
         $unpaidOrders = Order::where('customer_id', $customerId)
@@ -228,6 +235,7 @@ $orderTotal = max(0, round(
                 'customer_id' => $customerId,
                 'amount'      => $applyAmount,
                 'method'      => $method,
+                'payment_reference'  => $paymentReference,
                 'paid_at'     => now(),
             ]);
 
