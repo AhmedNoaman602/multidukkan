@@ -34,7 +34,8 @@ class CustomerController extends Controller
                   ->orWhere('area', 'like', "%{$request->search}%");
             })
         )
-        ->orderBy('code', 'asc');
+        ->orderByRaw("CASE WHEN code LIKE 'C-%' THEN 0 ELSE 1 END ASC")
+->orderByRaw("CAST(SUBSTRING(code, 3) AS UNSIGNED) ASC");
 
     $customerIds = (clone $query)->select('id');
 
@@ -70,7 +71,8 @@ class CustomerController extends Controller
 {
     $last = Customer::where('tenant_id', $tenantId)
         ->whereNotNull('code')
-        ->orderByDesc('id')
+        ->where('code', 'like', 'C-%')
+        ->orderByRaw('CAST(SUBSTRING(code, 3) AS UNSIGNED) DESC')
         ->value('code');
 
     $lastNumber = $last ? (int) substr($last, 2) : 0;
@@ -105,7 +107,7 @@ class CustomerController extends Controller
             'address'             => $validated['address'] ?? null,
             'price_tier'          => $validated['price_tier'] ?? 'default',
             'area'                => $validated['area'] ?? null,
-            'code'                => $this->generateCustomerCode($user->tenant_id),
+            'code' => $validated['code'] ?? $this->generateCustomerCode($user->tenant_id),
         ]);
 
         return (new CustomerResource($customer))

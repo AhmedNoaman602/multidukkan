@@ -8,12 +8,16 @@ use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
 use App\Models\Product;
 use App\Http\Resources\SupplierResource;
+use App\Http\Resources\PurchaseOrderResource; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Services\LedgerService;
 
 class SupplierController extends Controller
 {
+    public function __construct(protected LedgerService $ledger) {}
+
     public function index(Request $request)
 {
     $this->authorize('viewAny', Supplier::class);
@@ -26,7 +30,8 @@ class SupplierController extends Controller
               ->orWhere('phone', 'like', "%$request->search%")
               ->orWhere('code', 'like', "%$request->search%");
         })
-        ->orderBy('name', 'asc');
+        ->orderByRaw("CASE WHEN code LIKE 'S-%' THEN 0 ELSE 1 END ASC")
+        ->orderByRaw("CAST(SUBSTRING(code, 3) AS UNSIGNED) ASC");
 
     $supplierIds = (clone $query)->select('id');
 
@@ -114,18 +119,40 @@ class SupplierController extends Controller
         }
     }
 
-    private function generateSupplierCode(int $tenantId): string
-    {
-        $last = Supplier::where('tenant_id', $tenantId)
-            ->whereNotNull('code')
-            ->orderByDesc('id')
-            ->value('code');
+  private function generateSupplierCode(int $tenantId): string
+{
+    $last = Supplier::where('tenant_id', $tenantId)
+        ->whereNotNull('code')
+        ->where('code', 'like', 'S-%')
+        ->orderByRaw('CAST(SUBSTRING(code, 3) AS UNSIGNED) DESC')
+        ->value('code');
 
-        $lastNumber = $last ? (int) substr($last, 2) : 0;
-        $next = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
+    $lastNumber = $last ? (int) substr($last, 2) : 0;
+    $next = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
 
-        return "S-{$next}";
-    }
+    return "S-{$next}";
+}
+
+    public function summary(Supplier $supplier)
+{
+    $this->authorize('view', $supplier);
+
+    $tenantId = auth()->user()->tenant_id;
+    $ledger   = app(LedgerService::class);
+
+    return response()->json([
+        'supplier_id'     => $supplier->id,
+        'supplier_name'   => $supplier->name,
+        'balance'         => $ledger->getSupplierBalance($tenantId, $supplier->id),
+        'history'         => $ledger->getHistory($tenantId, null, $supplier->id),
+        'purchase_orders' => PurchaseOrderResource::collection($supplier->purchaseOrders()
+        ->with(['items', 'items.product', 'supplierPayments']) 
+        ->orderByDesc('created_at')
+        ->get()),
+        'products' => $supplier->products()->with('inventories')->get(),
+    ]);
+}
+
 
     public function products(Supplier $supplier)
 {
