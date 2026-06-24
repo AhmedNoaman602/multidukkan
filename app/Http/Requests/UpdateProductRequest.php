@@ -4,6 +4,8 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Rules\BelongsToTenant;
+use App\Models\Warehouse;
 
 class UpdateProductRequest extends FormRequest
 {

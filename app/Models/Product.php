@@ -60,4 +60,8 @@ protected static function booted(): void
 {
     return $this->belongsTo(Supplier::class);
 }
+public function purchaseOrderItems()
+{
+    return $this->hasMany(PurchaseOrderItem::class);
+}
 }
