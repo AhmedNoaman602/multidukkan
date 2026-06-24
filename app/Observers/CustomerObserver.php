@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Customer;
+use App\Services\LedgerService;
 use Illuminate\Validation\ValidationException;
 
 class CustomerObserver
@@ -23,20 +24,29 @@ class CustomerObserver
         //
     }
 
-    public function deleting(Customer $customer): void
-    {
-        if ($customer->orders()->exists()) {
-            throw ValidationException::withMessages([
-                'customer' => 'Cannot delete customer with existing orders.',
-            ]);
-        }
-
-        if ($customer->payments()->exists()) {
-            throw ValidationException::withMessages([
-                'customer' => 'Cannot delete customer with existing payments.',
-            ]);
-        }
+public function deleting(Customer $customer): void
+{
+    if ($customer->orders()->withTrashed()->exists()) {
+        throw ValidationException::withMessages([
+            'customer' => 'Cannot delete a customer who has existing orders.',
+        ]);
     }
+
+    if ($customer->payments()->withTrashed()->exists()) {
+        throw ValidationException::withMessages([
+            'customer' => 'Cannot delete a customer who has existing payments.',
+        ]);
+    }
+
+    $balance = app(LedgerService::class)
+        ->getBalance($customer->tenant_id, $customer->id);
+
+    if ($balance != 0) {
+        throw ValidationException::withMessages([
+            'customer' => 'Cannot delete a customer with outstanding balance.',
+        ]);
+    }
+}
     /**
      * Handle the Customer "deleted" event.
      */
