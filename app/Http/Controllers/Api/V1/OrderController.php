@@ -67,11 +67,12 @@ class OrderController extends Controller
     $totalRevenue = (clone $query)->sum('total');
     $paidAmount = DB::table('payments')
     ->whereIn('order_id', (clone $query)->select('id'))
+     ->where('is_auto_reversible', false)
     ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
 
     $unpaidAmount = round($totalRevenue - $paidAmount, 2);
 
-    $orders = $query->with('items', 'payments', 'customer')
+    $orders = $query->with('items.product', 'payments', 'customer')
         ->orderBy('id', 'desc')
         ->paginate(10);
 
@@ -114,7 +115,7 @@ class OrderController extends Controller
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-        return new OrderResource($order->load('items', 'payments', 'customer'));
+        return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
 
     public function update(Request $request, Order $order)
@@ -163,6 +164,8 @@ try {
         } 
     }
 
+
+
     public function updateItem(Request $request, Order $order, OrderItem $item){
         $this->authorize('update', $order);
 
@@ -176,13 +179,15 @@ try {
 ]);
 
 // At least one must be present
-if (!$request->quantity && !$request->unit_price) {
+    if (!$request->quantity && !$request->unit_price) {
     return response()->json(['message' => 'Provide quantity or unit_price to update.'], 422);
 }
 
-$this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
-return new OrderResource($order->load('items', 'payments', 'customer'));
+         $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
+        return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
+
+
 
 
     public function addItem(Request $request, Order $order){
@@ -195,13 +200,13 @@ return new OrderResource($order->load('items', 'payments', 'customer'));
     $request->validate([
     'product_id' => 'required|exists:products,id',
     'warehouse_id' => 'required|exists:warehouses,id',
-    'quantity'   => 'required|numeric|min:1',
+    'quantity'   => 'required|numeric|min:1',       
     'unit_type'    => 'nullable|in:base,secondary',
     'unit_price' => 'nullable|numeric|min:0',
 ]);
 
 $this->order->addItem($order, $request->all());
-return new OrderResource($order->load('items', 'payments', 'customer'));
+return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
     
 }

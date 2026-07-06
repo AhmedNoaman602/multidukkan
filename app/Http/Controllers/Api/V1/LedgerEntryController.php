@@ -108,7 +108,7 @@ public function summary(Customer $customer)
 
     $orders = $customer->orders()
     ->with(['payments', 'items'])
-    ->orderByDesc('created_at')
+    ->orderByDesc('order_date')
     ->get();
 
 $calcTotal = fn($o) => max(0, round(
@@ -165,7 +165,9 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
         'status'           => $amountRemaining > 0 ? 'unpaid' : 'paid',
         'order_date'       => $o->order_date,
         'refundable' => round(
-    $o->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)), 
+    $o->payments
+        ->where('is_auto_reversible', false)
+        ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)), 
     2
 ),
     ];

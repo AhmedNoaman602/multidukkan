@@ -114,9 +114,11 @@ foreach ($aggregated as $itemData) {
                 };
 
                 // Calculate the final unit price, adjusting it if using a secondary unit and conversion factor.
-                $unitPrice = $unitType === 'secondary' && $product->conversion_factor
+                $unitPrice = isset($itemData['unit_price']) && $itemData['unit_price'] !== null
+                ? (float) $itemData['unit_price']
+                : ($unitType === 'secondary' && $product->conversion_factor
                     ? $price * $product->conversion_factor
-                    : $price;
+                    : $price);
 
                 // Temporarily store the validated data of the item to be processed after the order record is created.
                 $validatedItems[] = [
@@ -200,11 +202,15 @@ foreach ($validatedItems as $v) {
 
             // Calculate the discount and determine the final charge amount for the order (total amount minus the discount).
             $discount = max(0, min($data['discount'] ?? 0, $totalAmount));
-            $chargeAmount = round($totalAmount - $discount, 2);
+            $calculatedTotal = round($totalAmount - $discount, 2);
+
+            $chargeAmount = isset($data['manual_total']) && $data['manual_total'] !== null
+    ? round((float) $data['manual_total'], 2)
+    : $calculatedTotal;
 
             // Update the order with its final total cost.
             $order->update([
-                'total' => round($totalAmount - $discount, 2),
+                'total' => $chargeAmount,
             ]);
 
             // Post a charge entry to the customer's ledger for this order.
@@ -255,6 +261,36 @@ foreach ($validatedItems as $v) {
                     'invoice_number' => $order->invoice_number,
                 ]);
             }
+
+            // --- PAY IMMEDIATELY BLOCK (QuickSale) ---
+// If pay_immediately is set, create a cash payment inside the same transaction.
+// This ensures order + payment are atomic — if payment fails, order rolls back too.
+if (!empty($data['pay_immediately'])) {
+ $cashAmount = round($chargeAmount - ($applyAmount ?? 0), 2);
+ 
+    if ($cashAmount > 0) {
+        
+        $payment = Payment::create([
+            'tenant_id'          => $order->tenant_id,
+            'order_id'           => $order->id,
+            'customer_id'        => $order->customer_id,
+            'amount'             => $cashAmount,
+            'method'             => $data['payment_method'] ?? 'cash',
+            'is_auto_reversible' => false,
+            'paid_at'            => now(),
+        ]);
+
+        $this->ledger->applyAmount([
+            'tenant_id'      => $order->tenant_id,
+            'order_id'       => $order->id,
+            'customer_id'    => $order->customer_id,
+            'store_id'       => $order->store_id,
+            'payment_id'     => $payment->id,
+            'amount'         => $cashAmount,
+            'invoice_number' => $order->invoice_number,
+        ]);
+    }
+}
 
             // Return the newly created order structure along with all associated items.
             return $order->load('items');
@@ -349,7 +385,7 @@ foreach ($validatedItems as $v) {
             'total'        => $data['quantity'] * $unitPrice,
         ]);
     }
-          $this->inventory->deductStock($product->id,$warehouseId, $stockQuantity, $order->id,Order::class);
+          $this->inventory->deductStock($product->id, $warehouseId, $stockQuantity, $order->id, Order::class);
 
 
       $newTotal = $order->items()->sum(DB::raw('unit_price * quantity'));

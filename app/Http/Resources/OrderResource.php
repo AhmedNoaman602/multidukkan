@@ -43,16 +43,36 @@ class OrderResource extends JsonResource
         'tenant_id'  => $this->tenant_id,
         'store_id'   => $this->store_id,
         'customer_id'=> $this->customer_id,
-        'customer_name' => $this->customer_name_snapshot ?? $this->customer?->name ?? 'Deleted Customer',        'created_by' => $this->created_by,
+        'customer_name' => $this->customer_name_snapshot ?? $this->customer?->name ?? 'Deleted Customer',        
+        'created_by' => $this->created_by,
         'notes'      => $this->notes,
         'subtotal'       => round($subtotal, 2),  
         'discount'       => $discount,
         'total'      => $total,
         'paid' => $displayPaid,
         'customer_phone' => $this->customer?->phone ?? '',
+        'payments_count' => $this->payments->count(),
+        'payments' => $this->payments
+                ->filter(fn($p) => !$p->is_auto_reversible)
+                ->map(fn($p) => [
+                    'id'              => $p->id,
+                    'order_id'        => $p->order_id,
+                    'amount'          => $p->amount,
+                    'refunded_amount' => $p->refunded_amount ?? 0,
+                    'method'          => $p->method,
+                ])
+                ->values(),
+        'refundable_amount' => $this->payments
+                        ->filter(fn($p) => !$p->is_auto_reversible)
+                        ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)), 
+
         'store_name'     => $this->store?->name ?? '',
         'status'     => $this->resolveStatus($totalPaid, $total),
-        'items_count' => $this->items->count(),
+        'items_count' => $this->items->sum(fn($item) =>
+            $item->unit_type === 'secondary' && $item->product?->conversion_factor
+                ? $item->quantity * $item->product->conversion_factor
+                : $item->quantity
+        ),
         'items'      => $this->items->map(fn($item) => [
             'id' => $item->id,
             'product_name' => $item->product_name,
@@ -64,6 +84,7 @@ class OrderResource extends JsonResource
                         ? ($item->product?->secondary_unit ?? $item->unit_type)
                         : ($item->product?->unit ?? 'base'),
             'total'        => $item->unit_price * $item->quantity,
+            'cost_price'     => $item->product?->cost_price ?? null,
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         'created_at' => $this->created_at->toDateTimeString(),
