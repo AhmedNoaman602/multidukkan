@@ -5,6 +5,8 @@ use App\Models\SupplierPayment;
 use App\Models\User;
 use App\Models\PurchaseOrder;
 use Illuminate\Support\Facades\DB;
+use App\Services\LedgerService;
+use Illuminate\Validation\ValidationException;
 class SupplierPaymentService
 {
     /**
@@ -22,7 +24,14 @@ if (!empty($data['purchase_order_id'])) {
     $order = PurchaseOrder::with('supplierPayments')->findOrFail($data['purchase_order_id']);
     
     $orderOwed = round($order->total - $order->supplierPayments->sum('amount'), 2);
-    $applyAmount = min($remaining, $orderOwed);
+
+    if ($remaining > $orderOwed) {
+    throw ValidationException::withMessages([
+        'amount' => "Payment amount ({$remaining} EGP) exceeds the amount owed on this order ({$orderOwed} EGP)."
+    ]);
+}
+
+    $applyAmount = $remaining;
 
     $payment = SupplierPayment::create([
         'tenant_id'         => $user->tenant_id,
@@ -55,6 +64,14 @@ if (!empty($data['purchase_order_id'])) {
     )
     ->orderBy('created_at', 'asc')
     ->get();
+
+    $totalOwed = round($PurchaseOrders->sum(fn($o) => $o->total - $o->supplierPayments->sum('amount')), 2);
+
+if ($remaining > $totalOwed) {
+    throw ValidationException::withMessages([
+        'amount' => "Payment amount ({$remaining} EGP) exceeds the total amount owed to this supplier ({$totalOwed} EGP)."
+    ]);
+}
 
     $payments = [];
     foreach($PurchaseOrders as $order){
