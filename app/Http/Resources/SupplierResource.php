@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use App\Services\LedgerService;
 class SupplierResource extends JsonResource
 {
     /**
@@ -24,9 +23,7 @@ class SupplierResource extends JsonResource
             'area'              => $this->area,
             'notes'             => $this->notes,
             'tenant_id'         => $this->tenant_id,
-            'balance'           => $this->id 
-                                    ? app(LedgerService::class)->getSupplierBalance($this->tenant_id, $this->id) 
-                                    : 0,
+            'balance'           => $this->balance ?? 0, 
             'created_at'        => $this->created_at,
             'updated_at'        => $this->updated_at,
         ];

@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Http\Resources\CustomerResource;
-use Illuminate\Support\Facades\DB;
 use App\Services\LedgerService;
 use App\Http\Requests\RefundCustomerRequest;
 use Illuminate\Validation\ValidationException;
@@ -18,7 +17,7 @@ class CustomerController extends Controller
 
     public function __construct(protected LedgerService $ledgerService) {}
 
-    public function index(Request $request)
+ public function index(Request $request)
 {
     $this->authorize('viewAny', Customer::class);
 
@@ -35,23 +34,19 @@ class CustomerController extends Controller
             })
         )
         ->orderByRaw("CASE WHEN code LIKE 'C-%' THEN 0 ELSE 1 END ASC")
-->orderByRaw("CAST(SUBSTRING(code, 3) AS UNSIGNED) ASC");
+        ->orderByRaw("CAST(SUBSTRING(code, 3) AS UNSIGNED) ASC");
 
-    $customerIds = (clone $query)->select('id');
-
-    $debits = DB::table('ledger_entries')
-        ->whereIn('customer_id', $customerIds)
-        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED','REFUND'])
-        ->sum('amount');
-
-    $credits = DB::table('ledger_entries')
-        ->whereIn('customer_id', $customerIds)
-        ->whereIn('type', ['PAYMENT', 'CREDIT_APPLY', 'REVERSAL'])
-        ->sum('amount');
-
-    $totalOutstanding = max(0, round($debits - $credits, 2));
+   
+    $allFilteredIds = (clone $query)->pluck('id')->toArray();
+    $allBalances = $this->ledgerService->getBalancesForCustomers($user->tenant_id, $allFilteredIds);
+    $totalOutstanding = array_sum(array_filter($allBalances, fn($balance) => $balance > 0));
 
     $customers = $query->paginate(15);
+
+   $customers->getCollection()->transform(function ($customer) use ($allBalances) {
+    $customer->balance = $allBalances[$customer->id] ?? 0;
+    return $customer;
+});
 
     return response()->json([
         'data' => CustomerResource::collection($customers)->resolve(),
@@ -62,7 +57,7 @@ class CustomerController extends Controller
         ],
         'stats' => [
             'total_customers'   => $customers->total(),
-            'total_outstanding' => $totalOutstanding,
+            'total_outstanding' => round($totalOutstanding,2),
         ],
     ]);
 }

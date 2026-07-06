@@ -170,6 +170,36 @@ class LedgerService
     }
 
     /**
+ * Calculate outstanding balances for multiple customers in a single batched query.
+ * Returns an associative array: [customer_id => balance].
+ */
+public function getBalancesForCustomers(int $tenantId, array $customerIds): array
+{
+    $debits = LedgerEntry::where('tenant_id', $tenantId)
+        ->whereIn('customer_id', $customerIds)
+        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED', 'REFUND'])
+        ->groupBy('customer_id')
+        ->selectRaw('customer_id, SUM(amount) as total')
+        ->pluck('total', 'customer_id');
+
+    $credits = LedgerEntry::where('tenant_id', $tenantId)
+        ->whereIn('customer_id', $customerIds)
+        ->whereIn('type', ['PAYMENT', 'CREDIT_APPLY', 'REVERSAL'])
+        ->groupBy('customer_id')
+        ->selectRaw('customer_id, SUM(amount) as total')
+        ->pluck('total', 'customer_id');
+
+    $balances = [];
+    foreach ($customerIds as $id) {
+        $debit = $debits[$id] ?? 0;
+        $credit = $credits[$id] ?? 0;
+        $balances[$id] = round($debit - $credit, 2);
+    }
+
+    return $balances;
+}
+
+    /**
      * Calculate a supplier's total outstanding balance by summing debits and subtracting credits in their direction.
      */
     public function getSupplierBalance(int $tenantId, int $supplierId): float
@@ -190,6 +220,33 @@ class LedgerService
 
         // Return the net supplier balance rounded to 2 decimal places.
         return round($debits - $credits, 2);
+    }
+
+    public function getBalancesForSuppliers(int $tenantId, array $supplierIds): array{
+        $debits = LedgerEntry::where('tenant_id', $tenantId)
+            ->where('entity_type', 'supplier')
+            ->whereIn('entity_id', $supplierIds)
+            ->where('direction', 'debit')
+            ->groupBy('entity_id')
+            ->selectRaw('entity_id, SUM(amount) as total')
+            ->pluck('total', 'entity_id');
+
+        $credits = LedgerEntry::where('tenant_id', $tenantId)
+            ->where('entity_type', 'supplier')
+            ->whereIn('entity_id', $supplierIds)
+            ->where('direction', 'credit')
+            ->groupBy('entity_id')
+            ->selectRaw('entity_id, SUM(amount) as total')
+            ->pluck('total', 'entity_id');
+
+        $balances = [];
+        foreach ($supplierIds as $id) {
+            $debit = $debits[$id] ?? 0;
+            $credit = $credits[$id] ?? 0;
+            $balances[$id] = round($debit - $credit, 2);
+        }
+
+        return $balances;
     }
 
     /**

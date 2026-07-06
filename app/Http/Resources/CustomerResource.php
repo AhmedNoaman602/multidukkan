@@ -24,6 +24,7 @@ class CustomerResource extends JsonResource
             'address' => $this->address,
             'area' => $this->area,
             'created_at' => $this->created_at->toDateTimeString(),
+            'balance' => $this->balance ?? 0,
         ];
     }
 }
