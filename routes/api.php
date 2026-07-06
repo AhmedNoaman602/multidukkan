@@ -65,6 +65,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/customers/{customer}/summary', [LedgerEntryController::class, 'summary']);
 
     Route::get('products', [ProductController::class, 'index']);
+    Route::get('products/{product}/suppliers', [ProductController::class, 'suppliers']);
     Route::get('products/{product}', [ProductController::class, 'show']);
     Route::post('/products', [ProductController::class, 'store']);
     Route::put('products/{product}', [ProductController::class, 'update']);
@@ -108,10 +109,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/supplier-payments', [SupplierPaymentController::class, 'store']);
     Route::get('/supplier-payments', [SupplierPaymentController::class, 'index']);
 
-    Route::get('suppliers/{supplier}/products', [SupplierProductController::class, 'index']);
+    Route::get('suppliers/{supplier}/products', [SupplierController::class, 'products']);
+    Route::post('suppliers/{supplier}/products/bulk', [SupplierProductController::class, 'bulkAttach']);
     Route::post('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'attach']);
+    Route::put('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'update']);
     Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
-    Route::get('/suppliers/{supplier}/stock', [SupplierController::class, 'products']);
+    // Route::get('/suppliers/{supplier}/stock', [SupplierController::class, 'products']);
 
     Route::get('/reports/daily', [ReportController::class, 'daily']);
 

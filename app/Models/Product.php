@@ -25,7 +25,6 @@ class Product extends Model
         'unit',
         'secondary_unit',
         'conversion_factor',
-        'supplier_id',
         'opening_quantity',
     ];
 
@@ -56,12 +55,14 @@ protected static function booted(): void
     {
         return $this->hasMany(Inventory::class);
     }
-    public function supplier()
+    public function purchaseOrderItems()
+    {
+        return $this->hasMany(PurchaseOrderItem::class);
+    }
+    public function suppliers()
 {
-    return $this->belongsTo(Supplier::class);
-}
-public function purchaseOrderItems()
-{
-    return $this->hasMany(PurchaseOrderItem::class);
+    return $this->belongsToMany(Supplier::class, 'supplier_products')
+                ->withPivot('cost_price', 'last_purchase_price', 'last_purchased_at', 'is_preferred', 'notes')
+                ->withTimestamps();
 }
 }

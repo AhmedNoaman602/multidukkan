@@ -10,6 +10,8 @@ use App\Models\Product;
 use App\Models\Inventory;
 use App\Http\Resources\ProductResource;
 use App\Services\ProductService;
+use App\Http\Resources\ProductSupplierResource;
+
 class ProductController extends Controller
 {
     /**
@@ -153,4 +155,11 @@ class ProductController extends Controller
 
     return response()->json(['message' => 'Product deleted successfully']);
 }
+
+public function suppliers(Product $product)
+{
+    $suppliers = $product->suppliers()->get();
+    return ProductSupplierResource::collection($suppliers);
+}
+
 }

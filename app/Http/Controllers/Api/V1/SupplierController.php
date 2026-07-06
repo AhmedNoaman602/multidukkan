@@ -13,10 +13,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use App\Services\LedgerService;
+use App\Http\Resources\SupplierProductResource;
 
 class SupplierController extends Controller
 {
-    public function __construct(protected LedgerService $ledger) {}
+    public function __construct(protected LedgerService $ledgerService) {}
 
     public function index(Request $request)
 {
@@ -33,25 +34,21 @@ class SupplierController extends Controller
         ->orderByRaw("CASE WHEN code LIKE 'S-%' THEN 0 ELSE 1 END ASC")
         ->orderByRaw("CAST(SUBSTRING(code, 3) AS UNSIGNED) ASC");
 
-    $supplierIds = (clone $query)->select('id');
+    $supplierIds = (clone $query)->pluck('id')->toArray();
 
-    $debits = DB::table('ledger_entries')
-        ->whereIn('supplier_id', $supplierIds)
-        ->where('entity_type', 'supplier')
-        ->where('direction', 'debit')
-        ->sum('amount');
+    $balances = $this->ledgerService->getBalancesForSuppliers($user->tenant_id, $supplierIds);
 
-    $credits = DB::table('ledger_entries')
-        ->whereIn('supplier_id', $supplierIds)
-        ->where('entity_type', 'supplier')
-        ->where('direction', 'credit')
-        ->sum('amount');
-
-    $totalOwed = max(0, round($debits - $credits, 2));
+    $totalOwed = max(0, round(array_sum($balances), 2));
 
     $suppliers = $query->paginate(20);
 
+    $suppliers->getCollection()->transform(function ($supplier) use ($balances) {
+        $supplier->balance = $balances[$supplier->id] ?? 0;
+        return $supplier;
+    });
+
     return response()->json([
+        // Adding resolve to convert the resource into array
         'data' => SupplierResource::collection($suppliers)->resolve(),
         'meta' => [
             'current_page' => $suppliers->currentPage(),
@@ -140,6 +137,13 @@ class SupplierController extends Controller
     $tenantId = auth()->user()->tenant_id;
     $ledger   = app(LedgerService::class);
 
+    $products = $supplier->products()->with('inventories')->get();
+
+    $productsResource = SupplierProductResource::collection($products);
+
+    $totalStock = $products->sum(fn($p) => $p->inventories->sum('quantity'));
+
+
     return response()->json([
         'supplier_id'     => $supplier->id,
         'supplier_name'   => $supplier->name,
@@ -149,7 +153,9 @@ class SupplierController extends Controller
         ->with(['items', 'items.product', 'supplierPayments']) 
         ->orderByDesc('created_at')
         ->get()),
-        'products' => $supplier->products()->with('inventories')->get(),
+        'total_products' => $productsResource->count(),
+        'total_stock' => $totalStock,
+        'products' => $productsResource,
     ]);
 }
 
@@ -162,19 +168,19 @@ class SupplierController extends Controller
         return response()->json(['message' => 'Unauthorized'], 403);
     }
 
-    $products = Product::where('supplier_id', $supplier->id)
-        ->where('tenant_id', $supplier->tenant_id)
-        ->with('inventories')
-        ->get()
-        ->map(fn($product) => [
-            'id'          => $product->id,
-            'name'        => $product->name,
-            'sku'         => $product->sku,
-            'unit'        => $product->unit,
-            'price'       => $product->price,
-            'total_stock' => $product->inventories->sum('quantity'),
-        ]);
+    $products = $supplier->products()->with('inventories')->get();
 
-    return response()->json(['data' => $products]);
+    $productsResource = SupplierProductResource::collection($products);
+
+    $totalStock = $products->sum(fn($p) => $p->inventories->sum('quantity'));
+
+
+    return response()->json([
+        'data' => [
+            'products' => $productsResource,
+            'total_products' => $productsResource->count(),
+            'total_stock' => $totalStock,
+        ]
+    ]);
 }
 }

@@ -6,44 +6,84 @@ use App\Models\Product;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+
 class SupplierProductController extends Controller
 {
-    public function index(Supplier $supplier) : JsonResponse
-    {
-        $this->authorizeTenant($supplier);
-        
-        $products = $supplier->products()->select(
-        'products.id',
-        'products.name',
-        'products.sku',
-        'products.price',
-        'products.price_a',
-        'products.price_b',
-        'products.price_c',
-        'products.price_d',
-        'products.price_e',
-        'products.conversion_factor',
-        'products.unit',
-        'products.secondary_unit'
-    )
-            ->get();
-
-            return response()->json([
-                'data' => $products
-            ]);
-    }
-
-    public function attach(Supplier $supplier, Product $product) : JsonResponse
+    public function attach(Supplier $supplier, Product $product , Request $request) : JsonResponse
     {
         $this->authorizeTenant($supplier);
         $this->authorizeProductTenant($product);
+        
+        $request->validate([
+            'cost_price'   => 'nullable|numeric',
+            'is_preferred' => 'nullable|boolean',
+            'notes'        => 'nullable|string|max:255',
+        ]);
 
-        $supplier->products()->syncWithoutDetaching([$product->id]);
+        $supplier->products()->syncWithoutDetaching([
+            $product->id => [
+                'cost_price'   => $request->cost_price,
+                'is_preferred' => $request->is_preferred,
+                'notes'        => $request->notes,
+            ]
+        ]);
 
         return response()->json([
             'message' => 'Product attached to supplier'
         ]);
     }
+
+    public function bulkAttach(Supplier $supplier, Request $request): JsonResponse
+{
+    $this->authorizeTenant($supplier);
+
+    $request->validate([
+        'products'                  => 'required|array|min:1',
+        'products.*.product_id'     => 'required|exists:products,id',
+        'products.*.cost_price'     => 'nullable|numeric',
+        'products.*.is_preferred'   => 'nullable|boolean',
+        'products.*.notes'          => 'nullable|string|max:255',
+    ]);
+
+    $syncData = [];
+    foreach ($request->products as $item) {
+        $product = Product::findOrFail($item['product_id']);
+        $this->authorizeProductTenant($product);
+        $syncData[$item['product_id']] = [
+            'cost_price'   => $item['cost_price'] ?? null,
+            'is_preferred' => $item['is_preferred'] ?? false,
+            'notes'        => $item['notes'] ?? null,
+        ];
+    }
+
+    $supplier->products()->syncWithoutDetaching($syncData);
+
+    return response()->json(['message' => 'Products linked to supplier']);
+}
+
+    public function update(Supplier $supplier , Product $product , Request $request) : JsonResponse{
+        $this->authorizeTenant($supplier);
+        $this->authorizeProductTenant($product);
+
+        $request->validate([
+            'cost_price'   => 'nullable|numeric',
+            'is_preferred' => 'nullable|boolean',
+            'notes'        => 'nullable|string|max:255',
+        ]);
+
+        $supplier->products()->updateExistingPivot(
+            $product->id , [
+                'cost_price'   => $request->cost_price,
+                'is_preferred' => $request->is_preferred,
+                'notes'        => $request->notes,
+        ]);
+
+        return response()->json([
+            'message' => 'Product updated successfully'
+        ]);
+    }
+
+
     public function detach(Supplier $supplier, Product $product) : JsonResponse
     {
         $this->authorizeTenant($supplier);
@@ -55,6 +95,8 @@ class SupplierProductController extends Controller
             'message' => 'Product detached from supplier'
         ]);
     }
+
+
 
     private function authorizeTenant(Supplier $supplier): void
     {
