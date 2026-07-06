@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use App\Services\InventoryService;
 use App\Http\Requests\AdjustInventoryRequest;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
+
 class InventoryController extends Controller
 {
     public function __construct(private InventoryService $inventoryService){}
@@ -24,6 +26,7 @@ public function index(Request $request)
         ->when($user->store_id, function ($q) use ($user) {
             $q->whereHas('warehouse', fn($w) => $w->where('store_id', $user->store_id));
         })
+        ->when($request->boolean('low_stock'), fn($q) => $q->where('quantity', '<=', DB::raw('threshold')))
         ->when($request->search, function ($q) use ($request) {
             $q->where(function ($q) use ($request) {
                 $q->whereHas('product', fn($p) =>
