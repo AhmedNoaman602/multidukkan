@@ -10,9 +10,13 @@ use App\Models\Product;
 use App\Models\Payment;
 use App\Models\Inventory;
 use App\Http\Resources\OrderResource;
+use App\Services\LedgerService;
 
 class DashboardController extends Controller
 {
+
+    public function __construct(protected LedgerService $ledgerService) {}
+
     public function index(Request $request)
     {
         $tenantId = auth()->user()->tenant_id;
@@ -42,46 +46,49 @@ class DashboardController extends Controller
         $todaySales = $todayOrders->sum(fn($o) => max(0, $o->total ?? 0));
 
         // Unpaid orders
-        $unpaidOrders = Order::where('tenant_id', $tenantId)
+        $unpaidOrdersCount = Order::where('tenant_id', $tenantId)
             ->with('payments')
             ->get()
             ->filter(fn($o) =>
                 $o->total > $o->payments->where('is_auto_reversible', false)
                     ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0))
-            );
+            )
+            ->count();
 
-        $totalOwed = $unpaidOrders->sum(fn($o) => max(0, round(
-            $o->total - $o->payments->where('is_auto_reversible', false)
-                ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)),
-            2
-        )));
+         $customerIds = Customer::where('tenant_id' , $tenantId)
+         ->where('is_walk_in' , false)   
+         ->pluck('id')
+         ->toArray();
 
-        // Top debtors
-        $debtorMap = [];
-        foreach ($unpaidOrders as $o) {
-            if (!$o->customer_name_snapshot) continue;
-            $id = $o->customer_id;
-            if (!isset($debtorMap[$id])) {
-                $debtorMap[$id] = [
-                    'id'     => $id,
-                    'name'   => $o->customer_name_snapshot,
-                    'total'  => 0,
-                    'orders' => 0,
-                ];
-            }
-            $remaining = max(0, round(
-                $o->total - $o->payments->where('is_auto_reversible', false)
-                    ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)),
-                2
-            ));
-            $debtorMap[$id]['total']  += $remaining;
-            $debtorMap[$id]['orders'] += 1;
-        }
-        usort($debtorMap, fn($a, $b) => $b['total'] <=> $a['total']);
-        $topDebtors = array_slice($debtorMap, 0, 3);
+        $balances = $this->ledgerService->getBalancesForCustomers($tenantId , $customerIds);
+
+        $positiveBalances = array_filter($balances , fn($b) => $b > 0);
+        $totalOwed = array_sum($positiveBalances);
+
+        $debtorsCustomers = Customer::where('tenant_id' , $tenantId)
+        ->whereIn('id' , array_keys($positiveBalances))
+        ->get(['id' , 'name']);
+
+        $unpaidCountsByCustomer = Order::where('tenant_id', $tenantId)
+            ->whereIn('customer_id', $debtorsCustomers->pluck('id'))
+            ->with('payments')
+            ->get()
+            ->filter(fn($o) =>
+                $o->total > $o->payments->where('is_auto_reversible', false)
+                    ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0))
+            )
+            ->groupBy('customer_id')
+            ->map(fn($orders) => count($orders));
+        
+       $topDebtors = $debtorsCustomers->map(fn($c) => [
+            'id' => $c->id,
+            'name' => $c->name,
+            'balance' => $balances[$c->id] ?? 0,
+            'unpaid_orders_count' => $unpaidCountsByCustomer[$c->id] ?? 0,
+        ])->sortByDesc('balance')->take(5)->values();
 
         // Counts
-        $totalCustomers = Customer::where('tenant_id', $tenantId)->where('is_walk_in', false)->count();
+        $totalCustomers = count($customerIds);
         $totalProducts  = Product::where('tenant_id', $tenantId)->count();
 
         // Low stock
@@ -105,14 +112,14 @@ class DashboardController extends Controller
                 'today_payments_count' => $todayPayments->count(),
                 'today_orders_count'   => $todayOrders->count(),
                 'today_sales'          => round($todaySales, 2),
-                'unpaid_orders'        => $unpaidOrders->count(),
+                'unpaid_orders'        => $unpaidOrdersCount,
                 'total_owed'           => round($totalOwed, 2),
                 'total_customers'      => $totalCustomers,
                 'total_products'       => $totalProducts,
                 'low_stock'            => $lowStock->count(),
             ],
             'recent_orders' => OrderResource::collection($recentOrders),
-            'top_debtors'   => array_values($topDebtors),
+            'top_debtors'   => $topDebtors,
             'low_stock'     => $lowStock,
         ]);
     }
