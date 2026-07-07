@@ -44,11 +44,17 @@ class SupplierProductController extends Controller
         'products.*.is_preferred'   => 'nullable|boolean',
         'products.*.notes'          => 'nullable|string|max:255',
     ]);
-
+    $productIds = collect($request->products)->pluck('product_id')->unique();
+    $products = Product::whereIn('id', $productIds)->where('tenant_id', auth()->user()->tenant_id)->get()->keyBy('id');
+    
     $syncData = [];
     foreach ($request->products as $item) {
-        $product = Product::findOrFail($item['product_id']);
-        $this->authorizeProductTenant($product);
+        $product = $products->get($item['product_id']);
+
+        if (! $product) {
+            abort(403, 'One or more products do not belong to your tenant.');
+        }
+
         $syncData[$item['product_id']] = [
             'cost_price'   => $item['cost_price'] ?? null,
             'is_preferred' => $item['is_preferred'] ?? false,

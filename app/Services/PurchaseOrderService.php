@@ -36,9 +36,30 @@ class PurchaseOrderService
         return DB::transaction(function () use ($data) {
             $user = auth()->user();
 
+            // Tenant guard: fetch supplier + all requested products scoped to this tenant in one query each.
+            // If any requested id doesn't come back, it either doesn't exist or belongs to another tenant —
+            // either way we reject the whole PO instead of silently dropping the bad line.
+            $supplier = Supplier::where('id', $data['supplier_id'])->where('tenant_id', $user->tenant_id)->first();
+            $productIds = collect($data['items'])->pluck('product_id')->unique();
+            $products = Product::whereIn('id', $productIds)->where('tenant_id', $user->tenant_id)->get()->keyBy('id');
+
+            if ($products->count() !== $productIds->count()) {
+
+                throw new \InvalidArgumentException('One or more products do not belong to this tenant.');
+
+            }
+            if (!$supplier) {
+
+                 throw new \InvalidArgumentException('Supplier does not belong to this tenant.');
+
+            }
+
+            // Normalize each raw item line into base units: convert quantity/price when the line
+            // was entered in a "secondary" unit (e.g. box) using the product's conversion_factor,
+            // so everything downstream works in base units consistently.
             $validatedItems = [];
             foreach ($data['items'] as $itemData) {
-                $product = Product::findOrFail($itemData['product_id']);
+                $product = $products->get($itemData['product_id']);
                 $warehouseId = $itemData['warehouse_id'] ?? null;
                 $unitType = $itemData['unit_type'] ?? 'base';
 
@@ -60,8 +81,8 @@ class PurchaseOrderService
                     'unitPrice' => $unitPrice,
                 ];
             }
-            $supplier =  Supplier::find($data['supplier_id']);
 
+            // Create the PO header shell first (total is a placeholder, filled in once items are totaled below).
             $purchaseOrder = PurchaseOrder::create([
                 'tenant_id' => $user->tenant_id,
                 'supplier_id' => $data['supplier_id'],
@@ -77,12 +98,39 @@ class PurchaseOrderService
                 ->unique()
                 ->values();
 
+            // BUG: snapshot of each product's stock-on-hand taken ONCE, before any line item in
+            // this PO is processed. It is never updated as the loop below runs. If the same
+            // product appears on two lines of this PO (e.g. bought into two different
+            // warehouses), the second line's weighted-average cost calculation reads this same
+            // stale pre-PO number instead of "stock after line 1 was added" — so the final
+            // cost_price ends up skewed toward whichever line ran last, not a true weighted
+            // average across both lines.
+            // NEEDS REPLACING WITH: a running per-product map (e.g. $runningStock / $runningCost)
+            // that starts from this snapshot on first use, then gets overwritten after each line
+            // for that product is processed, so line 2+ builds on line 1's result instead of
+            // ignoring it.
             $stockMap = Inventory::whereIn('product_id', $productIds)
                 ->selectRaw('product_id, SUM(quantity) as total_stock')
                 ->groupBy('product_id')
                 ->pluck('total_stock', 'product_id');
 
 
+            // Pre-build the supplier_products pivot payload for every item up front, so the
+            // actual sync call can happen once after the loop instead of once per item.
+            $syncData = [];
+            foreach($validatedItems as $v) {
+                $syncData[$v['product']->id] = [
+                    'last_purchase_price' => $v['unitPrice'],
+                    'last_purchased_at' => now(),
+                ];
+            }
+
+            $runningStock = [];
+            $runningCost = [];
+
+            // Main line-item loop: create each PO item row, recompute the product's weighted-average
+            // cost_price, push stock into inventory (if a warehouse was given), and accumulate the
+            // PO's total.
             $totalAmount = 0;
             foreach ($validatedItems as $v) {
                 $purchaseOrderItem = $purchaseOrder->items()->create([
@@ -95,8 +143,12 @@ class PurchaseOrderService
                     'total' => $v['unitPrice'] * $v['quantity'],
                 ]);
 
-                $currentStock = $stockMap[$v['product']->id] ?? 0;
-                $currentCost = $v['product']->cost_price ?? $v['unitPrice'];
+                // Weighted-average cost math: blends existing stock (at its existing cost) with the
+                // newly purchased quantity (at this line's price). See BUG note above on $stockMap —
+                // $currentStock here is always the pre-PO snapshot, never "stock after a prior line
+                // in this same PO already ran".
+                $currentStock = $runningStock[$v['product']->id] ?? $stockMap[$v['product']->id] ?? 0;
+                $currentCost = $runningCost[$v['product']->id] ?? $v['product']->cost_price ?? $v['unitPrice'];
                 $effectiveStock = $currentStock;
 
                 if ($effectiveStock + $v['stockQty'] > 0) {
@@ -106,7 +158,10 @@ class PurchaseOrderService
                     $newAvg = $v['unitPrice'];
                 }
                 $v['product']->update(['cost_price' => round($newAvg, 2)]);
-
+                $runningStock[$v['product']->id] = $effectiveStock + $v['stockQty'];
+                $runningCost[$v['product']->id] = round($newAvg, 2);
+                // Only push stock into inventory if this line specified a warehouse (warehouse_id
+                // is nullable on order/PO items by design — no warehouse means skip the stock move).
                 if ($v['warehouseId']) {
                     $this->inventory->restoreStock(
                         $v['product']->id,
@@ -116,15 +171,11 @@ class PurchaseOrderService
                         PurchaseOrder::class
                     );
                 }
-                $supplier->products()->syncWithoutDetaching([
-                        $v['product']->id => [
-                            'last_purchase_price' => $v['unitPrice'],
-                            'last_purchased_at'   => now(),
-                        ]
-                    ]);
-
                 $totalAmount += ($purchaseOrderItem->unit_price * $purchaseOrderItem->quantity);
             }
+
+            // Single batched pivot sync (built above) instead of one sync call per item.
+            $supplier->products()->syncWithoutDetaching($syncData);
             $purchaseOrder->update(['total' => round($totalAmount, 2)]);
 
             $this->ledger->purchaseCharge([
