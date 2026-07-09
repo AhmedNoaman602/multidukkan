@@ -21,8 +21,8 @@ use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\DashboardController;
 
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1'); 
+Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -61,7 +61,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/customers/{customer}/balance', [LedgerEntryController::class, 'balance']);
     Route::get('/customers/{customer}/ledger', [LedgerEntryController::class, 'history']);
     Route::post('/customers/{customer}/credit', [LedgerEntryController::class, 'addCredit']);
-    Route::post('customers/{customer}/refund', [CustomerController::class, 'refund']);
+    Route::post('/customers/{customer}/refund', [CustomerController::class, 'refund']);
     Route::get('/customers/{customer}/summary', [LedgerEntryController::class, 'summary']);
 
     Route::get('products', [ProductController::class, 'index']);

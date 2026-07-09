@@ -98,17 +98,6 @@ class PurchaseOrderService
                 ->unique()
                 ->values();
 
-            // BUG: snapshot of each product's stock-on-hand taken ONCE, before any line item in
-            // this PO is processed. It is never updated as the loop below runs. If the same
-            // product appears on two lines of this PO (e.g. bought into two different
-            // warehouses), the second line's weighted-average cost calculation reads this same
-            // stale pre-PO number instead of "stock after line 1 was added" — so the final
-            // cost_price ends up skewed toward whichever line ran last, not a true weighted
-            // average across both lines.
-            // NEEDS REPLACING WITH: a running per-product map (e.g. $runningStock / $runningCost)
-            // that starts from this snapshot on first use, then gets overwritten after each line
-            // for that product is processed, so line 2+ builds on line 1's result instead of
-            // ignoring it.
             $stockMap = Inventory::whereIn('product_id', $productIds)
                 ->selectRaw('product_id, SUM(quantity) as total_stock')
                 ->groupBy('product_id')
