@@ -21,7 +21,7 @@ class OrderPolicy
      */
     public function view(User $user, Order $order): bool
     {
-        return true;
+        return $user->tenant_id === $order->tenant_id;
     }
 
     /**
@@ -36,12 +36,12 @@ return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']); 
      */
     public function update(User $user, Order $order): bool
     {
-return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
+return $user->tenant_id === $order->tenant_id && in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
 
     /**
      * Determine whether the user can delete the model.
      */
     public function delete(User $user, Order $order): bool
     {
-return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
+return $user->tenant_id === $order->tenant_id && in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
 }

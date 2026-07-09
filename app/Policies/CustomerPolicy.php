@@ -21,22 +21,24 @@ class CustomerPolicy
      */
     public function view(User $user, Customer $customer): bool
     {
-        return true;
+        return $user->tenant_id === $customer->tenant_id;
     }
 
     /**
      * Determine whether the user can create models.
      */
-   public function create(User $user): bool
+public function create(User $user): bool
 {
-    return in_array($user->role, ['tenant_admin', 'store_manager','store_staff']);
+    return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);
 }
+
+
     /**
      * Determine whether the user can update the model.
      */
     public function update(User $user, Customer $customer): bool
     {
-    return in_array($user->role, ['tenant_admin', 'store_manager','store_staff']);
+        return $user->tenant_id === $customer->tenant_id && in_array($user->role, ['tenant_admin', 'store_manager','store_staff']);
     }
 
     /**
@@ -44,11 +46,12 @@ class CustomerPolicy
      */
     public function delete(User $user, Customer $customer): bool
     {
-        return $user->role === 'tenant_admin';    
+        return $user->tenant_id === $customer->tenant_id && $user->role === 'tenant_admin';
     } 
 
     public function addCredit(User $user, Customer $customer): bool
 {
-    return in_array($user->role, ['tenant_admin', 'store_manager']);
+    return $user->tenant_id === $customer->tenant_id && in_array($user->role, ['tenant_admin', 'store_manager']);
 }
+
 }

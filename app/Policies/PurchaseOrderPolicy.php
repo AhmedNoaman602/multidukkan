@@ -21,7 +21,7 @@ class PurchaseOrderPolicy
      */
     public function view(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return true;
+        return $user->tenant_id === $purchaseOrder->tenant_id;
     }
 
     /**
@@ -29,7 +29,7 @@ class PurchaseOrderPolicy
      */
     public function create(User $user): bool
     {
-        return $user->role === 'tenant_admin';    
+        return $user->role === 'tenant_admin';
     }
 
     /**
@@ -37,7 +37,7 @@ class PurchaseOrderPolicy
      */
     public function update(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return $user->role === 'tenant_admin';    
+        return $user->tenant_id === $purchaseOrder->tenant_id && $user->role === 'tenant_admin';
     }
 
     /**
@@ -45,6 +45,6 @@ class PurchaseOrderPolicy
      */
     public function delete(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return $user->role === 'tenant_admin';    
+        return $user->tenant_id === $purchaseOrder->tenant_id && $user->role === 'tenant_admin';
     }
 }

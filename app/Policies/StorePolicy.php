@@ -15,7 +15,7 @@ class StorePolicy
 
 public function view(User $user, Store $store): bool
 {
-    return true;
+    return $user->tenant_id === $store->tenant_id;
 }
 
 public function create(User $user): bool
@@ -25,11 +25,11 @@ public function create(User $user): bool
 
 public function update(User $user, Store $store): bool
 {
-    return $user->role === 'tenant_admin';
+    return $user->tenant_id === $store->tenant_id && $user->role === 'tenant_admin';
 }
 
 public function delete(User $user, Store $store): bool
 {
-    return $user->role === 'tenant_admin';
+    return $user->tenant_id === $store->tenant_id && $user->role === 'tenant_admin';
 }
 }

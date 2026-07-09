@@ -16,7 +16,7 @@ public function viewAny(User $user): bool
 
 public function view(User $user, Inventory $inventory): bool
 {
-    return true;
+    return $user->tenant_id === $inventory->tenant_id;
 }
 
 public function create(User $user): bool
@@ -26,6 +26,7 @@ public function create(User $user): bool
 
 public function update(User $user, Inventory $inventory): bool
 {
+    if ($user->tenant_id !== $inventory->tenant_id) return false;
     if ($user->role === 'tenant_admin') return true;
     if ($user->role === 'store_manager') return $user->store_id === $inventory->warehouse->store_id;
     return false;
@@ -33,6 +34,7 @@ public function update(User $user, Inventory $inventory): bool
 
 public function adjust(User $user, Inventory $inventory): bool
 {
+    if ($user->tenant_id !== $inventory->tenant_id) return false;
     if ($user->role === 'tenant_admin') return true;
     if ($user->role === 'store_manager') return $user->store_id === $inventory->warehouse->store_id;
     return false;

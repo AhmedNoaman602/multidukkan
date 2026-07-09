@@ -25,7 +25,7 @@ return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);
 
 public function update(User $user, Payment $payment): bool
 {
-    return $user->role === 'tenant_admin';
+    return $user->tenant_id === $payment->tenant_id && $user->role === 'tenant_admin';
 }
 
    

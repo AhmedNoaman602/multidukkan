@@ -21,7 +21,7 @@ class SupplierPolicy
      */
     public function view(User $user, Supplier $supplier): bool
     {
-        return true;
+        return $user->tenant_id === $supplier->tenant_id;
     }
 
     /**
@@ -29,7 +29,7 @@ class SupplierPolicy
      */
     public function create(User $user): bool
     {
-        return $user->role === 'tenant_admin';    
+        return $user->role === 'tenant_admin';
     }
 
     /**
@@ -37,7 +37,7 @@ class SupplierPolicy
      */
     public function update(User $user, Supplier $supplier): bool
     {
-        return $user->role === 'tenant_admin';    
+        return $user->tenant_id === $supplier->tenant_id && $user->role === 'tenant_admin';
     }
 
     /**
@@ -45,6 +45,6 @@ class SupplierPolicy
      */
     public function delete(User $user, Supplier $supplier): bool
     {
-        return $user->role === 'tenant_admin';    
+        return $user->tenant_id === $supplier->tenant_id && $user->role === 'tenant_admin';
     }
 }

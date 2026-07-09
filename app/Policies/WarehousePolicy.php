@@ -21,7 +21,7 @@ class WarehousePolicy
      */
     public function view(User $user, Warehouse $warehouse): bool
     {
-        return true;
+        return $user->tenant_id === $warehouse->tenant_id;
     }
 
     /**
@@ -37,9 +37,10 @@ class WarehousePolicy
      */
     public function update(User $user, Warehouse $warehouse): bool
     {
+        if ($user->tenant_id !== $warehouse->tenant_id) return false;
         if($user->role === 'tenant_admin') return true;
         if ($user->role === 'store_manager') return $user->store_id === $warehouse->store_id;
-        return false;    
+        return false;
     }
 
     /**
@@ -47,8 +48,9 @@ class WarehousePolicy
      */
     public function delete(User $user, Warehouse $warehouse): bool
     {
+        if ($user->tenant_id !== $warehouse->tenant_id) return false;
         if ($user->role === 'tenant_admin') return true;
         if ($user->role === 'store_manager') return $user->store_id === $warehouse->store_id;
-        return false;  
+        return false;
     }
 }
