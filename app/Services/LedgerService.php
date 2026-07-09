@@ -351,7 +351,7 @@ public function restoreCredit(array $data): LedgerEntry
             // Case 2: Refund from an entire order.
             // 1. Calculate total paid amount on this order that has not yet been refunded.
             $totalPaid = Payment::where('order_id', $data['order_id'])
-                ->where('is_auto_reversible', false)
+                ->cashOnly()
                 ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
 
             // Validate that the refund request doesn't exceed the total amount paid on the order.
@@ -364,7 +364,7 @@ public function restoreCredit(array $data): LedgerEntry
             // 2. Fetch all payments for this order and distribute the refund amount across them (FIFO order).
             $remaining = $data['amount'];
             $payments  = Payment::where('order_id', $data['order_id'])
-                ->where('is_auto_reversible', false)
+                ->cashOnly()
                 ->orderBy('id', 'asc')
                 ->get();
 

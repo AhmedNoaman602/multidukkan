@@ -29,7 +29,7 @@ class OrderObserver
  public function deleting(Order $order): void
 {
     $hasUnrefundedPayments = $order->payments()
-        ->where('is_auto_reversible', false)
+        ->cashOnly()
         ->whereRaw('amount > COALESCE(refunded_amount, 0)')
         ->exists();
 

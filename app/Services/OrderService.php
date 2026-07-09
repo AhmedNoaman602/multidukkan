@@ -427,7 +427,7 @@ public function updateOrder(Order $order, array $data): Order
 
         // Block cancel if real money payments exist and aren't fully refunded
         $hasUnrefundedPayments = $order->payments()
-            ->where('is_auto_reversible', false)
+            ->cashOnly()
             ->whereRaw('amount > COALESCE(refunded_amount, 0)')
             ->exists();
 
@@ -439,7 +439,7 @@ public function updateOrder(Order $order, array $data): Order
 
         // Calculate credit portion
         $creditPayments = $order->payments()
-    ->where('is_auto_reversible', true)
+    ->creditOnly()
     ->get();
 
     $creditPaymentsTotal = $creditPayments->sum('amount');

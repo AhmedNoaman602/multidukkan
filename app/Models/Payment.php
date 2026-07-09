@@ -35,4 +35,13 @@ class Payment extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    public function scopeCashOnly($query)
+    {
+        return $query->where('is_auto_reversible', false);
+    }
+
+    public function scopeCreditOnly($query)
+    {
+        return $query->where('is_auto_reversible', true);
+    }
 }

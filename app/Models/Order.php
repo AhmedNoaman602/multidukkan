@@ -50,4 +50,28 @@ class Order extends Model
         WHERE payments.order_id = orders.id
     )');
 }
+
+    /**
+     * Has the customer's obligation been fully satisfied? Counts every payment
+     * that reduces debt, including store-credit (is_auto_reversible) payments.
+     */
+    public function settledAmount(): float
+    {
+        return round($this->payments->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
+    }
+
+    public function isSettled(): bool
+    {
+        return $this->settledAmount() >= $this->total;
+    }
+
+    /**
+     * How much real cash/card/transfer money has actually come in — excludes
+     * store-credit (is_auto_reversible) payments, which move no cash.
+     */
+    public function cashReceived(): float
+    {
+        return round($this->payments->where('is_auto_reversible', false)
+            ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
+    }
 }
