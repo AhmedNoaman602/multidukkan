@@ -22,9 +22,9 @@ class DashboardController extends Controller
         $tenantId = auth()->user()->tenant_id;
         $today = now()->toDateString();
 
-        // Today's payments
+        // Today's payments (cash received only — store-credit payments move no cash)
         $todayPayments = Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
-            ->where('is_auto_reversible', false)
+            ->cashOnly()
             ->whereDate('paid_at', $today)
             ->get();
 
@@ -45,14 +45,10 @@ class DashboardController extends Controller
 
         $todaySales = $todayOrders->sum(fn($o) => max(0, $o->total ?? 0));
 
-        // Unpaid orders
+        // Unpaid orders — settlement definition: has the customer's debt been
+        // cleared (store credit counts), not "did we receive cash".
         $unpaidOrdersCount = Order::where('tenant_id', $tenantId)
-            ->with('payments')
-            ->get()
-            ->filter(fn($o) =>
-                $o->total > $o->payments->where('is_auto_reversible', false)
-                    ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0))
-            )
+            ->whereUnpaid()
             ->count();
 
          $customerIds = Customer::where('tenant_id' , $tenantId)
@@ -71,14 +67,10 @@ class DashboardController extends Controller
 
         $unpaidCountsByCustomer = Order::where('tenant_id', $tenantId)
             ->whereIn('customer_id', $debtorsCustomers->pluck('id'))
-            ->with('payments')
-            ->get()
-            ->filter(fn($o) =>
-                $o->total > $o->payments->where('is_auto_reversible', false)
-                    ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0))
-            )
+            ->whereUnpaid()
+            ->selectRaw('customer_id, COUNT(*) as cnt')
             ->groupBy('customer_id')
-            ->map(fn($orders) => count($orders));
+            ->pluck('cnt', 'customer_id');
         
        $topDebtors = $debtorsCustomers->map(fn($c) => [
             'id' => $c->id,

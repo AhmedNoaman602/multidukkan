@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Unit;
+use App\Http\Requests\StoreUnitRequest;
 class UnitController extends Controller
 {
     public function index(){
@@ -17,10 +18,8 @@ class UnitController extends Controller
                     ]);
     }
 
-    public function store(Request $request){
-        $validated = $request->validate([
-            'name' => 'required|string|max:50',
-        ]);
+    public function store(StoreUnitRequest $request){
+        $validated = $request->validated();
 
         $user = auth()->user();
 

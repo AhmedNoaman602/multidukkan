@@ -4,11 +4,8 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use App\Models\Supplier;
-use App\Models\PurchaseOrder;
-use App\Rules\BelongsToTenant;
 
-class StoreSupplierPaymentRequest extends FormRequest
+class UpdatePaymentRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -25,14 +22,10 @@ class StoreSupplierPaymentRequest extends FormRequest
      */
     public function rules(): array
     {
-        $tenantId = auth()->user()->tenant_id;
-
         return [
-            'supplier_id' => ['required', 'integer', new BelongsToTenant(Supplier::class, $tenantId)],
-            'purchase_order_id' => ['nullable', 'integer', new BelongsToTenant(PurchaseOrder::class, $tenantId)],
             'amount' => ['required', 'numeric', 'min:0.01'],
-            'method' => ['required', 'in:cash,bank_transfer,check'],
-            'paid_at' => ['nullable', 'date'],
+            'method' => ['required', 'in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

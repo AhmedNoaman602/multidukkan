@@ -117,10 +117,7 @@ $calcTotal = fn($o) => max(0, round(
 ));
 
 $totalOrdered  = $orders->sum($calcTotal);
-$unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
-    $paid = $o->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
-    return $paid < $calcTotal($o);
-})->count();
+$unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $calcTotal($o))->count();
 
 
     $payments = Payment::where('customer_id', $customer->id)
@@ -153,7 +150,7 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
         ],
         'orders' => $orders->map(function ($o) use ($calcTotal) {
     $total = $calcTotal($o);
-    $paid            = $o->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+    $paid            = $o->settledAmount();
     $amountRemaining = max(0, round($total - $paid, 2));
 
     return [
@@ -164,12 +161,7 @@ $unpaidOrders = $orders->filter(function ($o) use ($calcTotal) {
         'amount_remaining' => $amountRemaining,
         'status'           => $amountRemaining > 0 ? 'unpaid' : 'paid',
         'order_date'       => $o->order_date,
-        'refundable' => round(
-    $o->payments
-        ->where('is_auto_reversible', false)
-        ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)), 
-    2
-),
+        'refundable'       => $o->cashReceived(),
     ];
 })->values(),
         'payments' => $payments,

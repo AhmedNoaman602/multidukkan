@@ -35,7 +35,7 @@ class RefundCustomerRequest extends FormRequest
         'method'  => ['required', 'in:cash,bank_transfer,check'],
         'notes'   => ['nullable', 'string', 'max:500'],
         'order_id' => ['nullable', 'integer', 'exists:orders,id'],
-        'payment_id_target'  => ['nullable', 'integer', 'exists:payments,id'], // ← add
+        'payment_id_target'  => ['nullable', 'integer', 'exists:payments,id'], 
 
     ];
 }
@@ -48,10 +48,20 @@ public function withValidator($validator): void
         $customerId = $customer->id;
 
         if ($this->payment_id_target) {
+            $payment = Payment::find($this->payment_id_target);
+            if (!$payment || (int) $payment->customer_id !== (int) $customerId) {
+                $validator->errors()->add('payment_id_target', 'Payment does not belong to this customer.');
+            }
             return;
         }
 
         if ($this->order_id) {
+            $order = \App\Models\Order::find($this->order_id);
+            if (!$order || (int) $order->tenant_id !== (int) $tenantId) {
+                $validator->errors()->add('order_id', 'Order does not belong to this tenant.');
+                return;
+            }
+
             $totalPaid     = Payment::where('order_id', $this->order_id)->sum('amount');
             $totalRefunded = Payment::where('order_id', $this->order_id)->sum('refunded_amount');
             $refundable    = round($totalPaid - $totalRefunded, 2);

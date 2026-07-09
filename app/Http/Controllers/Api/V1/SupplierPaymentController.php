@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Http\Requests\StoreSupplierPaymentRequest;
 use App\Services\SupplierPaymentService;
 use App\Models\SupplierPayment;
 
@@ -32,16 +33,11 @@ class SupplierPaymentController extends Controller
         ]);
     }
 
-    public function store(Request $request) {
+    public function store(StoreSupplierPaymentRequest $request) {
 
         $this->authorize('create', SupplierPayment::class);
 
-        $data = $request->validate([
-            'supplier_id' => 'required|exists:suppliers,id',
-            'purchase_order_id' => 'nullable|exists:purchase_orders,id',
-            'amount'      => 'required|numeric|min:0.01',
-            'method'      => 'required|in:cash,bank_transfer,check',
-        ]);
+        $data = $request->validated();
         try{
         $payments = $this->supplierPaymentService->processSupplierPayment($data, auth()->user());
         return response()->json([

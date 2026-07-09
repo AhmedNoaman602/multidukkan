@@ -4,11 +4,11 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use App\Models\Supplier;
-use App\Models\PurchaseOrder;
+use App\Models\Product;
+use App\Models\Warehouse;
 use App\Rules\BelongsToTenant;
 
-class StoreSupplierPaymentRequest extends FormRequest
+class StoreOrderItemRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -28,11 +28,11 @@ class StoreSupplierPaymentRequest extends FormRequest
         $tenantId = auth()->user()->tenant_id;
 
         return [
-            'supplier_id' => ['required', 'integer', new BelongsToTenant(Supplier::class, $tenantId)],
-            'purchase_order_id' => ['nullable', 'integer', new BelongsToTenant(PurchaseOrder::class, $tenantId)],
-            'amount' => ['required', 'numeric', 'min:0.01'],
-            'method' => ['required', 'in:cash,bank_transfer,check'],
-            'paid_at' => ['nullable', 'date'],
+            'product_id'   => ['required', 'integer', new BelongsToTenant(Product::class, $tenantId)],
+            'warehouse_id' => ['required', 'integer', new BelongsToTenant(Warehouse::class, $tenantId)],
+            'quantity'     => ['required', 'numeric', 'min:1'],
+            'unit_type'    => ['nullable', 'in:base,secondary'],
+            'unit_price'   => ['nullable', 'numeric', 'min:0'],
         ];
     }
 }

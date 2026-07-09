@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Http\Requests\StoreUserRequest;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
@@ -35,7 +36,7 @@ class UserController extends Controller
     return response()->json(['data' => $users]);
 }
 
-    public function store(Request $request)
+    public function store(StoreUserRequest $request)
     {
         $authUser = auth()->user();
 
@@ -48,14 +49,6 @@ class UserController extends Controller
         if (empty($allowedRoles)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
         }
-
-        $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email',
-            'password' => 'required|string|min:8',
-            'role'     => 'required|in:' . implode(',', $allowedRoles),
-            'store_id' => 'required|exists:stores,id',
-        ]);
 
         $newUser = User::create([
             'tenant_id' => $authUser->tenant_id,

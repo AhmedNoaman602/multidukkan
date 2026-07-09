@@ -8,6 +8,8 @@ use App\Models\Customer;
 use App\Http\Resources\CustomerResource;
 use App\Services\LedgerService;
 use App\Http\Requests\RefundCustomerRequest;
+use App\Http\Requests\StoreCustomerRequest;
+use App\Http\Requests\UpdateCustomerRequest;
 use Illuminate\Validation\ValidationException;
 class CustomerController extends Controller
 {
@@ -79,20 +81,13 @@ class CustomerController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreCustomerRequest $request)
     {
         $this->authorize('create', Customer::class);
-        
+
         $user = auth()->user();
 
-        $validated = $request->validate([
-            'code' => 'nullable',
-            'name' => 'required',
-            'phone' => 'required',
-            'address' => 'nullable',
-            'price_tier' => 'nullable|in:default,a,b,c,d,e',
-            'area' => 'nullable',
-        ]);
+        $validated = $request->validated();
 
         $customer = Customer::create([
             'tenant_id'           => $user->tenant_id,
@@ -127,23 +122,16 @@ class CustomerController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Customer $customer)
+    public function update(UpdateCustomerRequest $request, Customer $customer)
     {
         $this->authorize('update', $customer);
-        
+
         if ($customer->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $validated = $request->validate([
-            'name'       => 'sometimes|string|max:255',
-            'phone'      => 'sometimes|string|max:20',
-            'address'    => 'nullable|string|max:255',
-            'price_tier' => 'sometimes|nullable|in:default,a,b,c,d,e',
-            'area' => 'nullable|string|max:255',
-            'code' => 'nullable|string|max:255',
-        ]);        
-        
+        $validated = $request->validated();
+
         $customer->update($validated);
         return new CustomerResource($customer);
     }

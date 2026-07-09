@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePaymentRequest;
+use App\Http\Requests\UpdatePaymentRequest;
+use App\Http\Requests\AutoPaymentRequest;
 use App\Services\PaymentService;
 use App\Models\Payment;
 use Illuminate\Http\Request;
@@ -20,7 +22,6 @@ class PaymentController extends Controller
 
     $payments = Payment::where('tenant_id', $user->tenant_id)
         ->when($user->store_id, function($q) use ($user) {
-            // Manager sees only their store's payments via order
             $q->whereHas('order', fn($o) => $o->where('store_id', $user->store_id));
         })
         ->when(request('date'), fn($q) => $q->whereDate('created_at', request('date')))
@@ -37,18 +38,11 @@ class PaymentController extends Controller
     ]);
 }
 
-public function store(Request $request){
-
+public function store(StorePaymentRequest $request){
 
     $this->authorize('create', Payment::class);
 
-        $data = $request->validate([
-            'order_id'    => 'required|exists:orders,id',
-            'customer_id' => 'required|exists:customers,id',
-            'amount'      => 'required|numeric|min:0.01',
-            'method'      => 'required|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
-            'payment_reference' => 'nullable|string|max:255',
-        ]);
+    $data = $request->validated();
 
          try {
         $payment = $this->payment->processDirectPayment($data, auth()->user());
@@ -62,15 +56,11 @@ public function store(Request $request){
     
 }
 
-public function update(Request $request, Payment $payment)
+public function update(UpdatePaymentRequest $request, Payment $payment)
 {
     $this->authorize('update', $payment);
 
-    $data = $request->validate([
-        'amount' => 'required|numeric|min:0.01',
-        'method' => 'required|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
-        'payment_reference' => 'nullable|string|max:255',
-    ]);
+    $data = $request->validated();
 
     $this->ledger->adjustPayment($payment, $data['amount'], $data['method']);
 
@@ -81,16 +71,11 @@ public function update(Request $request, Payment $payment)
 }
 
 
-    public function autoPayment(Request $request){
+    public function autoPayment(AutoPaymentRequest $request){
 
          $this->authorize('create', Payment::class);
 
-        $data = $request->validate([
-            'customer_id' => 'required|exists:customers,id',
-            'amount'      => 'required|numeric|min:0.01',
-            'method'      => 'required|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
-            'payment_reference' => 'nullable|string|max:255',
-        ]);
+        $data = $request->validated();
 try{
         $payments = $this->payment->processAutoPayment(
             $data,

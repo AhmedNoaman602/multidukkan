@@ -158,6 +158,10 @@ class ProductController extends Controller
 
 public function suppliers(Product $product)
 {
+    if ($product->tenant_id !== auth()->user()->tenant_id) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
+
     $suppliers = $product->suppliers()->get();
     return ProductSupplierResource::collection($suppliers);
 }

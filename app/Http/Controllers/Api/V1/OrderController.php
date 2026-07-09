@@ -7,8 +7,12 @@ use Illuminate\Http\Request;
 use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
+use App\Http\Requests\UpdateOrderRequest;
+use App\Http\Requests\UpdateOrderItemRequest;
+use App\Http\Requests\StoreOrderItemRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -65,10 +69,9 @@ class OrderController extends Controller
 
 
     $totalRevenue = (clone $query)->sum('total');
-    $paidAmount = DB::table('payments')
-    ->whereIn('order_id', (clone $query)->select('id'))
-     ->where('is_auto_reversible', false)
-    ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
+    $paidAmount = Payment::whereIn('order_id', (clone $query)->select('id'))
+        ->cashOnly()
+        ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
 
     $unpaidAmount = round($totalRevenue - $paidAmount, 2);
 
@@ -118,20 +121,16 @@ class OrderController extends Controller
         return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
 
-    public function update(Request $request, Order $order)
+    public function update(UpdateOrderRequest $request, Order $order)
     {
         $this->authorize('update', $order);
-        
-       
+
+
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => 'Unauthorized'], 403);
     }
-    
-    $validated = $request->validate([
-    'notes'      => 'sometimes|nullable|string|max:500',
-    'order_date' => 'sometimes|date|before_or_equal:today',
-    'discount'   => 'sometimes|numeric|min:0',
-]);
+
+    $validated = $request->validated();
 
 try {
         $order = $this->order->updateOrder($order, $validated);
@@ -166,22 +165,16 @@ try {
 
 
 
-    public function updateItem(Request $request, Order $order, OrderItem $item){
+    public function updateItem(UpdateOrderItemRequest $request, Order $order, OrderItem $item){
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-    $request->validate([
-    'quantity'   => 'nullable|numeric|min:1',
-    'unit_price' => 'nullable|numeric|min:0',
-]);
-
-// At least one must be present
-    if (!$request->quantity && !$request->unit_price) {
-    return response()->json(['message' => 'Provide quantity or unit_price to update.'], 422);
-}
+        if ($item->order_id !== $order->id) {
+            return response()->json(['message' => 'Item does not belong to this order.'], 404);
+        }
 
          $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
         return new OrderResource($order->load('items.product', 'payments', 'customer'));
@@ -190,22 +183,14 @@ try {
 
 
 
-    public function addItem(Request $request, Order $order){
+    public function addItem(StoreOrderItemRequest $request, Order $order){
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-    $request->validate([
-    'product_id' => 'required|exists:products,id',
-    'warehouse_id' => 'required|exists:warehouses,id',
-    'quantity'   => 'required|numeric|min:1',       
-    'unit_type'    => 'nullable|in:base,secondary',
-    'unit_price' => 'nullable|numeric|min:0',
-]);
-
-$this->order->addItem($order, $request->all());
+$this->order->addItem($order, $request->validated());
 return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
     

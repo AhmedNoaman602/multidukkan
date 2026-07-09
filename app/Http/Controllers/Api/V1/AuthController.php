@@ -11,17 +11,11 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Unit;
 use App\Models\Tenant;
 use App\Models\Customer;
+use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 class AuthController extends Controller
 {
-    public function register(Request $request){
-
-$request->validate([
-        'business_name' => 'required|string|max:255',
-        'name'          => 'required|string|max:255',
-        'email'         => 'required|email|unique:users,email',
-        'password'      => 'required|string|min:8|confirmed',
-    ]);
-
+    public function register(RegisterRequest $request){
 
      $result = DB::transaction(function () use ($request) {
         $defaultUnits = ['حبة', 'متر', 'كيلو', 'علبة', 'لفة', 'طن', 'لتر', 'كرتونة', 'رول'];
@@ -76,12 +70,7 @@ foreach ($defaultUnits as $unit) {
     ], 201);
     }
 
-    public function login(Request $request){
-
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required|string'
-        ]);
+    public function login(LoginRequest $request){
 
        $user = User::where('email', $request->email)->first();
 

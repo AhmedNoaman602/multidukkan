@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Store;
 use App\Http\Resources\StoreResource;
+use App\Http\Requests\StoreStoreRequest;
+use App\Http\Requests\UpdateStoreRequest;
 use Illuminate\Validation\ValidationException;
 
 class StoreController extends Controller
@@ -23,17 +25,13 @@ class StoreController extends Controller
         return StoreResource::collection($stores);
     }
 
-    public function store(Request $request)
+    public function store(StoreStoreRequest $request)
     {
         $this->authorize('create', Store::class);
-        
+
         $user = auth()->user();
 
-        $validated = $request->validate([
-            'name'    => 'required|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'phone'   => 'nullable|string|max:20',
-        ]);
+        $validated = $request->validated();
 
         $store = Store::create([
             'tenant_id' => $user->tenant_id,
@@ -58,19 +56,15 @@ class StoreController extends Controller
         return new StoreResource($store);
     }
 
-    public function update(Request $request, Store $store)
+    public function update(UpdateStoreRequest $request, Store $store)
     {
         $this->authorize('update', $store);
-        
+
         if ($store->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $validated = $request->validate([
-            'name'    => 'sometimes|string|max:255',
-            'address' => 'nullable|string|max:255',
-            'phone'   => 'nullable|string|max:20',
-        ]);
+        $validated = $request->validated();
 
         $store->update($validated);
 

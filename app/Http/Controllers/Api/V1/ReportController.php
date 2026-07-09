@@ -39,7 +39,7 @@ class ReportController extends Controller
 private function fetchPayments(int $tenantId, string $from, string $to) : Collection {
 
     return Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
-    ->where('is_auto_reversible', false)
+    ->cashOnly()
     ->whereBetween(DB::raw('DATE(paid_at)'), [$from, $to])
     ->with(['order.items.product', 'order.customer'])
     ->get();
