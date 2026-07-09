@@ -22,7 +22,13 @@ class SupplierPaymentService
             // Direct payment to a specific order
 if (!empty($data['purchase_order_id'])) {
     $order = PurchaseOrder::with('supplierPayments')->findOrFail($data['purchase_order_id']);
-    
+
+    if ((int) $order->supplier_id !== (int) $supplierId) {
+        throw ValidationException::withMessages([
+            'purchase_order_id' => 'This purchase order does not belong to the selected supplier.'
+        ]);
+    }
+
     $orderOwed = round($order->total - $order->supplierPayments->sum('amount'), 2);
 
     if ($remaining > $orderOwed) {
