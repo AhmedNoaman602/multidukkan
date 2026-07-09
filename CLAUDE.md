@@ -6,11 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MultiDukkan is a multi-tenant SaaS application for small businesses to manage multi-store inventory and sales. Laravel REST API + MySQL, consumed by a separate React frontend (multidukkan-frontend).
 
+## Documentation — read before non-trivial changes
+
+Long-lived engineering docs live in [`docs/`](docs/README.md). **AI sessions must read [`docs/09-ai-collaboration/ai-collaboration-guide.md`](docs/09-ai-collaboration/ai-collaboration-guide.md) before modifying code**, and the relevant `docs/06-domain/` + `docs/07-business-rules/` files before touching money, stock, or orders. ADRs in `docs/01-architecture/decisions/` record why locked decisions are locked — a change contradicting an Accepted ADR requires asking the user first. Where this file and `docs/` disagree, `docs/` is newer and wins.
+
 ## Current Status
 
 - Phase 1 ✅ Complete — customers, products, orders, payments, ledger
 - Phase 2 ✅ Complete — warehouses, inventory, inventory transactions
-- Phase 3 🔓 In Progress — auth, roles, middleware, stock transfers
+- Phase 2.5 ✅ Shipped organically — suppliers, purchase orders + weighted-average costing, supplier payments, price tiers (a–e), dual units, discounts, refunds, walk-in customers, reports, search, dashboard, AI endpoints
+- Phase 3 🔓 In Progress — role enforcement (middleware/policies), stock transfers
 
 ## Standing Engineering Rules
 
@@ -22,9 +27,9 @@ MultiDukkan is a multi-tenant SaaS application for small businesses to manage mu
 
 - `tenant_id` on every table
 - Never store `order.status` — calculate from payments
-- Never store `order.total` — calculate from order_items
+- `order.total` IS stored (superseded old rule — see ADR-004): written at creation, afterwards only via `LedgerService::adjustOrderCharge`, never directly
 - Snapshot product name + price on order items at sale time
-- Ledger is append-only — never edit, only add reversals
+- Ledger is append-only, with exactly two sanctioned edit paths (`adjustPayment`, `adjustOrderCharge` — see ADR-006); never delete entries, corrections otherwise append reversals
 - Inventory transactions are append-only
 - Business logic lives in Services — controllers stay thin
 - FormRequests are gatekeepers — all validation lives there
