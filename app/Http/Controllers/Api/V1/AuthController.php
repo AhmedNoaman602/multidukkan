@@ -44,7 +44,7 @@ foreach ($defaultUnits as $unit) {
     'tenant_id' => $tenant->id,
     'name'      => 'زبون نقدي',
     'phone'     => '00000000000',
-    'is_walk_in' => true,  // hidden flag
+    'is_walk_in' => true, 
 ]);
 
         return $user;
@@ -91,8 +91,8 @@ if (!$user || !Hash::check($request->password, $user->password)) {
             'tenant_id' => $user->tenant_id,
             'business_name' => $user->tenant->name,
             'walk_in_customer_id' => Customer::where('tenant_id', $user->tenant_id)
-    ->where('is_walk_in', true)
-    ->value('id'),
+                            ->where('is_walk_in', true)
+                            ->value('id'),
             'has_store' => $user->tenant->stores()->exists(),
         ]
         ]);
