@@ -31,19 +31,19 @@ class PaymentService
         // Wrap the entire direct payment flow in a database transaction to guarantee data integrity.
         // If any step fails, all db updates (payment record, ledger entries, FIFO distribution) will roll back.
         return DB::transaction(function () use ($data , $user) {
-            // Retrieve the order being paid, eagerly loading its items and past payments.
-            $order = Order::with('items', 'payments')->findOrFail($data['order_id']);
-            
-            // Calculate the total cost of the order and the sum of all payments already made towards it (excluding refunded amounts).
-$discount = (float) ($order->discount ?? 0);
-$orderTotal = max(0, round(
-    $order->items->sum(fn($i) => $i->unit_price * $i->quantity) - $discount,
-    2
-));            $totalAlreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+            // Retrieve the order being paid, eagerly loading its past payments.
+            $order = Order::with('payments')->findOrFail($data['order_id']);
+
+            // orders.total is the authoritative charge amount (ADR-004) — the sum of
+            // payments already made towards it (excluding refunded amounts) is what's left to collect.
+            $orderTotal = $order->total;
+            $totalAlreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
 
             // If the order has already been fully paid off, reject any new direct payment attempts.
             if($totalAlreadyPaid >= $orderTotal){
-                throw new \ValidationException('Order is already fully paid.');
+                throw ValidationException::withMessages([
+                    'amount' => 'Order is already fully paid.',
+                ]);
             }
 
             // Calculate how much is left to pay on the order, how much of the new payment applies to it,
@@ -72,6 +72,7 @@ $orderTotal = max(0, round(
                 'payment_id'  => $payment->id,
                 'amount'      => $appliedAmount,
                 'invoice_number' => $order->invoice_number,
+                'user_id'     => $user->id,
             ]);
 
             // If there is excess money left over, try to distribute it to other unpaid orders.
@@ -97,6 +98,7 @@ $orderTotal = max(0, round(
                         'payment_id'     => $payment->id,
                         'amount'         => $leftover,
                         'invoice_number' => $order->invoice_number,
+                        'user_id'        => $user->id,
                     ]);
                 }
             }
@@ -116,12 +118,8 @@ $orderTotal = max(0, round(
             // We use SQL subqueries to fetch orders where the sum of payments is less than the total item cost.
             $orders = Order::where('customer_id', $customerId)
                 ->where('tenant_id', $user->tenant_id)
-                ->whereColumn(
-                    DB::raw('(SELECT COALESCE(SUM(amount - refunded_amount), 0) FROM payments WHERE payments.order_id = orders.id)'),
-                    '<',
-                    DB::raw('(SELECT COALESCE(SUM(unit_price * quantity), 0) FROM order_items WHERE order_items.order_id = orders.id)')
-                )
-                ->with(['items', 'payments'])
+                ->whereUnpaid()
+                ->with('payments')
                 ->orderBy('created_at', 'asc')
                 ->get();
 
@@ -132,11 +130,8 @@ $orderTotal = max(0, round(
                 if ($remaining <= 0) break;
 
                 // Calculate total order cost and the total amount already paid.
-$discount = (float) ($order->discount ?? 0);
-$orderTotal = max(0, round(
-    $order->items->sum(fn($i) => $i->unit_price * $i->quantity) - $discount, 
-    2
-));                $alreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+                $orderTotal = $order->total;
+                $alreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
                 $orderOwed  = round($orderTotal - $alreadyPaid, 2);
 
                 if ($orderOwed <= 0) continue;
@@ -164,6 +159,7 @@ $orderTotal = max(0, round(
                     'payment_id'  => $payment->id,
                     'amount'      => $applyAmount,
                     'invoice_number' => $order->invoice_number,
+                    'user_id'     => $user->id,
                 ]);
 
                 // Deduct the allocated amount from our running payment balance.
@@ -180,6 +176,7 @@ $orderTotal = max(0, round(
                     'store_id'    => $storeId,
                     'amount'      => $remaining,
                     'description' => 'Auto-payment excess credit',
+                    'user_id'     => $user->id,
                 ]);
             }
 
@@ -200,12 +197,8 @@ $orderTotal = max(0, round(
         $unpaidOrders = Order::where('customer_id', $customerId)
             ->where('tenant_id', $user->tenant_id)
             ->where('id', '!=', $excludeOrderId)
-            ->whereColumn(
-                DB::raw('(SELECT COALESCE(SUM(amount - refunded_amount), 0) FROM payments WHERE payments.order_id = orders.id)'),
-                '<',
-                DB::raw('(SELECT COALESCE(SUM(unit_price * quantity), 0) FROM order_items WHERE order_items.order_id = orders.id)')
-            )
-            ->with(['items', 'payments'])
+            ->whereUnpaid()
+            ->with('payments')
             ->orderBy('created_at', 'asc')
             ->get();
 
@@ -216,11 +209,8 @@ $orderTotal = max(0, round(
             if ($remaining <= 0) break;
 
             // Calculate the outstanding balance for this order.
-$discount = (float) ($unpaidOrder->discount ?? 0);
-$orderTotal = max(0, round(
-    $unpaidOrder->items->sum(fn($i) => $i->unit_price * $i->quantity) - $discount,
-    2
-));           $alreadyPaid = $unpaidOrder->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+            $orderTotal = $unpaidOrder->total;
+            $alreadyPaid = $unpaidOrder->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
             $orderOwed   = round($orderTotal - $alreadyPaid, 2);
 
             if ($orderOwed <= 0) continue;
@@ -248,6 +238,7 @@ $orderTotal = max(0, round(
                 'payment_id'     => $fifoPayment->id,
                 'amount'         => $applyAmount,
                 'invoice_number' => $unpaidOrder->invoice_number,
+                'user_id'        => $user->id,
             ]);
 
             // Subtract the applied amount from our running excess total.

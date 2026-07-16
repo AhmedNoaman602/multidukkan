@@ -86,6 +86,7 @@ class LedgerEntryController extends Controller
         'store_id'    => $user->store_id,
         'amount'      => $request->amount,
         'description' => $request->description,
+        'user_id'     => $user->id,
     ]);
 
     $balance = $this->ledger->getBalance($user->tenant_id, $customer->id);
@@ -107,17 +108,12 @@ public function summary(Customer $customer)
     $history    = $this->ledger->getHistory($tenantId, $customer->id);
 
     $orders = $customer->orders()
-    ->with(['payments', 'items'])
+    ->with('payments')
     ->orderByDesc('order_date')
     ->get();
 
-$calcTotal = fn($o) => max(0, round(
-    $o->items->sum(fn($i) => $i->unit_price * $i->quantity) - (float)($o->discount ?? 0),
-    2
-));
-
-$totalOrdered  = $orders->sum($calcTotal);
-$unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $calcTotal($o))->count();
+$totalOrdered  = $orders->sum('total');
+$unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $o->total)->count();
 
 
     $payments = Payment::where('customer_id', $customer->id)
@@ -148,8 +144,8 @@ $unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $calcTotal($o))
             'unpaid_orders' => $unpaidOrders,
             'total_ordered'   => round($totalOrdered, 2),
         ],
-        'orders' => $orders->map(function ($o) use ($calcTotal) {
-    $total = $calcTotal($o);
+        'orders' => $orders->map(function ($o) {
+    $total = $o->total;
     $paid            = $o->settledAmount();
     $amountRemaining = max(0, round($total - $paid, 2));
 

@@ -14,7 +14,8 @@ class PurchaseOrderResource extends JsonResource
        public function toArray(Request $request): array
 {
     $subtotal  = $this->items->sum(fn($i) => $i->unit_price * $i->quantity);
-    $total     = max(0, round($subtotal  , 2));
+    // purchase_orders.total is the authoritative charge amount, mirroring ADR-004 for orders.
+    $total     = (float) $this->total;
     $totalPaid = $this->supplierPayments->sum('amount');
 
     return [

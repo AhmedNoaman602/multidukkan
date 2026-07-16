@@ -106,7 +106,7 @@ class OrderController extends Controller
         return (new OrderResource($order->load('items', 'payments', 'customer')))
             ->response()
             ->setStatusCode(201);
-    } catch (\ValidationException $e) {
+    } catch (ValidationException $e) {
         return response()->json(['message' => $e->errors()], 422);
     }
 }
@@ -121,6 +121,7 @@ class OrderController extends Controller
         return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
 
+    
     public function update(UpdateOrderRequest $request, Order $order)
     {
         $this->authorize('update', $order);
@@ -155,7 +156,7 @@ try {
         }
 
         try{
-            $this->order->cancelOrder($order);
+            $this->order->cancelOrder($order, auth()->user());
 
             return response()->json(['message' => 'Order cancelled and ledger reversed successfully'], 200);
         }catch(ValidationException $e){

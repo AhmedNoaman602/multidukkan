@@ -33,8 +33,10 @@ class OrderResource extends JsonResource
 {
     $subtotal  = $this->items->sum(fn($i) => $i->unit_price * $i->quantity);
     $discount  = (float) ($this->discount ?? 0);
-    $total     = max(0, round($subtotal - $discount, 2));
-    $totalPaid = $this->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+    // orders.total is the authoritative charge amount (ADR-004) — may differ from
+    // subtotal - discount when a manual_total override was applied at creation.
+    $total     = (float) $this->total;
+    $totalPaid = $this->settledAmount();
     $displayPaid = min($totalPaid, $total);
 
     return [

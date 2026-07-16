@@ -34,7 +34,7 @@ class StoreOrderRequest extends FormRequest
             'items.*.unit_type' => 'nullable|in:base,secondary',
             'items.*.unit_price' => 'nullable|numeric|min:0',
             'discount' => 'nullable|numeric|min:0',
-            'total_override' => 'nullable|numeric|min:0',
+            'manual_total' => 'nullable|numeric|min:0',
             'pay_immediately' => 'nullable|boolean',
             'payment_method'   => 'nullable|string|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
             'order_date' => 'required|date|before_or_equal:today',

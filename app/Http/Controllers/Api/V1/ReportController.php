@@ -151,10 +151,8 @@ private function buildSummary(Collection $orders, Collection $payments): array {
  // ─── Helpers ──────────────────────────────────────────────────────────────
  private function calcOrderTotal($order): float
     {
-        return max(0, round(
-            $order->items->sum(fn($i) => $i->unit_price * $i->quantity) - (float)($order->discount ?? 0),
-            2
-        ));
+        // orders.total is the authoritative charge amount (ADR-004) — respects manual_total overrides.
+        return (float) $order->total;
     }
 
      private function countMissingCostPrices(Collection $orders): int
