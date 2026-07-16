@@ -3,13 +3,18 @@
 namespace App\Services;
 
 use App\Models\Inventory;
+use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PurchaseOrderService
 {
+    private const MAX_INVOICE_RETRIES = 3;
+
     /**
      * Create a new class instance.
      */
@@ -25,13 +30,40 @@ class PurchaseOrderService
             ->orderByDesc('id')
             ->value('invoice_number');
 
-        $lastNumber = $last ? (int) substr($last, -3) : 0;
+        $lastNumber = $last ? (int) substr($last, strrpos($last, '-') + 1) : 0;
         $next = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
 
         return "{$year}-{$next}";
     }
 
     public function createPurchaseOrder(array $data): PurchaseOrder
+    {
+        // Unique index on (tenant_id, invoice_number) guards against a collision;
+        // retry with a freshly generated number if one ever happens.
+        $lastException = null;
+
+        for ($attempt = 1; $attempt <= self::MAX_INVOICE_RETRIES; $attempt++) {
+            try {
+                return $this->createPurchaseOrderAttempt($data);
+            } catch (QueryException $e) {
+                if (!$this->isDuplicateInvoiceNumber($e)) {
+                    throw $e;
+                }
+
+                $lastException = $e;
+            }
+        }
+
+        throw $lastException;
+    }
+
+    private function isDuplicateInvoiceNumber(QueryException $e): bool
+    {
+        return $e->getCode() === '23000'
+            && str_contains($e->getMessage(), 'purchase_orders_tenant_id_invoice_number_unique');
+    }
+
+    private function createPurchaseOrderAttempt(array $data): PurchaseOrder
     {
         return DB::transaction(function () use ($data) {
             $user = auth()->user();
@@ -87,7 +119,6 @@ class PurchaseOrderService
                 'tenant_id' => $user->tenant_id,
                 'supplier_id' => $data['supplier_id'],
                 'supplier_name_snapshot' => $supplier?->name,
-                'created_by' => $user->id,
                 'notes' => $data['notes'] ?? null,
                 'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
                 'total' => 0,
@@ -116,6 +147,7 @@ class PurchaseOrderService
 
             $runningStock = [];
             $runningCost = [];
+            $batchId = (string) Str::uuid();
 
             // Main line-item loop: create each PO item row, recompute the product's weighted-average
             // cost_price, push stock into inventory (if a warehouse was given), and accumulate the
@@ -124,9 +156,7 @@ class PurchaseOrderService
             foreach ($validatedItems as $v) {
                 $purchaseOrderItem = $purchaseOrder->items()->create([
                     'product_id' => $v['product']->id,
-                    'product_name' => $v['product']->name,
                     'quantity' => $v['quantity'],
-                    'unit_type' => $v['unitType'],
                     'unit_price' => $v['unitPrice'],
                     'warehouse_id' => $v['warehouseId'],
                     'total' => $v['unitPrice'] * $v['quantity'],
@@ -157,7 +187,10 @@ class PurchaseOrderService
                         $v['warehouseId'],
                         $v['stockQty'],
                         $purchaseOrder->id,
-                        PurchaseOrder::class
+                        PurchaseOrder::class,
+                        $user->id,
+                        $batchId,
+                        InventoryTransaction::TYPE_PURCHASE_IN
                     );
                 }
                 $totalAmount += ($purchaseOrderItem->unit_price * $purchaseOrderItem->quantity);
@@ -173,19 +206,18 @@ class PurchaseOrderService
                 'purchase_order_id' => $purchaseOrder->id,
                 'invoice_number' => $purchaseOrder->invoice_number,
                 'total' => $purchaseOrder->total,
+                'user_id' => $user->id,
             ]);
 
             return $purchaseOrder;
         });
     }
 
-    public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder): void
+    public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, \App\Models\User $user): void
     {
-        DB::transaction(function () use ($purchaseOrder) {
-            $subtotal = $purchaseOrder->items()
-                ->sum(DB::raw('unit_price * quantity'));
-
-            $chargeAmount = max(0, round($subtotal, 2));
+        DB::transaction(function () use ($purchaseOrder, $user) {
+            $chargeAmount = (float) $purchaseOrder->total;
+            $batchId = (string) Str::uuid();
 
             foreach ($purchaseOrder->items as $item) {
                 if ($item->warehouse_id) {
@@ -193,7 +225,7 @@ class PurchaseOrderService
                         ? $item->quantity * $item->product->conversion_factor
                         : $item->quantity;
 
-                    $this->inventory->deductStock($item->product_id, $item->warehouse_id, $stockQuantity, $purchaseOrder->id, PurchaseOrder::class);
+                    $this->inventory->deductStock($item->product_id, $item->warehouse_id, $stockQuantity, $purchaseOrder->id, PurchaseOrder::class, $user->id, $batchId, InventoryTransaction::TYPE_PURCHASE_OUT);
                 }
             }
             $this->ledger->reversePurchaseOrder([
@@ -202,6 +234,7 @@ class PurchaseOrderService
                 'purchase_order_id' => $purchaseOrder->id,
                 'invoice_number' => $purchaseOrder->invoice_number,
                 'amount' => $chargeAmount,
+                'user_id' => $user->id,
             ]);
 
             $purchaseOrder->delete();

@@ -21,6 +21,7 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->softDeletes();
             $table->timestamps();
+            $table->unique(['tenant_id', 'invoice_number']);
         });
     }
 

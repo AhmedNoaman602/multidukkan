@@ -132,7 +132,7 @@ class PurchaseOrderController extends Controller
         if ($purchaseOrder->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        $this->purchaseOrderService->cancelPurchaseOrder($purchaseOrder);
+        $this->purchaseOrderService->cancelPurchaseOrder($purchaseOrder, auth()->user());
 
         return response()->json(['message' => 'Order cancelled and ledger reversed successfully'], 200);
     }

@@ -34,4 +34,27 @@ class PurchaseOrder extends Model
         return $this->hasMany(SupplierPayment::class);
     }
 
+    public function scopeWhereUnpaid($query)
+    {
+        return $query->whereRaw('total > (
+            SELECT COALESCE(SUM(amount), 0)
+            FROM supplier_payments
+            WHERE supplier_payments.purchase_order_id = purchase_orders.id
+        )');
+    }
+
+    /**
+     * How much has been paid toward this purchase order. Supplier payments have
+     * no refund concept (unlike customer Payments), so this is a plain sum.
+     */
+    public function settledAmount(): float
+    {
+        return round($this->supplierPayments->sum('amount'), 2);
+    }
+
+    public function isSettled(): bool
+    {
+        return $this->settledAmount() >= $this->total;
+    }
+
 }
