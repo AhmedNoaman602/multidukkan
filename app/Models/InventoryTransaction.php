@@ -12,6 +12,8 @@ class InventoryTransaction extends Model
     const TYPE_TRANSFER_OUT = 'TRANSFER_OUT';
     const TYPE_ADJUSTMENT_IN  = 'ADJUSTMENT_IN';
     const TYPE_ADJUSTMENT_OUT = 'ADJUSTMENT_OUT';
+    const TYPE_PURCHASE_IN  = 'PURCHASE_IN';
+    const TYPE_PURCHASE_OUT = 'PURCHASE_OUT';
 
     protected $fillable = [
         'tenant_id',
@@ -21,7 +23,14 @@ class InventoryTransaction extends Model
         'type',
         'reference_type',
         'reference_id',
+        'user_id',
+        'notes',
+        'batch_id',
     ];
+
+    // See LedgerEntry::$dateFormat — same reasoning.
+    protected $dateFormat = 'Y-m-d H:i:s.u';
+
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);
@@ -33,6 +42,11 @@ class InventoryTransaction extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
 }

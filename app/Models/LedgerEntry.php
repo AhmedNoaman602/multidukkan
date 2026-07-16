@@ -13,6 +13,7 @@ class LedgerEntry extends Model
     'tenant_id',
     'customer_id',
     'store_id',
+    'user_id',
     'supplier_id',
     'entity_type',
     'entity_id',
@@ -27,6 +28,11 @@ class LedgerEntry extends Model
     protected $casts = [
         'amount' => 'decimal:2',
     ];
+
+    // Microsecond precision so same-second events (e.g. an order's ORDER_CHARGE ledger
+    // entry and its grouped inventory row, written milliseconds apart in one request)
+    // still sort correctly newest-first in the activity feed.
+    protected $dateFormat = 'Y-m-d H:i:s.u';
 
     const TYPES = [
     'ORDER_CHARGE',
@@ -51,8 +57,12 @@ class LedgerEntry extends Model
     {
         return $this->belongsTo(Store::class);
     }
-    public function reference()
+    public function user()
     {
-        return $this->morphTo();
+        return $this->belongsTo(User::class);
     }
+    // public function reference()
+    // {
+    //     return $this->morphTo();
+    // }
 }

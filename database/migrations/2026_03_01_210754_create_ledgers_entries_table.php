@@ -16,6 +16,7 @@ return new class extends Migration
     $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
     $table->foreignId('customer_id')->nullable()->constrained()->cascadeOnDelete();
     $table->foreignId('store_id')->nullable()->constrained()->cascadeOnDelete();
+    $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
     $table->unsignedBigInteger('supplier_id')->nullable();
     $table->string('entity_type')->nullable();
     $table->unsignedBigInteger('entity_id')->nullable();
@@ -34,7 +35,7 @@ return new class extends Migration
     $table->string('description')->nullable();
     $table->string('reference_id')->nullable();
     $table->string('reference_type')->nullable();
-    $table->timestamps();
+    $table->timestamps(6);
 });
 
 }
