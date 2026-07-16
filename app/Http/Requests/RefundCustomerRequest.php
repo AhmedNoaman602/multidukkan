@@ -51,6 +51,17 @@ public function withValidator($validator): void
             $payment = Payment::find($this->payment_id_target);
             if (!$payment || (int) $payment->customer_id !== (int) $customerId) {
                 $validator->errors()->add('payment_id_target', 'Payment does not belong to this customer.');
+                return;
+            }
+
+            if ($payment->is_auto_reversible) {
+                $validator->errors()->add('payment_id_target', 'Credit payments cannot be refunded as cash. Cancel the order instead.');
+                return;
+            }
+
+            $refundable = $this->ledgerService->refundableForPayment($payment);
+            if ($this->amount > $refundable) {
+                $validator->errors()->add('amount', "Cannot exceed {$refundable} EGP for this payment.");
             }
             return;
         }
@@ -62,9 +73,7 @@ public function withValidator($validator): void
                 return;
             }
 
-            $totalPaid     = Payment::where('order_id', $this->order_id)->sum('amount');
-            $totalRefunded = Payment::where('order_id', $this->order_id)->sum('refunded_amount');
-            $refundable    = round($totalPaid - $totalRefunded, 2);
+            $refundable = $this->ledgerService->refundableForOrder($this->order_id);
 
             if ($refundable <= 0) {
                 $validator->errors()->add('amount', 'This order has already been fully refunded.');

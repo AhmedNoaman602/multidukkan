@@ -173,7 +173,8 @@ class CustomerController extends Controller
         'method'      => $validated['method'],
         'notes'       => $validated['notes'] ?? null,
         'order_id'    => $validated['order_id'] ?? null,
-        'payment_id_target'  => $validated['payment_id_target'] ?? null, 
+        'payment_id_target'  => $validated['payment_id_target'] ?? null,
+        'user_id'     => auth()->id(),
 
     ]);
 

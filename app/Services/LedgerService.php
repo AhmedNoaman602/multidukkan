@@ -31,6 +31,7 @@ class LedgerService
             'tenant_id' => $data['tenant_id'],
             'customer_id' => $data['customer_id'],
             'store_id' => $data['store_id'],
+            'user_id' => $data['user_id'] ?? null,
             'type' => 'ORDER_CHARGE',
             'amount' => $data['amount'],
             'description' => 'Order charge ' . $data['invoice_number'],
@@ -52,6 +53,7 @@ class LedgerService
             'direction'      => 'debit',
             'type'           => 'PURCHASE_CHARGE',
             'amount'         => $data['total'],
+            'user_id'        => $data['user_id'] ?? null,
             'reference_type' => PurchaseOrder::class,
             'reference_id'   => $data['purchase_order_id'],
             'description' => 'Purchase order ' . $data['invoice_number'],
@@ -67,6 +69,7 @@ class LedgerService
             'tenant_id' => $data['tenant_id'],
             'customer_id' => $data['customer_id'],
             'store_id' => $data['store_id'],
+            'user_id' => $data['user_id'] ?? null,
             'type' => 'PAYMENT',
             'amount' => $data['amount'],
             'description' => 'Payment for order ' . $data['invoice_number'],
@@ -88,9 +91,32 @@ class LedgerService
             'direction'      => 'credit',
             'type'           => 'SUPPLIER_PAYMENT',
             'amount'         => $data['amount'],
+            'user_id'        => $data['user_id'] ?? null,
             'reference_type' => 'supplier_payment',
             'reference_id'   => $data['payment_id'],
             'description' => 'Payment for purchase order ' . $data['invoice_number'],
+        ]);
+    }
+
+    /**
+     * Reverse a supplier payment — full void only (no partial-refund concept for
+     * supplier payments). Increases what's owed back to the supplier by the payment's
+     * full amount, undoing what applySupplierPayment recorded.
+     */
+    public function reverseSupplierPayment(array $data): LedgerEntry
+    {
+        return LedgerEntry::create([
+            'tenant_id'      => $data['tenant_id'],
+            'supplier_id'    => $data['supplier_id'],
+            'entity_type'    => 'supplier',
+            'entity_id'      => $data['supplier_id'],
+            'direction'      => 'debit',
+            'type'           => 'SUPPLIER_PAYMENT_REVERSAL',
+            'amount'         => $data['amount'],
+            'user_id'        => $data['user_id'] ?? null,
+            'reference_type' => 'supplier_payment',
+            'reference_id'   => $data['payment_id'],
+            'description' => 'Payment reversed' . (isset($data['invoice_number']) ? ' for purchase order ' . $data['invoice_number'] : ''),
         ]);
     }
 
@@ -103,6 +129,7 @@ class LedgerService
             'tenant_id' => $data['tenant_id'],
             'customer_id' => $data['customer_id'],
             'store_id' => $data['store_id'],
+            'user_id' => $data['user_id'] ?? null,
             'type' => 'CREDIT_APPLY',
             'amount' => $data['amount'],
             'description' => 'Overpayment credit for order ' . $data['invoice_number'],
@@ -120,6 +147,7 @@ class LedgerService
             'tenant_id' => $data['tenant_id'],
             'customer_id' => $data['customer_id'],
             'store_id' => $data['store_id'],
+            'user_id' => $data['user_id'] ?? null,
             'type' => 'REVERSAL',
             'amount' => $data['amount'],
             'description' => 'Reversal for cancelled order ' . $data['invoice_number'],
@@ -141,6 +169,7 @@ class LedgerService
             'direction'      => 'credit',
             'type'           => 'PURCHASE_REVERSAL',
             'amount'         => $data['amount'],
+            'user_id'        => $data['user_id'] ?? null,
             'reference_type' => PurchaseOrder::class,
             'reference_id'   => $data['purchase_order_id'],
             'description' => 'Purchase order ' . $data['invoice_number'],
@@ -278,6 +307,7 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
             'tenant_id' => $data['tenant_id'],
             'customer_id' => $data['customer_id'],
             'store_id' => $data['store_id'],
+            'user_id' => $data['user_id'] ?? null,
             'type' => 'CREDIT_APPLY',
             'amount' => $data['amount'],
             'description' => $data['description'] ?? 'Manual credit',
@@ -295,6 +325,7 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
             'tenant_id'      => $data['tenant_id'],
             'customer_id'    => $data['customer_id'],
             'store_id'       => $data['store_id'],
+            'user_id'        => $data['user_id'] ?? null,
             'type'           => 'CREDIT_CONSUMED',
             'amount'         => $data['amount'],
             'description'    => 'Credit applied to order ' . $data['invoice_number'],
@@ -313,6 +344,7 @@ public function restoreCredit(array $data): LedgerEntry
         'tenant_id'      => $data['tenant_id'],
         'customer_id'    => $data['customer_id'],
         'store_id'       => $data['store_id'],
+        'user_id'        => $data['user_id'] ?? null,
         'type'           => 'CREDIT_APPLY',
         'amount'         => $data['amount'],
         'description'    => 'Credit restored — cancelled order ' . $data['invoice_number'],
@@ -322,12 +354,36 @@ public function restoreCredit(array $data): LedgerEntry
 }
 
     /**
+     * Cash refundable balance for a whole order — net cash (non-credit) payments minus what's already refunded.
+     */
+    public function refundableForOrder(int $orderId): float
+    {
+        return round(
+            Payment::where('order_id', $orderId)
+                ->cashOnly()
+                ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
+            2
+        );
+    }
+
+    /**
+     * Cash refundable balance for a single payment. Credit (auto-reversible) payments
+     * are never cash-refundable — callers must check is_auto_reversible separately.
+     */
+    public function refundableForPayment(Payment $payment): float
+    {
+        return round($payment->amount - ($payment->refunded_amount ?? 0), 2);
+    }
+
+    /**
      * Process a cash refund for a customer.
      * Eagerly validates that the refund amount does not exceed the total paid amount (either for a specific payment or across the whole order),
      * updates the payment records with the refunded amount, and creates a ledger refund entry.
      */
     public function issueRefund(array $data): LedgerEntry
     {
+        return DB::transaction(function() use ($data){
+            
         if (!empty($data['payment_id_target'])) {
             // Case 1: Refund from a specific target payment.
             $payment = Payment::findOrFail($data['payment_id_target']);
@@ -336,8 +392,8 @@ public function restoreCredit(array $data): LedgerEntry
                     'payment' => 'Credit payments cannot be refunded as cash. Cancel the order instead.'
                 ]);
             }
-            $available = $payment->amount - ($payment->refunded_amount ?? 0);
-            
+            $available = $this->refundableForPayment($payment);
+
             // Validate that we aren't refunding more than what was paid on this specific payment.
             if ($data['amount'] > $available) {
                 throw ValidationException::withMessages([
@@ -347,12 +403,13 @@ public function restoreCredit(array $data): LedgerEntry
             // Increment the payment's refunded counter.
             $payment->increment('refunded_amount', $data['amount']);
 
+            $refType = 'payment';
+            $refId   = $payment->id;
+
         } elseif(!empty($data['order_id']))  {
             // Case 2: Refund from an entire order.
             // 1. Calculate total paid amount on this order that has not yet been refunded.
-            $totalPaid = Payment::where('order_id', $data['order_id'])
-                ->cashOnly()
-                ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
+            $totalPaid = $this->refundableForOrder($data['order_id']);
 
             // Validate that the refund request doesn't exceed the total amount paid on the order.
             if ($data['amount'] > $totalPaid) {
@@ -370,7 +427,7 @@ public function restoreCredit(array $data): LedgerEntry
 
             foreach ($payments as $payment) {
                 if ($remaining <= 0) break;
-                $available = $payment->amount - ($payment->refunded_amount ?? 0);
+                $available = $this->refundableForPayment($payment);
                 if ($available <= 0) continue;
                 
                 // Deduct from this payment up to its available paid amount.
@@ -378,6 +435,9 @@ public function restoreCredit(array $data): LedgerEntry
                 $payment->increment('refunded_amount', $toRefund);
                 $remaining -= $toRefund;
             }
+
+            $refType = 'order';
+            $refId   = $data['order_id'];
         } else {
             // Throw exception if neither target payment nor order is provided.
             throw ValidationException::withMessages([
@@ -390,12 +450,14 @@ public function restoreCredit(array $data): LedgerEntry
             'tenant_id'      => $data['tenant_id'],
             'customer_id'    => $data['customer_id'],
             'store_id'       => $data['store_id'],
+            'user_id'        => $data['user_id'] ?? null,
             'type'           => 'REFUND',
             'amount'         => $data['amount'],
             'description'    => 'Cash refund — ' . ($data['notes'] ?? $data['method']),
-            'reference_type' => 'payment',
-            'reference_id'   => $data['payment_id'] ?? $data['customer_id'],
+            'reference_type' => $refType,
+            'reference_id'   => $refId,
         ]);
+        });
     }
 
     /**
@@ -441,7 +503,8 @@ public function restoreCredit(array $data): LedgerEntry
             ]);
         }
 
-        // Update the payment ledger entry to match the new payment amount.
+         DB::transaction(function() use ($payment,$newAmount,$newMethod){
+ // Update the payment ledger entry to match the new payment amount.
         LedgerEntry::where('reference_type', 'payment')
             ->where('reference_id', $payment->id)
             ->where('type', 'PAYMENT')
@@ -452,6 +515,9 @@ public function restoreCredit(array $data): LedgerEntry
             'amount' => $newAmount,
             'method' => $newMethod,
         ]);
+        });
+
+       
     }
 
     public function adjustOrderCharge(Order $order, float $newTotal): void
