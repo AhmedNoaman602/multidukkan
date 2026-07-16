@@ -10,6 +10,12 @@ use App\Models\Product;
 use App\Models\Warehouse;
 use App\Models\Inventory;
 use App\Models\Customer;
+use App\Models\Supplier;
+use App\Services\OrderService;
+use App\Services\PaymentService;
+use App\Services\PurchaseOrderService;
+use App\Services\SupplierPaymentService;
+use Illuminate\Support\Facades\Auth;
 
 class DemoSeeder extends Seeder
 {
@@ -26,7 +32,14 @@ class DemoSeeder extends Seeder
             'phone'     => '01000000000',
         ]);
 
-        User::create([
+        Customer::create([
+            'tenant_id'  => $tenant->id,
+            'name'       => 'زبون نقدي',
+            'phone'      => '00000000000',
+            'is_walk_in' => true,
+        ]);
+
+        $admin = User::create([
             'tenant_id' => $tenant->id,
             'store_id'  => null,
             'name'      => 'Noaman',
@@ -97,11 +110,95 @@ foreach ($createdWarehouses as $warehouse) {
     }
 }
 
-        Customer::create([
+        $contractor = Customer::create([
             'tenant_id' => $tenant->id,
             'name'      => 'محمد المقاول',
             'phone'     => '01111111111',
             'address'   => 'مدينة نصر، القاهرة',
         ]);
+
+        // ─── Demo orders, purchase order, and payments ───
+        // Runs through the real services (not raw Eloquent::create) so this exercises the
+        // actual invoice/ledger/stock logic — same code paths covered by OrderMoneyTest /
+        // PurchaseOrderMoneyTest — giving real data to click through in the app.
+        Auth::setUser($admin);
+
+        $orderService = app(OrderService::class);
+        $paymentService = app(PaymentService::class);
+        $purchaseOrderService = app(PurchaseOrderService::class);
+        $supplierPaymentService = app(SupplierPaymentService::class);
+
+        $hammer = $createdProducts[0];   // شاكوش كبير — price 150
+        $screwdriver = $createdProducts[2]; // مفك براغي — price 65
+        $mainWarehouse = $createdWarehouses[0];
+
+        // Order 1 — paid in full at creation (pay_immediately)
+        $orderService->createOrder([
+            'customer_id' => $contractor->id,
+            'store_id'    => $store->id,
+            'order_date'  => now()->subDays(3)->toDateString(),
+            'notes'       => 'طلب عادي',
+            'items'       => [
+                ['product_id' => $hammer->id, 'quantity' => 2, 'warehouse_id' => $mainWarehouse->id],
+                ['product_id' => $screwdriver->id, 'quantity' => 3, 'warehouse_id' => $mainWarehouse->id],
+            ],
+            'pay_immediately' => true,
+            'payment_method'  => 'cash',
+        ]);
+
+        // Order 2 — manual_total override: subtotal would be 300 (2 x 150), owner charges 250 as goodwill
+        $manualTotalOrder = $orderService->createOrder([
+            'customer_id' => $contractor->id,
+            'store_id'    => $store->id,
+            'order_date'  => now()->subDay()->toDateString(),
+            'notes'       => 'خصم خاص للعميل',
+            'items'       => [
+                ['product_id' => $hammer->id, 'quantity' => 2, 'warehouse_id' => $mainWarehouse->id],
+            ],
+            'manual_total' => 250,
+        ]);
+
+        // Order 3 — left partially paid, to demo the manager-only edit lock in the UI
+        $partialOrder = $orderService->createOrder([
+            'customer_id' => $contractor->id,
+            'store_id'    => $store->id,
+            'order_date'  => now()->toDateString(),
+            'notes'       => 'دفعة جزئية',
+            'items'       => [
+                ['product_id' => $screwdriver->id, 'quantity' => 4, 'warehouse_id' => $mainWarehouse->id],
+            ],
+        ]);
+        $paymentService->processDirectPayment([
+            'order_id'    => $partialOrder->id,
+            'customer_id' => $contractor->id,
+            'amount'      => 100,
+            'method'      => 'cash',
+        ], $admin);
+
+        // Purchase order — restocking from a supplier
+        $supplier = Supplier::create([
+            'tenant_id' => $tenant->id,
+            'name'      => 'مورد الأدوات المتحدة',
+            'phone'     => '01222222222',
+            'address'   => 'العبور، القاهرة',
+        ]);
+
+        $purchaseOrder = $purchaseOrderService->createPurchaseOrder([
+            'supplier_id' => $supplier->id,
+            'notes'       => 'توريد شهري',
+            'items'       => [
+                ['product_id' => $hammer->id, 'quantity' => 20, 'warehouse_id' => $mainWarehouse->id, 'unit_price' => 95],
+                ['product_id' => $screwdriver->id, 'quantity' => 30, 'warehouse_id' => $mainWarehouse->id, 'unit_price' => 40],
+            ],
+        ]);
+
+        // Partial payment to the supplier
+        $supplierPaymentService->processSupplierPayment([
+            'supplier_id'        => $supplier->id,
+            'purchase_order_id'  => $purchaseOrder->id,
+            'amount'             => 1000,
+            'method'             => 'cash',
+        ], $admin);
+
     }
 }
