@@ -54,6 +54,7 @@ class InventoryTest extends TestCase
         return $this->actingAs($this->user)->postJson('/api/orders', [
             'store_id' => $this->store->id,
             'customer_id' => $this->customer->id,
+            'order_date' => now()->toDateString(),
             'items' => [$item],
         ]);
     }
@@ -177,6 +178,7 @@ public function test_can_adjust_stock_manually() : void {
     $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 5,
         'direction' => 'in',
+        'notes' => 'Test adjustment',
     ])->assertStatus(200);
 
     $this->assertDatabaseHas('inventory', [
@@ -202,6 +204,7 @@ public function test_inventory_transaction_created_on_adjustment():void{
     $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 5,
         'direction' => 'in',
+        'notes' => 'Test adjustment',
     ])->assertStatus(200);
 
     $this->assertDatabaseHas('inventory_transactions', [
@@ -305,6 +308,7 @@ public function test_two_stores_can_sell_same_product_from_different_warehouses(
     $this->actingAs($this->user)->postJson('/api/orders', [
         'store_id'    => $storeB->id,
         'customer_id' => $this->customer->id,
+        'order_date'  => now()->toDateString(),
         'items'       => [[
             'product_id'   => $this->product->id,
             'quantity'     => 5,
@@ -346,6 +350,7 @@ public function test_admin_can_add_stock_via_adjust()
     $response = $this->actingAs($admin)->postJson("/api/inventory/{$inventory->id}/adjust", [
         'quantity' => 50,
         'direction' => 'in',
+        'notes' => 'Test adjustment',
     ]);
 
     $response->assertOk();
@@ -358,6 +363,7 @@ public function test_can_remove_stock_via_adjust(): void
     $this->actingAs($this->user)->postJson("/api/inventory/{$this->inventory->id}/adjust", [
         'quantity' => 30,
         'direction' => 'out',
+        'notes' => 'Test adjustment',
     ])->assertStatus(200);
 
     $this->assertDatabaseHas('inventory', [

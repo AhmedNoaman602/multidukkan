@@ -6,6 +6,8 @@ use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\Warehouse;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
+
 
 class InventoryService
 {
@@ -33,25 +35,27 @@ class InventoryService
     }
 }
 
-   public function deductStock(int $productId, int $warehouseId, int $quantity, ?int $referenceId = null, ?string $referenceType = null): void{
+   public function deductStock(int $productId, int $warehouseId, int $quantity, ?int $referenceId = null, ?string $referenceType = null, ?int $userId = null, ?string $batchId = null, ?string $type = null): void{
         $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
-            ->firstOrFail();   
-        
+            ->firstOrFail();
+
         $inventory->decrement('quantity' , $quantity);
 
         InventoryTransaction::create([
             'tenant_id'      => $inventory->tenant_id,
             'warehouse_id'   => $warehouseId,
             'product_id'     => $productId,
-            'type'           => InventoryTransaction::TYPE_SALE,
+            'type'           => $type ?? InventoryTransaction::TYPE_SALE,
             'quantity'       => $quantity,
             'reference_id'   => $referenceId,
             'reference_type' => $referenceType,
+            'user_id'        => $userId,
+            'batch_id'       => $batchId,
         ]);
         }
 
-   public function restoreStock(int $productId, int $warehouseId, int $quantity, ?int $referenceId = null, ?string $referenceType = null): void{
+   public function restoreStock(int $productId, int $warehouseId, int $quantity, ?int $referenceId = null, ?string $referenceType = null, ?int $userId = null, ?string $batchId = null, ?string $type = null): void{
     $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
             ->firstOrFail();
@@ -62,14 +66,19 @@ class InventoryService
         'tenant_id'      => $inventory->tenant_id,
         'warehouse_id'   => $warehouseId,
         'product_id'     => $productId,
-        'type'           => InventoryTransaction::TYPE_RETURN,
+        'type'           => $type ?? InventoryTransaction::TYPE_RETURN,
         'quantity'       => $quantity,
         'reference_id'   => $referenceId,
         'reference_type' => $referenceType,
+        'user_id'        => $userId,
+        'batch_id'       => $batchId,
     ]);
    }
-   public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base'): void{
-        $inventory = Inventory::where('warehouse_id', $warehouseId)
+   public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base', ?int $userId = null, ?string $notes = null): void{
+   DB::transaction(function() use ($productId, $warehouseId, $quantity, $direction, $unitType, $userId, $notes){
+
+     
+   $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
             ->firstOrFail();
 
@@ -98,6 +107,10 @@ class InventoryService
             'product_id'     => $productId,
             'type'           => $type,
             'quantity'       => $quantity,
+            'user_id'        => $userId,
+            'notes'          => $notes,
         ]);
+   }
+   ); 
    }
 }

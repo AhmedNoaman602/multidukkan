@@ -108,7 +108,9 @@ public function index(Request $request)
             $inventory->warehouse_id,
             $request->quantity,
             $request->direction,
-            $request->unit_type ?? 'base'
+            $request->unit_type ?? 'base',
+            $user->id,
+            $request->notes
         );
     } catch (ValidationException $e) {
         return response()->json([
