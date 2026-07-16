@@ -80,6 +80,7 @@ class PriceTierTest extends TestCase
             ->postJson('/api/orders', [
                 'store_id'    => $this->store->id,
                 'customer_id' => $customer->id,
+                'order_date'  => now()->toDateString(),
                 'items'       => [
                     ['product_id' => $this->product->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
                 ],
@@ -159,6 +160,7 @@ class PriceTierTest extends TestCase
             ->postJson('/api/orders', [
                 'store_id'    => $this->store->id,
                 'customer_id' => $customer->id,
+                'order_date'  => now()->toDateString(),
                 'items'       => [
                     ['product_id' => $productNoTiers->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
                 ],

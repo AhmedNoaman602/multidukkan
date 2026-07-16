@@ -62,6 +62,7 @@ class BalanceVerificationTest extends TestCase
             'tenant_id'   => $this->tenant->id,
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
             'items'       => [
                 ['product_id' => $this->product->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
             ],
