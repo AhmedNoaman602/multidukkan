@@ -196,7 +196,8 @@ class RoleTest extends TestCase
         $this->actingAs($this->manager)
             ->postJson("/api/inventory/{$this->inventory->id}/adjust", [
                 'quantity' => 10,
-                'direction' => 'in',             
+                'direction' => 'in',
+                'notes' => 'Test adjustment',
             ])->assertStatus(200);
     }
 
@@ -226,7 +227,8 @@ class RoleTest extends TestCase
         $this->actingAs($this->manager)
             ->postJson("/api/inventory/{$otherInventory->id}/adjust", [
                 'quantity' => 10,
-                'direction' => 'in',             
+                'direction' => 'in',
+                'notes' => 'Test adjustment',
             ])->assertStatus(403);
     }
 
@@ -274,6 +276,7 @@ public function test_staff_can_create_order(): void
         ->postJson('/api/orders', [
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
             'items'       => [
                 [
                     'product_id' => $this->product->id,
@@ -290,6 +293,7 @@ public function test_staff_can_process_payment(): void
         ->postJson('/api/orders', [
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
             'items'       => [
                 [
                     'product_id' => $this->product->id,
@@ -313,6 +317,7 @@ public function test_staff_cannot_adjust_inventory(): void
         ->postJson("/api/inventory/{$this->inventory->id}/adjust", [
             'quantity' => 10,
             'direction' => 'in',
+            'notes' => 'Test adjustment',
         ])->assertStatus(403);
 }
 
@@ -333,5 +338,56 @@ public function test_staff_cannot_create_warehouse(): void
             'store_id' => $this->store->id,
             'name'     => 'Staff Warehouse',
         ])->assertStatus(403);
+}
+
+// ─────────────────────────────────────────
+// PAYMENT-LOCK TIERS — order edits by payment state
+// ─────────────────────────────────────────
+
+public function test_staff_cannot_modify_partially_paid_order(): void
+{
+    $order = $this->actingAs($this->staff)->postJson('/api/orders', [
+        'store_id'    => $this->store->id,
+        'customer_id' => $this->customer->id,
+        'order_date'  => now()->toDateString(),
+        'items'       => [
+            ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id],
+        ],
+    ])->assertStatus(201)->json();
+
+    // Partial payment: 50 of 200 owed
+    $this->actingAs($this->staff)->postJson('/api/payments', [
+        'order_id'    => $order['id'],
+        'customer_id' => $this->customer->id,
+        'amount'      => 50,
+        'method'      => 'cash',
+    ])->assertStatus(201);
+
+    $this->actingAs($this->staff)
+        ->patchJson("/api/orders/{$order['id']}/items/{$order['items'][0]['id']}", ['quantity' => 3])
+        ->assertStatus(422);
+}
+
+public function test_manager_can_modify_partially_paid_order(): void
+{
+    $order = $this->actingAs($this->manager)->postJson('/api/orders', [
+        'store_id'    => $this->store->id,
+        'customer_id' => $this->customer->id,
+        'order_date'  => now()->toDateString(),
+        'items'       => [
+            ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id],
+        ],
+    ])->assertStatus(201)->json();
+
+    $this->actingAs($this->manager)->postJson('/api/payments', [
+        'order_id'    => $order['id'],
+        'customer_id' => $this->customer->id,
+        'amount'      => 50,
+        'method'      => 'cash',
+    ])->assertStatus(201);
+
+    $this->actingAs($this->manager)
+        ->patchJson("/api/orders/{$order['id']}/items/{$order['items'][0]['id']}", ['quantity' => 3])
+        ->assertStatus(200);
 }
 }

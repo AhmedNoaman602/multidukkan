@@ -7,7 +7,9 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -37,19 +39,52 @@ class OrderService
             ->orderByDesc('id')
             ->value('invoice_number');
 
-        $lastNumber = $last ? (int) substr($last, -3) : 0;
+        $lastNumber = $last ? (int) substr($last, strrpos($last, '-') + 1) : 0;
         $next = str_pad($lastNumber + 1, 3, '0', STR_PAD_LEFT);
 
         return "{$year}-{$next}";
     }
 
+    private const MAX_INVOICE_RETRIES = 3;
+
     public function createOrder(array $data): Order
+    {
+        // Unique index on (tenant_id, invoice_number) guards against a collision;
+        // retry with a freshly generated number if one ever happens.
+        $lastException = null;
+
+        for ($attempt = 1; $attempt <= self::MAX_INVOICE_RETRIES; $attempt++) {
+            try {
+                return $this->createOrderAttempt($data);
+            } catch (QueryException $e) {
+                if (!$this->isDuplicateInvoiceNumber($e)) {
+                    throw $e;
+                }
+
+                $lastException = $e;
+            }
+        }
+
+        throw $lastException;
+    }
+
+    private function isDuplicateInvoiceNumber(QueryException $e): bool
+    {
+        return $e->getCode() === '23000'
+            && str_contains($e->getMessage(), 'orders_tenant_id_invoice_number_unique');
+    }
+
+    private function createOrderAttempt(array $data): Order
     {
         // We wrap the entire process in a database transaction to ensure that all database operations
         // (saving the order, deducting stock, updating ledger, applying credit) either succeed completely or roll back together.
         return DB::transaction(function () use ($data) {
             // Retrieve the currently authenticated user who is placing the order.
             $user = auth()->user();
+
+            // Groups every inventory_transaction row this order creation produces so the
+            // activity feed can show one "sale" event instead of one row per line item.
+            $batchId = (string) Str::uuid();
 
             // Fetch the customer details from the database or fail with a 404 response if the customer doesn't exist.
             $customer = Customer::findOrFail($data['customer_id']);
@@ -187,7 +222,9 @@ foreach ($validatedItems as $v) {
                         $v['warehouseId'],
                         $v['stockQty'],
                         $order->id,
-                        Order::class
+                        Order::class,
+                        $user->id,
+                        $batchId
                     );
                 }
 
@@ -221,6 +258,7 @@ foreach ($validatedItems as $v) {
                 'order_id' => $order->id,
                 'amount' => $chargeAmount,
                 'invoice_number' => $order->invoice_number,
+                'user_id' => $user->id,
             ]);
 
             // If the customer has credit available, automatically apply it to settle or reduce the order balance.
@@ -248,6 +286,7 @@ foreach ($validatedItems as $v) {
                     'payment_id' => $payment->id,
                     'amount' => $applyAmount,
                     'invoice_number' => $order->invoice_number,
+                    'user_id' => $user->id,
                 ]);
 
                 // Record the consumption of the customer's credit balance in the ledger.
@@ -259,6 +298,7 @@ foreach ($validatedItems as $v) {
                     'payment_id' => $payment->id,
                     'amount' => $applyAmount,
                     'invoice_number' => $order->invoice_number,
+                    'user_id' => $user->id,
                 ]);
             }
 
@@ -288,6 +328,7 @@ if (!empty($data['pay_immediately'])) {
             'payment_id'     => $payment->id,
             'amount'         => $cashAmount,
             'invoice_number' => $order->invoice_number,
+            'user_id'        => $user->id,
         ]);
     }
 }
@@ -299,6 +340,9 @@ if (!empty($data['pay_immediately'])) {
 
     public function adjustItem(Order $order, OrderItem $item, array $data): void
     {
+        DB::transaction(function () use ($order, $item, $data) {
+        $this->ensureOrderIsEditable($order);
+
         $oldQty = $item->quantity;
         $newQty = $data['quantity'] ?? $oldQty;
         $delta = $newQty - $oldQty;
@@ -308,12 +352,12 @@ if (!empty($data['pay_immediately'])) {
              $this->inventory->checkStock($item->product_id, $item->warehouse_id, $delta);
             $this->inventory->deductStock(
                 $item->product_id, $item->warehouse_id,
-                $delta, $order->id, Order::class
+                $delta, $order->id, Order::class, auth()->id()
             );
         } elseif ($delta < 0) {
             $this->inventory->restoreStock(
                 $item->product_id, $item->warehouse_id,
-                abs($delta), $order->id, Order::class
+                abs($delta), $order->id, Order::class, auth()->id()
             );
         }
 
@@ -321,21 +365,58 @@ if (!empty($data['pay_immediately'])) {
         $item->update([
             'quantity' => $newQty,
             'unit_price' => $data['unit_price'] ?? $item->unit_price,
-            'total' => $newQty * ($data['unit_price'] ?? $item->unit_price),
         ]);
 
-        // Step 3 — recalculate order total
-        $newTotal = $order->items()->sum(DB::raw('unit_price * quantity'));
-        $discount = (float) ($order->discount ?? 0);
-        $newTotal = max(0, round($newTotal - $discount, 2));
+        // Step 3 — recalculate order total, update ledger + order
+        $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
+        });
+    }
 
-        // Step 4 — update ledger + order
-        $this->ledger->adjustOrderCharge($order, $newTotal);
+    /**
+     * Tiered payment-lock rule for edits that change an order's total:
+     * - No payments        → freely editable.
+     * - Partially paid     → manager-or-above only (store_staff blocked).
+     * - Fully paid/settled → locked for everyone; additional items need a new order/invoice.
+     *
+     * Audit trail for every edit that gets through is handled automatically by
+     * OrderObserver::updated (fires on the Order::update() call inside adjustOrderCharge).
+     */
+    private function ensureOrderIsEditable(Order $order): void
+    {
+        if ($order->isSettled()) {
+            throw ValidationException::withMessages([
+                'order' => 'This order is fully paid and locked. Create a new order or invoice for additional items.',
+            ]);
+        }
+
+        $isPartiallyPaid = $order->settledAmount() > 0;
+        $isManagerOrAbove = in_array(auth()->user()->role, ['tenant_admin', 'store_manager'], true);
+
+        if ($isPartiallyPaid && !$isManagerOrAbove) {
+            throw ValidationException::withMessages([
+                'order' => 'This order has partial payments — only a manager can modify it.',
+            ]);
+        }
+    }
+
+    /**
+     * Recompute an order's total from its current items minus discount.
+     * Overrides applied via manual_total at creation are not preserved past this point —
+     * see docs/07-business-rules/financial-calculations.md.
+     */
+    private function recalculateTotal(Order $order): float
+    {
+        $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
+        $discount = (float) ($order->discount ?? 0);
+
+        return max(0, round($subtotal - $discount, 2));
     }
 
     public function addItem(Order $order, array $data)
     {
         return DB::transaction(function () use ($order, $data) {
+        $this->ensureOrderIsEditable($order);
+
         $product = Product::findOrFail($data['product_id']);
         $warehouseId = $data['warehouse_id'];
         $unitType = $data['unit_type'] ?? 'base';
@@ -375,39 +456,37 @@ if (!empty($data['pay_immediately'])) {
         ]);
     } else {
         // Create a new row
-        $order->items()->create([   
+        $order->items()->create([
             'product_id'   => $product->id,
             'product_name' => $product->name,
             'warehouse_id' => $warehouseId,
             'quantity'     => $data['quantity'],
             'unit_price'   => $unitPrice,
             'unit_type'    => $unitType,
-            'total'        => $data['quantity'] * $unitPrice,
         ]);
     }
-          $this->inventory->deductStock($product->id, $warehouseId, $stockQuantity, $order->id, Order::class);
+          $this->inventory->deductStock($product->id, $warehouseId, $stockQuantity, $order->id, Order::class, auth()->id());
 
-
-      $newTotal = $order->items()->sum(DB::raw('unit_price * quantity'));
-      $discount = (float) ($order->discount ?? 0);
-      $newTotal = max(0, round($newTotal - $discount, 2));
-
-      $this->ledger->adjustOrderCharge($order, $newTotal);
+      $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
     });
 }
 
     // OrderService@updateOrder
 public function updateOrder(Order $order, array $data): Order
 {
+    // Discount directly changes the total — block it once the customer has paid against
+    // the old number. Notes/order_date carry no money implications, so they're unaffected.
+    if (isset($data['discount'])) {
+        $this->ensureOrderIsEditable($order);
+    }
+
     $order->update($data);
-    
+
     // If discount changed → recalculate total + update ledger
     if (isset($data['discount'])) {
-        $newTotal = $order->items()->sum(DB::raw('unit_price * quantity'));
-        $newTotal = max(0, round($newTotal - $order->discount, 2));
-        $this->ledger->adjustOrderCharge($order, $newTotal);
+        $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
     }
-    
+
     return $order->load('items', 'payments', 'customer');
 }
     /**
@@ -420,9 +499,9 @@ public function updateOrder(Order $order, array $data): Order
      *
      * Called by: OrderController@destroy
      */
-   public function cancelOrder(Order $order): void
+   public function cancelOrder(Order $order, \App\Models\User $user): void
 {
-    DB::transaction(function () use ($order) {
+    DB::transaction(function () use ($order, $user) {
         $chargeAmount = $order->total;
 
         // Block cancel if real money payments exist and aren't fully refunded
@@ -454,10 +533,12 @@ foreach ($creditPayments as $payment) {
         'payment_id'     => $payment->id,
         'amount'         => $payment->amount,
         'invoice_number' => $order->invoice_number,
+        'user_id'        => $user->id,
     ]);
 }
 
         // Restore stock
+        $batchId = (string) Str::uuid();
         foreach ($order->items as $item) {
             if ($item->warehouse_id) {
                 $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
@@ -469,7 +550,9 @@ foreach ($creditPayments as $payment) {
                     $item->warehouse_id,
                     $stockQuantity,
                     $order->id,
-                    Order::class
+                    Order::class,
+                    $user->id,
+                    $batchId
                 );
             }
         }
@@ -484,11 +567,12 @@ if ($reversalAmount > 0) {
         'order_id'       => $order->id,
         'amount'         => $reversalAmount,
         'invoice_number' => $order->invoice_number,
+        'user_id'        => $user->id,
     ]);
 }
 $order->payments()
-    ->whereIn('id', $creditPayments->pluck('id'))
-    ->delete(); 
+      ->whereIn('id', $creditPayments->pluck('id'))
+      ->delete(); 
 
     $order->delete();
     });

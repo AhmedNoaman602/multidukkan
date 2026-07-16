@@ -63,6 +63,7 @@ class LedgerTest extends TestCase
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
             'notes'       => 'Test order',
+            'order_date'  => now()->toDateString(),
             'items'       => [
                 ['product_id' => $this->product->id, 'quantity' => $quantity,'warehouse_id' => $this->warehouse->id,],
             ],
@@ -232,13 +233,13 @@ class LedgerTest extends TestCase
 
     public function test_cannot_modify_order_after_payment(): void
 {
-    $orderId = $this->createOrder(quantity: 2)->json('id');
+    // quantity 2 x price 100 = 200 total; paying 200 fully settles it — locked for everyone.
+    $order = $this->createOrder(quantity: 2)->json();
+    $itemId = $order['items'][0]['id'];
     $this->createPayment(200)->assertStatus(201);
 
-    $this->actingAs($this->user)->patchJson("/api/orders/{$orderId}", [
-        'items' => [
-            ['product_id' => $this->product->id, 'quantity' => 3],
-        ],
+    $this->actingAs($this->user)->patchJson("/api/orders/{$order['id']}/items/{$itemId}", [
+        'quantity' => 3,
     ])->assertStatus(422);
 }
 

@@ -13,6 +13,7 @@ return new class extends Migration
     {
         Schema::table('orders', function (Blueprint $table) {
             $table->string('invoice_number')->nullable()->after('id');
+            $table->unique(['tenant_id', 'invoice_number']);
         });
     }
 
@@ -22,6 +23,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('orders', function (Blueprint $table) {
+            $table->dropUnique(['tenant_id', 'invoice_number']);
             $table->dropColumn('invoice_number');
         });
     }
