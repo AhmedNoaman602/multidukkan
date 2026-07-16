@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Product;
+use App\Models\AuditLog;
 use Illuminate\Validation\ValidationException;
 
 class ProductObserver
@@ -12,7 +13,14 @@ class ProductObserver
      */
     public function created(Product $product): void
     {
-        //
+         AuditLog::create([
+            'tenant_id' => $product->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Product::class,
+            'auditable_id' => $product->id,
+            'action' => 'created',
+            'changes' => null,
+        ]);
     }
 
     /**
@@ -20,7 +28,21 @@ class ProductObserver
      */
     public function updated(Product $product): void
     {
-        //
+          $changes = collect($product->getChanges())
+                    ->except('updated_at')
+                    ->mapWithKeys(fn ($newValue, $field) => [
+                         $field => [$product->getOriginal($field), $newValue]
+                         ])
+                    ->toArray();
+
+        AuditLog::create([
+            'tenant_id' => $product->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Product::class,
+            'auditable_id' => $product->id,
+            'action' => 'updated',
+            'changes' => $changes,
+        ]);
     }
 
     /**
@@ -28,7 +50,7 @@ class ProductObserver
      */
 public function deleting(Product $product): void
 {
-    if ($product->orderItems()->withTrashed()->exists()) {
+    if ($product->orderItems()->exists()) {
         throw ValidationException::withMessages([
             'product' => 'Cannot delete a product that appears in existing orders.',
         ]);
@@ -48,7 +70,14 @@ public function deleting(Product $product): void
 }
     public function deleted(Product $product): void
     {
-        //
+           AuditLog::create([
+            'tenant_id' => $product->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Product::class,
+            'auditable_id' => $product->id,
+            'action' => 'deleted',
+            'changes' => null,
+        ]);
     }
 
     /**

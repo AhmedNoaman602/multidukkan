@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\SupplierPaymentController;
 use App\Http\Controllers\Api\V1\SupplierProductController;
 use App\Http\Controllers\Api\V1\AIController;
 use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\DashboardController;
 
@@ -86,6 +87,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);
     Route::post('/inventory/{inventory}/adjust', [InventoryController::class, 'adjust']);
 
+    Route::get('/audit-log', [AuditLogController::class, 'index']);
+    Route::get('/audit-log/inventory-batches/{batchId}', [AuditLogController::class, 'inventoryBatch']);
+
 
     Route::get('/units', [UnitController::class, 'index']);
     Route::post('/units', [UnitController::class, 'store']);
@@ -95,6 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/purchase-orders', [PurchaseOrderController::class, 'index']);
     Route::post('/purchase-orders', [PurchaseOrderController::class, 'store']);
     Route::get('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show']);
+    Route::patch('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update']);
     Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->withTrashed();
 
     Route::get('/suppliers', [SupplierController::class, 'index']);
@@ -108,6 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/supplier-payments', [SupplierPaymentController::class, 'store']);
     Route::get('/supplier-payments', [SupplierPaymentController::class, 'index']);
+    Route::delete('/supplier-payments/{supplierPayment}', [SupplierPaymentController::class, 'destroy']);
 
     Route::get('suppliers/{supplier}/products', [SupplierController::class, 'products']);
     Route::post('suppliers/{supplier}/products/bulk', [SupplierProductController::class, 'bulkAttach']);

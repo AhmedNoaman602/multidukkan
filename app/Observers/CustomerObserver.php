@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Customer;
 use App\Services\LedgerService;
+use App\Models\AuditLog;
 use Illuminate\Validation\ValidationException;
 
 class CustomerObserver
@@ -13,7 +14,14 @@ class CustomerObserver
      */
     public function created(Customer $customer): void
     {
-        //
+        AuditLog::create([
+            'tenant_id' => $customer->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Customer::class,
+            'auditable_id' => $customer->id,
+            'action' => 'created',
+            'changes' => null,
+        ]);
     }
 
     /**
@@ -21,7 +29,21 @@ class CustomerObserver
      */
     public function updated(Customer $customer): void
     {
-        //
+        $changes = collect($customer->getchanges())
+                    ->except('updated_at')
+                    ->mapWithKeys(fn ($newValue, $field) => [
+                         $field => [$customer->getOriginal($field), $newValue]
+                         ])
+                    ->toArray();
+
+        AuditLog::create([
+            'tenant_id' => $customer->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Customer::class,
+            'auditable_id' => $customer->id,
+            'action' => 'updated',
+            'changes' => $changes,
+        ]);
     }
 
 public function deleting(Customer $customer): void
@@ -32,7 +54,7 @@ public function deleting(Customer $customer): void
         ]);
     }
 
-    if ($customer->payments()->withTrashed()->exists()) {
+    if ($customer->payments()->exists()) {
         throw ValidationException::withMessages([
             'customer' => 'Cannot delete a customer who has existing payments.',
         ]);
@@ -52,7 +74,14 @@ public function deleting(Customer $customer): void
      */
     public function deleted(Customer $customer): void
     {
-        //
+        AuditLog::create([
+            'tenant_id' => $customer->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Customer::class,
+            'auditable_id' => $customer->id,
+            'action' => 'deleted',
+            'changes' => null,
+        ]);
     }
 
     /**

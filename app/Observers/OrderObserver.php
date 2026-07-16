@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Order;
+use App\Models\AuditLog;
 use Illuminate\Validation\ValidationException;
 class OrderObserver
 {
@@ -16,10 +17,28 @@ class OrderObserver
 
     /**
      * Handle the Order "updated" event.
+     *
+     * Deliberately does not log 'created'/'deleted' here — ledger_entries'
+     * ORDER_CHARGE already owns the creation moment; logging both would show
+     * the same event twice in the merged activity feed.
      */
     public function updated(Order $order): void
     {
-        //
+        $changes = collect($order->getChanges())
+            ->except('updated_at')
+            ->mapWithKeys(fn ($newValue, $field) => [
+                $field => [$order->getOriginal($field), $newValue]
+            ])
+            ->toArray();
+
+        AuditLog::create([
+            'tenant_id' => $order->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Order::class,
+            'auditable_id' => $order->id,
+            'action' => 'updated',
+            'changes' => $changes,
+        ]);
     }
 
     public function updating(Order $order): void

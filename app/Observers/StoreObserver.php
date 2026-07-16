@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Store;
+use App\Models\AuditLog;
 use Illuminate\Validation\ValidationException;
 
 class StoreObserver
@@ -12,7 +13,14 @@ class StoreObserver
      */
     public function created(Store $store): void
     {
-        
+        AuditLog::create([
+            'tenant_id' => $store->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Store::class,
+            'auditable_id' => $store->id,
+            'action' => 'created',
+            'changes' => null,
+        ]);
     }
 
     /**
@@ -20,7 +28,21 @@ class StoreObserver
      */
     public function updated(Store $store): void
     {
-        //
+        $changes = collect($store->getChanges())
+            ->except('updated_at')
+            ->mapWithKeys(fn ($newValue, $field) => [
+                $field => [$store->getOriginal($field), $newValue]
+            ])
+            ->toArray();
+
+        AuditLog::create([
+            'tenant_id' => $store->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Store::class,
+            'auditable_id' => $store->id,
+            'action' => 'updated',
+            'changes' => $changes,
+        ]);
     }
 
     public function deleting(Store $store): void
@@ -50,7 +72,14 @@ class StoreObserver
      */
     public function deleted(Store $store): void
     {
-        //
+        AuditLog::create([
+            'tenant_id' => $store->tenant_id,
+            'user_id' => auth()->id(),
+            'auditable_type' => Store::class,
+            'auditable_id' => $store->id,
+            'action' => 'deleted',
+            'changes' => null,
+        ]);
     }
 
     /**
