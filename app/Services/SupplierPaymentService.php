@@ -55,6 +55,7 @@ if (!empty($data['purchase_order_id'])) {
         'payment_id'        => $payment->id,
         'amount'            => $applyAmount,
         'invoice_number'   => $order->invoice_number,
+        'user_id'           => $user->id,
     ]);
 
     return [$payment];
@@ -62,12 +63,8 @@ if (!empty($data['purchase_order_id'])) {
 
             $PurchaseOrders = PurchaseOrder::where('supplier_id', $supplierId)
     ->where('tenant_id', $user->tenant_id)
+    ->whereUnpaid()
     ->with('supplierPayments')
-    ->whereColumn(
-        DB::raw('(SELECT COALESCE(SUM(amount), 0) FROM supplier_payments WHERE supplier_payments.purchase_order_id = purchase_orders.id)'),
-        '<',
-        DB::raw('total')
-    )
     ->orderBy('created_at', 'asc')
     ->get();
 
@@ -106,7 +103,8 @@ if ($remaining > $totalOwed) {
             'supplier_id' => $supplierId,
             'payment_id' => $payment->id,
             'amount' => $applyAmount,
-            'invoice_number'=> $order->invoice_number
+            'invoice_number'=> $order->invoice_number,
+            'user_id' => $user->id,
         ]);
 
         $remaining = round($remaining - $applyAmount, 2);
@@ -115,6 +113,29 @@ if ($remaining > $totalOwed) {
 
     return $payments;
             
+        });
+    }
+
+    /**
+     * Reverse (void) a supplier payment entirely — no partial-refund concept exists
+     * for supplier payments. Posts a SUPPLIER_PAYMENT_REVERSAL ledger entry for the
+     * full amount, then removes the payment record — mirrors how OrderService::cancelOrder
+     * hard-deletes credit Payment rows once their ledger effect has been reversed;
+     * the ledger entries are what balance math depends on, not the payment row itself.
+     */
+    public function reversePayment(SupplierPayment $payment, User $user): void
+    {
+        DB::transaction(function () use ($payment, $user) {
+            $this->ledger->reverseSupplierPayment([
+                'tenant_id'      => $payment->tenant_id,
+                'supplier_id'    => $payment->supplier_id,
+                'payment_id'     => $payment->id,
+                'amount'         => $payment->amount,
+                'invoice_number' => $payment->purchaseOrder?->invoice_number,
+                'user_id'        => $user->id,
+            ]);
+
+            $payment->delete();
         });
     }
 }

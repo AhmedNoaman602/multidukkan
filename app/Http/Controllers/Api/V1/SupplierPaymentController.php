@@ -47,7 +47,20 @@ class SupplierPaymentController extends Controller
         }catch(\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
-        
+
+    }
+
+    public function destroy(SupplierPayment $supplierPayment)
+    {
+        $this->authorize('delete', $supplierPayment);
+
+        if ($supplierPayment->tenant_id !== auth()->user()->tenant_id) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $this->supplierPaymentService->reversePayment($supplierPayment, auth()->user());
+
+        return response()->json(['message' => 'Payment reversed successfully.'], 200);
     }
 }
 

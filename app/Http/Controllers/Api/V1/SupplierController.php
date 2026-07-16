@@ -7,6 +7,7 @@ use App\Http\Requests\StoreSupplierRequest;
 use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
 use App\Models\Product;
+use App\Models\SupplierPayment;
 use App\Http\Resources\SupplierResource;
 use App\Http\Resources\PurchaseOrderResource; 
 use Illuminate\Http\Request;
@@ -143,6 +144,19 @@ class SupplierController extends Controller
 
     $totalStock = $products->sum(fn($p) => $p->inventories->sum('quantity'));
 
+    $payments = SupplierPayment::where('tenant_id', $tenantId)
+        ->where('supplier_id', $supplier->id)
+        ->with('purchaseOrder:id,invoice_number')
+        ->orderByDesc('paid_at')
+        ->get()
+        ->map(fn($p) => [
+            'id'                => $p->id,
+            'amount'            => $p->amount,
+            'method'            => $p->method,
+            'paid_at'           => $p->paid_at,
+            'invoice_number'    => $p->purchaseOrder?->invoice_number ?? '—',
+            'purchase_order_id' => $p->purchase_order_id,
+        ]);
 
     return response()->json([
         'supplier_id'     => $supplier->id,
@@ -150,12 +164,13 @@ class SupplierController extends Controller
         'balance'         => $ledger->getSupplierBalance($tenantId, $supplier->id),
         'history'         => $ledger->getHistory($tenantId, null, $supplier->id),
         'purchase_orders' => PurchaseOrderResource::collection($supplier->purchaseOrders()
-        ->with(['items', 'items.product', 'supplierPayments']) 
+        ->with(['items', 'items.product', 'supplierPayments'])
         ->orderByDesc('created_at')
         ->get()),
         'total_products' => $productsResource->count(),
         'total_stock' => $totalStock,
         'products' => $productsResource,
+        'payments' => $payments,
     ]);
 }
 
