@@ -1,0 +1,54 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+
+class Expense extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $casts = [
+        'expense_date' => 'date',
+        'amount' => 'decimal:2',
+    ];
+
+    protected $fillable = [
+        'tenant_id',
+        'store_id',
+        'category',
+        'amount',
+        'description',
+        'expense_date',
+        'created_by',
+    ];
+
+    const CATEGORIES = [
+        'SALARIES',
+        'RENT',
+        'UTILITIES',
+        'TRANSPORTATION',
+        'INTERNET',
+        'MAINTENANCE',
+        'SUPPLIES',
+        'MISCELLANEOUS'
+    ];
+
+    public function tenant()
+    {
+        return $this->belongsTo(Tenant::class);
+    }
+
+    public function store()
+    {
+        return $this->belongsTo(Store::class);
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+}
