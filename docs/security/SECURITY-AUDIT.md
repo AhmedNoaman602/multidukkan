@@ -23,13 +23,13 @@ I traced every route that binds or accepts an ID, following it through validatio
 
 The isolation is currently correct but **structurally fragile**: it depends on every controller *remembering* to check, because there is no model-level global tenant scope. That is the main architectural risk.
 
-The single item that must be fixed **before production** is Laravel Telescope shipping enabled (it can persist plaintext login passwords into the database and exposes an endpoint). Everything else is High/Medium/Low.
+The single Critical item, Laravel Telescope shipping enabled in production (it could persist plaintext login passwords into the database and exposed an endpoint), is **✅ resolved as of 2026-07-20** — see C-01. Everything else is High/Medium/Low.
 
 ### Findings at a glance
 
 | Sev | ID | Title |
 |-----|----|-------|
-| 🔴 Critical | C-01 | Telescope registered/enabled in production — logs credentials, exposes `/telescope` |
+| 🔴 Critical | C-01 | Telescope registered/enabled in production — logs credentials, exposes `/telescope` — ✅ Resolved |
 | 🟠 High | H-01 | No model-level global tenant scope — isolation depends on never forgetting a manual check |
 | 🟡 Medium | M-01 | Refund / payment double-spend race (no `lockForUpdate` between validation and write) |
 | 🟡 Medium | M-02 | Direct inventory-quantity writes bypass the append-only `inventory_transactions` log |
@@ -100,6 +100,8 @@ No cross-tenant read/write path is currently reachable. The residual risk is **H
 ### C-01 — Laravel Telescope is registered and enabled in production
 *(previously tracked as H-01)*
 
+**Status: ✅ Resolved 2026-07-20** — see Resolution below.
+
 - **Severity:** 🔴 Critical — fix before production.
 - **Files:** `bootstrap/providers.php` (registers `TelescopeServiceProvider` unconditionally); `config/telescope.php:19` (`'enabled' => env('TELESCOPE_ENABLED', true)`); `config/telescope.php:45` (`'path' => 'telescope'`); `app/Providers/TelescopeServiceProvider.php` (`gate()`, `hideSensitiveRequestDetails()`); `composer.json:14` (`laravel/telescope` in `require-dev`).
 - **Weakness:** `TelescopeServiceProvider` is registered for all environments and Telescope defaults to `enabled = true`. Its `RequestWatcher` records request bodies into `telescope_entries`. `hideSensitiveRequestDetails()` hides only `_token` and cookie headers — **not** `password`/`password_confirmation` — so plaintext credentials submitted to `/api/login` and `/api/register` can be persisted to the database. The `/telescope` UI is reachable and gated only by `viewTelescope`, whose allow-list is empty (currently denies everyone) — one edit or an `APP_ENV=local` slip turns that into full request/DB/credential exposure. Because `bootstrap/providers.php` hard-references the class, production must deploy *with* dev deps, so Telescope is present in prod.
@@ -108,6 +110,14 @@ No cross-tenant read/write path is currently reachable. The residual risk is **H
 - **Affected data:** All request bodies (incl. passwords), all DB queries/bindings, across every tenant.
 - **Recommended fix:** (1) Register `TelescopeServiceProvider` only in `local` (conditional registration; drop it from `bootstrap/providers.php`). (2) Set `TELESCOPE_ENABLED=false` in production regardless. (3) Add `password`, `password_confirmation` to `Telescope::hideRequestParameters`. (4) Deploy prod with `composer install --no-dev` once the provider is conditional.
 - **Verification:** In a prod-like build, `/telescope` → 404; a login writes no row to `telescope_entries`; `php artisan about` shows Telescope disabled.
+- **Resolution (2026-07-20):** Fixed with one more layer than originally recommended above — this write-up didn't account for Laravel's package auto-discovery, which registers the *vendor's own* `Laravel\Telescope\TelescopeServiceProvider` (the class that actually owns the `/telescope` routes and watchers) independently of `bootstrap/providers.php`, any time the package is physically present in `vendor/`. Simply removing the manual registration line would not have closed that path. Implemented:
+  1. `composer.json` — added `laravel/telescope` to `extra.laravel.dont-discover`, suppressing auto-discovery in every environment regardless of `--no-dev`; regenerated `bootstrap/cache/packages.php` via `composer dump-autoload` to confirm it took effect.
+  2. `bootstrap/providers.php` — removed the unconditional `App\Providers\TelescopeServiceProvider::class` registration.
+  3. `app/Providers/AppServiceProvider.php::register()` — now explicitly registers both `Laravel\Telescope\TelescopeServiceProvider` and `App\Providers\TelescopeServiceProvider`, but only when `$this->app->environment('local')` is true (required since discovery is now suppressed).
+  4. `app/Providers/TelescopeServiceProvider.php::hideSensitiveRequestDetails()` — removed the now-redundant `environment('local')` early-return (the provider only ever loads in `local` now, so the guard would have made hiding permanently dead code) and added `password`/`password_confirmation` to `hideRequestParameters`, as defense-in-depth in case the local-only guard is ever loosened later.
+  5. `TELESCOPE_ENABLED=false` documented in production `.env` (not committed); `.env.example` documents the flag with a comment that it must be `false` outside local/staging.
+  6. `README.md` — added a Deployment section noting `composer install --no-dev` and `TELESCOPE_ENABLED=false` as required (currently manual, unenforced by CI) production steps.
+  - Verified locally: with `APP_ENV=production` + `TELESCOPE_ENABLED=false`, `php artisan route:list --path=telescope` returns no rows and `GET /telescope` → 404. With `APP_ENV=local`, Telescope continues to work normally for development.
 
 ---
 

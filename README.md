@@ -27,6 +27,15 @@ Laravel has the most extensive and thorough [documentation](https://laravel.com/
 
 If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
 
+## Deployment
+
+Production builds must:
+
+- Run `composer install --no-dev --optimize-autoloader` — dev-only tooling (Telescope, Debugbar, Clockwork, etc.) must never be present in a production `vendor/` directory.
+- Set `TELESCOPE_ENABLED=false` in the production `.env`.
+
+Neither of these is currently enforced by CI (no pipeline exists in this repo yet) — treat them as a manual pre-deploy checklist until one is added. See `docs/security/SECURITY-AUDIT.md` (finding C-01) for the incident this addresses.
+
 ## Laravel Sponsors
 
 We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
