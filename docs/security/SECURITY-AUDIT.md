@@ -175,6 +175,7 @@ No cross-tenant read/write path is currently reachable. The residual risk is **H
 - **Recommended fix:** Set `'engine' => 'InnoDB'` on the MySQL connection; add a deploy check asserting critical tables report `ENGINE=InnoDB`.
 - **Verification:** `SHOW TABLE STATUS` → all business tables InnoDB; a mid-transaction FK violation rolls back fully.
 - **Test-fidelity note:** `.env.example` uses `DB_CONNECTION=sqlite` and tests run on SQLite, which won't reproduce MySQL engine/strict/FK behavior — consider a MySQL CI job for money/stock tests.
+- **Status:** Fixed — `config/database.php` now sets `'engine' => 'InnoDB'` on both the `mysql` and `mariadb` connections. `php artisan db:verify-engine` (`app/Console/Commands/VerifyDatabaseEngine.php`) queries `information_schema.TABLES` and fails (non-zero exit) if any table isn't InnoDB; it must run as a deploy step after `migrate` and before traffic is cut over. No CI job exists in this repo yet (no `.github/workflows`) — the MySQL-backed CI job in the test-fidelity note above remains a follow-up, not covered by this fix.
 
 ### M-05 — Supplier-payment reversal is not idempotent
 
