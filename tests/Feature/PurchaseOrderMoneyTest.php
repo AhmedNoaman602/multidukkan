@@ -7,9 +7,11 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Store;
 use App\Models\Supplier;
+use App\Models\SupplierPayment;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\SupplierPaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -238,6 +240,73 @@ class PurchaseOrderMoneyTest extends TestCase
             ->assertStatus(200);
 
         $this->assertSoftDeleted('purchase_orders', ['id' => $poId]);
+    }
+
+    public function test_repeat_reversal_of_the_same_supplier_payment_is_rejected(): void
+    {
+        $poId = $this->createPurchaseOrder([
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id, 'unit_price' => 100],
+            ],
+        ])->assertStatus(201)->json('data.id');
+
+        $paymentId = $this->actingAs($this->user)->postJson('/api/supplier-payments', [
+            'supplier_id'       => $this->supplier->id,
+            'purchase_order_id' => $poId,
+            'amount'            => 50,
+            'method'            => 'cash',
+        ])->assertStatus(201)->json('payments.0.id');
+
+        $this->actingAs($this->user)
+            ->deleteJson("/api/supplier-payments/{$paymentId}")
+            ->assertStatus(200);
+
+        // Second attempt: the payment is already gone, and must be rejected cleanly
+        // instead of posting a second reversal or silently no-op-succeeding.
+        $this->actingAs($this->user)
+            ->deleteJson("/api/supplier-payments/{$paymentId}")
+            ->assertStatus(404);
+
+        $this->assertEquals(1, \App\Models\LedgerEntry::where([
+            'reference_type' => 'supplier_payment',
+            'reference_id'   => $paymentId,
+            'type'           => 'SUPPLIER_PAYMENT_REVERSAL',
+        ])->count());
+    }
+
+    public function test_concurrent_reversal_of_the_same_supplier_payment_is_rejected(): void
+    {
+        $poId = $this->createPurchaseOrder([
+            'items' => [
+                ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id, 'unit_price' => 100],
+            ],
+        ])->assertStatus(201)->json('data.id');
+
+        $paymentId = $this->actingAs($this->user)->postJson('/api/supplier-payments', [
+            'supplier_id'       => $this->supplier->id,
+            'purchase_order_id' => $poId,
+            'amount'            => 50,
+            'method'            => 'cash',
+        ])->assertStatus(201)->json('payments.0.id');
+
+        // Simulate two concurrent DELETE requests: both resolve their own copy of the
+        // payment via route-model binding *before* either transaction starts.
+        $requestA = SupplierPayment::find($paymentId);
+        $requestB = SupplierPayment::find($paymentId);
+
+        $service = $this->app->make(SupplierPaymentService::class);
+
+        $service->reversePayment($requestA, $this->user);
+
+        $this->assertDatabaseMissing('supplier_payments', ['id' => $paymentId]);
+        $this->assertEquals(1, \App\Models\LedgerEntry::where([
+            'reference_type' => 'supplier_payment',
+            'reference_id'   => $paymentId,
+            'type'           => 'SUPPLIER_PAYMENT_REVERSAL',
+        ])->count());
+
+        $this->expectException(\InvalidArgumentException::class);
+        $service->reversePayment($requestB, $this->user);
     }
 
     public function test_supplier_summary_includes_individual_payments(): void

@@ -58,9 +58,13 @@ class SupplierPaymentController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $this->supplierPaymentService->reversePayment($supplierPayment, auth()->user());
+        try {
+            $this->supplierPaymentService->reversePayment($supplierPayment, auth()->user());
 
-        return response()->json(['message' => 'Payment reversed successfully.'], 200);
+            return response()->json(['message' => 'Payment reversed successfully.'], 200);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
     }
 }
 

@@ -126,16 +126,22 @@ if ($remaining > $totalOwed) {
     public function reversePayment(SupplierPayment $payment, User $user): void
     {
         DB::transaction(function () use ($payment, $user) {
+            $locked = SupplierPayment::where('id', $payment->id)->lockForUpdate()->first();
+
+            if (! $locked) {
+                throw new \InvalidArgumentException('This payment has already been reversed.');
+            }
+
             $this->ledger->reverseSupplierPayment([
-                'tenant_id'      => $payment->tenant_id,
-                'supplier_id'    => $payment->supplier_id,
-                'payment_id'     => $payment->id,
-                'amount'         => $payment->amount,
-                'invoice_number' => $payment->purchaseOrder?->invoice_number,
+                'tenant_id'      => $locked->tenant_id,
+                'supplier_id'    => $locked->supplier_id,
+                'payment_id'     => $locked->id,
+                'amount'         => $locked->amount,
+                'invoice_number' => $locked->purchaseOrder?->invoice_number,
                 'user_id'        => $user->id,
             ]);
 
-            $payment->delete();
+            $locked->delete();
         });
     }
 }
