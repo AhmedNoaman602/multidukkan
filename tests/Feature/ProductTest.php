@@ -6,12 +6,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;
 use App\Models\Customer;
+use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Store;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\Warehouse;
 
 class ProductTest extends TestCase
 {
@@ -81,5 +83,168 @@ public function test_cannot_delete_product_with_order_history(): void
 
     $this->assertDatabaseHas('products', ['id' => $product->id]);
     $this->assertDatabaseHas('order_items', ['product_id' => $product->id]);
+}
+
+public function test_increasing_stock_via_product_edit_logs_inventory_transaction(): void
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'role' => 'tenant_admin',
+        'store_id' => null,
+    ]);
+    $store = Store::factory()->create(['tenant_id' => $tenant->id]);
+    $warehouse = Warehouse::factory()->create(['tenant_id' => $tenant->id, 'store_id' => $store->id]);
+    $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+    $inventory = Inventory::factory()->create([
+        'tenant_id' => $tenant->id,
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 50,
+        'threshold' => 10,
+    ]);
+
+    $this->actingAs($user)->putJson("/api/products/{$product->id}", [
+        'name' => $product->name,
+        'sku' => (string) $product->sku,
+        'price' => $product->price,
+        'unit' => $product->unit,
+        'stocks' => [
+            ['warehouse_id' => $warehouse->id, 'quantity' => 65],
+        ],
+    ])->assertOk();
+
+    $this->assertDatabaseHas('inventory', [
+        'id' => $inventory->id,
+        'quantity' => 65,
+    ]);
+    $this->assertDatabaseHas('inventory_transactions', [
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 15,
+        'type' => 'ADJUSTMENT_IN',
+        'user_id' => $user->id,
+    ]);
+}
+
+public function test_decreasing_stock_via_product_edit_logs_inventory_transaction(): void
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'role' => 'tenant_admin',
+        'store_id' => null,
+    ]);
+    $store = Store::factory()->create(['tenant_id' => $tenant->id]);
+    $warehouse = Warehouse::factory()->create(['tenant_id' => $tenant->id, 'store_id' => $store->id]);
+    $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+    $inventory = Inventory::factory()->create([
+        'tenant_id' => $tenant->id,
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 50,
+        'threshold' => 10,
+    ]);
+
+    $this->actingAs($user)->putJson("/api/products/{$product->id}", [
+        'name' => $product->name,
+        'sku' => (string) $product->sku,
+        'price' => $product->price,
+        'unit' => $product->unit,
+        'stocks' => [
+            ['warehouse_id' => $warehouse->id, 'quantity' => 30],
+        ],
+    ])->assertOk();
+
+    $this->assertDatabaseHas('inventory', [
+        'id' => $inventory->id,
+        'quantity' => 30,
+    ]);
+    $this->assertDatabaseHas('inventory_transactions', [
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 20,
+        'type' => 'ADJUSTMENT_OUT',
+        'user_id' => $user->id,
+    ]);
+}
+
+public function test_adding_new_warehouse_stock_via_product_edit_logs_inventory_transaction(): void
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'role' => 'tenant_admin',
+        'store_id' => null,
+    ]);
+    $store = Store::factory()->create(['tenant_id' => $tenant->id]);
+    $warehouse = Warehouse::factory()->create(['tenant_id' => $tenant->id, 'store_id' => $store->id]);
+    $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+
+    // No inventory row for this warehouse yet — the stocks[] editor is creating one for the
+    // first time, which should still log the initial quantity as an audited transaction.
+    $this->actingAs($user)->putJson("/api/products/{$product->id}", [
+        'name' => $product->name,
+        'sku' => (string) $product->sku,
+        'price' => $product->price,
+        'unit' => $product->unit,
+        'stocks' => [
+            ['warehouse_id' => $warehouse->id, 'quantity' => 20, 'threshold' => 5],
+        ],
+    ])->assertOk();
+
+    $this->assertDatabaseHas('inventory', [
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 20,
+        'threshold' => 5,
+    ]);
+    $this->assertDatabaseHas('inventory_transactions', [
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 20,
+        'type' => 'ADJUSTMENT_IN',
+        'user_id' => $user->id,
+    ]);
+}
+
+public function test_editing_product_stocks_without_quantity_only_updates_threshold(): void
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'role' => 'tenant_admin',
+        'store_id' => null,
+    ]);
+    $store = Store::factory()->create(['tenant_id' => $tenant->id]);
+    $warehouse = Warehouse::factory()->create(['tenant_id' => $tenant->id, 'store_id' => $store->id]);
+    $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+    $inventory = Inventory::factory()->create([
+        'tenant_id' => $tenant->id,
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 50,
+        'threshold' => 10,
+    ]);
+
+    $this->actingAs($user)->putJson("/api/products/{$product->id}", [
+        'name' => $product->name,
+        'sku' => (string) $product->sku,
+        'price' => $product->price,
+        'unit' => $product->unit,
+        'stocks' => [
+            ['warehouse_id' => $warehouse->id, 'threshold' => 25],
+        ],
+    ])->assertOk();
+
+    $this->assertDatabaseHas('inventory', [
+        'id' => $inventory->id,
+        'quantity' => 50,
+        'threshold' => 25,
+    ]);
+    $this->assertDatabaseMissing('inventory_transactions', [
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+    ]);
 }
 }

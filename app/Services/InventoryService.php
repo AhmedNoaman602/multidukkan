@@ -74,10 +74,10 @@ class InventoryService
         'batch_id'       => $batchId,
     ]);
    }
-   public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base', ?int $userId = null, ?string $notes = null): void{
-   DB::transaction(function() use ($productId, $warehouseId, $quantity, $direction, $unitType, $userId, $notes){
+   public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base', ?int $userId = null, ?string $notes = null, ?string $batchId = null): void{
+   DB::transaction(function() use ($productId, $warehouseId, $quantity, $direction, $unitType, $userId, $notes, $batchId){
 
-     
+
    $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
             ->firstOrFail();
@@ -109,8 +109,47 @@ class InventoryService
             'quantity'       => $quantity,
             'user_id'        => $userId,
             'notes'          => $notes,
+            'batch_id'       => $batchId,
         ]);
    }
-   ); 
+   );
    }
+
+    /**
+     * Set a warehouse's stock to an absolute quantity, going through adjustStock so the
+     * delta is logged as an inventory_transactions row. Used by the product stocks[] editor,
+     * the one remaining path that sets stock by absolute value rather than by delta.
+     */
+    public function setStock(int $productId, int $warehouseId, int $tenantId, ?int $quantity, ?int $threshold = null, ?int $userId = null, ?string $notes = null, ?string $batchId = null): Inventory
+    {
+        return DB::transaction(function () use ($productId, $warehouseId, $tenantId, $quantity, $threshold, $userId, $notes, $batchId) {
+            $inventory = Inventory::where('warehouse_id', $warehouseId)
+                ->where('product_id', $productId)
+                ->first();
+
+            if (!$inventory) {
+                $inventory = Inventory::create([
+                    'tenant_id'    => $tenantId,
+                    'warehouse_id' => $warehouseId,
+                    'product_id'   => $productId,
+                    'quantity'     => 0,
+                    'threshold'    => $threshold ?? 10,
+                ]);
+            } elseif ($threshold !== null) {
+                $inventory->update(['threshold' => $threshold]);
+            }
+
+            if ($quantity !== null) {
+                $delta = $quantity - $inventory->quantity;
+
+                if ($delta > 0) {
+                    $this->adjustStock($productId, $warehouseId, $delta, 'in', 'base', $userId, $notes, $batchId);
+                } elseif ($delta < 0) {
+                    $this->adjustStock($productId, $warehouseId, abs($delta), 'out', 'base', $userId, $notes, $batchId);
+                }
+            }
+
+            return $inventory->fresh();
+        });
+    }
 }

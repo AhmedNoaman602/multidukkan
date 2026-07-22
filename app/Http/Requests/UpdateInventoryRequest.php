@@ -24,8 +24,7 @@ class UpdateInventoryRequest extends FormRequest
     {
         
         return [
-            'quantity' => 'required|integer|min:0',
-            'threshold' => 'nullable|integer|min:0',
+            'threshold' => 'required|integer|min:0',
         ];
     }
 }

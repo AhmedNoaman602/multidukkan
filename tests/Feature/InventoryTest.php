@@ -87,14 +87,34 @@ class InventoryTest extends TestCase
             ]);
       }
 
-      public function test_can_update_inventory() : void {
+      public function test_can_update_inventory_threshold() : void {
         $this->actingAs($this->user)->putJson("/api/inventory/{$this->inventory->id}", [
-            'quantity' => 60,
+            'threshold' => 20,
         ])->assertStatus(200);
 
         $this->assertDatabaseHas('inventory', [
             'id' => $this->inventory->id,
-            'quantity' => 60,
+            'quantity' => 50,
+            'threshold' => 20,
+        ]);
+      }
+
+      public function test_update_inventory_ignores_quantity_field() : void {
+        // quantity must go through the /adjust endpoint (audit trail); PUT /inventory/{id}
+        // no longer accepts it at all, so it's silently dropped by validation.
+        $this->actingAs($this->user)->putJson("/api/inventory/{$this->inventory->id}", [
+            'threshold' => 20,
+            'quantity' => 999,
+        ])->assertStatus(200);
+
+        $this->assertDatabaseHas('inventory', [
+            'id' => $this->inventory->id,
+            'quantity' => 50,
+            'threshold' => 20,
+        ]);
+        $this->assertDatabaseMissing('inventory_transactions', [
+            'warehouse_id' => $this->warehouse->id,
+            'product_id'   => $this->product->id,
         ]);
       }
     

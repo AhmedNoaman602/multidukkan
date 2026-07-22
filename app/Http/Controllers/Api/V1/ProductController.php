@@ -7,17 +7,19 @@ use Illuminate\Http\Request;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
 use App\Models\Product;
-use App\Models\Inventory;
 use App\Http\Resources\ProductResource;
 use App\Services\ProductService;
+use App\Services\InventoryService;
 use App\Http\Resources\ProductSupplierResource;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function __construct(protected ProductService $productService) {}
+    public function __construct(protected ProductService $productService, protected InventoryService $inventoryService) {}
 
     public function index(Request $request)
 {
@@ -102,29 +104,29 @@ class ProductController extends Controller
 
         $user = auth()->user();
 
-        foreach ($request->stocks ?? [] as $stock) {
-        if (empty($stock['warehouse_id'])) continue;
+        $batchId = (string) Str::uuid();
 
-        $existing = Inventory::where('product_id', $product->id)
-            ->where('warehouse_id', $stock['warehouse_id'])
-            ->first();
+        try {
+            foreach ($request->stocks ?? [] as $stock) {
+                if (empty($stock['warehouse_id'])) continue;
 
-        if ($existing) {
-            $existing->update([
-                'quantity' => $stock['quantity'] ?? $existing->quantity,
-                'threshold' => $stock['threshold'] ?? $existing->threshold,
-            ]);
-        } else {
-            Inventory::create([
-                'tenant_id'    => $user->tenant_id,
-                'warehouse_id' => $stock['warehouse_id'],
-                'product_id'   => $product->id,
-                'quantity'     => $stock['quantity'] ?? 0,
-                'threshold'    => $stock['threshold'] ?? 10,
-            ]);
+                $this->inventoryService->setStock(
+                    $product->id,
+                    $stock['warehouse_id'],
+                    $user->tenant_id,
+                    $stock['quantity'] ?? null,
+                    $stock['threshold'] ?? null,
+                    $user->id,
+                    'Product stock edit',
+                    $batchId
+                );
+            }
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $e->errors(),
+            ], 422);
         }
-    }
-
 
         return new ProductResource($product);
     }
