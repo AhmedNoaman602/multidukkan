@@ -34,7 +34,6 @@
 
 ## Known open defects (fix only when asked; don't be surprised by them)
 
-- `PaymentService::processDirectPayment`: `throw new \ValidationException(...)` — nonexistent class, fatals on the already-paid path.
 - Invoice numbers collide after 999/year (substr(-3) parsing) — both `OrderService` and `PurchaseOrderService`.
 - `adjustItem` not transaction-wrapped; `adjustPayment` computes but never uses `$otherPaymentsTotal`.
 - Stale `BUG:` comment in `PurchaseOrderService` describing already-fixed cost averaging.
