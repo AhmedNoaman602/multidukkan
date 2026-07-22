@@ -220,4 +220,44 @@ class OrderMoneyTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors(['amount']);
     }
+
+    public function test_order_level_refund_distributes_across_multiple_payments_fifo(): void
+    {
+        $response = $this->createOrder()->assertStatus(201); // total 600
+        $orderId  = $response->json('id');
+
+        $paymentA = Payment::factory()->create([
+            'tenant_id'   => $this->tenant->id,
+            'order_id'    => $orderId,
+            'customer_id' => $this->customer->id,
+            'amount'      => 200,
+            'method'      => 'cash',
+        ]);
+        $paymentB = Payment::factory()->create([
+            'tenant_id'   => $this->tenant->id,
+            'order_id'    => $orderId,
+            'customer_id' => $this->customer->id,
+            'amount'      => 200,
+            'method'      => 'cash',
+        ]);
+
+        // Refund 250: fully consumes paymentA (200) then 50 from paymentB — exercises the
+        // locked-collection FIFO path in LedgerService::issueRefund's order-level case.
+        $this->actingAs($this->user)
+            ->postJson("/api/customers/{$this->customer->id}/refund", [
+                'amount'   => 250,
+                'method'   => 'cash',
+                'order_id' => $orderId,
+            ])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('payments', ['id' => $paymentA->id, 'refunded_amount' => 200]);
+        $this->assertDatabaseHas('payments', ['id' => $paymentB->id, 'refunded_amount' => 50]);
+        $this->assertDatabaseHas('ledger_entries', [
+            'reference_type' => 'order',
+            'reference_id'   => $orderId,
+            'type'           => 'REFUND',
+            'amount'         => 250,
+        ]);
+    }
 }

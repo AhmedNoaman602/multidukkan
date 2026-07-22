@@ -386,7 +386,10 @@ public function restoreCredit(array $data): LedgerEntry
             
         if (!empty($data['payment_id_target'])) {
             // Case 1: Refund from a specific target payment.
-            $payment = Payment::findOrFail($data['payment_id_target']);
+            // lockForUpdate() so a concurrent refund on this same payment blocks until
+            // this transaction commits, then re-reads the current refunded_amount instead
+            // of racing against a stale value.
+            $payment = Payment::lockForUpdate()->findOrFail($data['payment_id_target']);
             if ($payment->is_auto_reversible) {
                 throw ValidationException::withMessages([
                     'payment' => 'Credit payments cannot be refunded as cash. Cancel the order instead.'
@@ -408,8 +411,15 @@ public function restoreCredit(array $data): LedgerEntry
 
         } elseif(!empty($data['order_id']))  {
             // Case 2: Refund from an entire order.
-            // 1. Calculate total paid amount on this order that has not yet been refunded.
-            $totalPaid = $this->refundableForOrder($data['order_id']);
+            // Lock every candidate payment up front and derive the total from that same
+            // locked set, so the availability check and the writes below see identical data.
+            $payments = Payment::where('order_id', $data['order_id'])
+                ->cashOnly()
+                ->orderBy('id', 'asc')
+                ->lockForUpdate()
+                ->get();
+
+            $totalPaid = round($payments->sum(fn ($p) => $this->refundableForPayment($p)), 2);
 
             // Validate that the refund request doesn't exceed the total amount paid on the order.
             if ($data['amount'] > $totalPaid) {
@@ -418,12 +428,8 @@ public function restoreCredit(array $data): LedgerEntry
                 ]);
             }
 
-            // 2. Fetch all payments for this order and distribute the refund amount across them (FIFO order).
+            // Distribute the refund amount across the locked payments (FIFO order).
             $remaining = $data['amount'];
-            $payments  = Payment::where('order_id', $data['order_id'])
-                ->cashOnly()
-                ->orderBy('id', 'asc')
-                ->get();
 
             foreach ($payments as $payment) {
                 if ($remaining <= 0) break;

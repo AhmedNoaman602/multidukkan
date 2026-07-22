@@ -31,13 +31,21 @@ class PaymentService
         // Wrap the entire direct payment flow in a database transaction to guarantee data integrity.
         // If any step fails, all db updates (payment record, ledger entries, FIFO distribution) will roll back.
         return DB::transaction(function () use ($data , $user) {
-            // Retrieve the order being paid, eagerly loading its past payments.
-            $order = Order::with('payments')->findOrFail($data['order_id']);
+            // Must be the first query in this transaction: a locking read always returns the
+            // latest committed row, letting a request that was blocked on this lock see the
+            // other transaction's newly-inserted payment once it unblocks. An earlier plain
+            // read here would pin an older REPEATABLE READ snapshot and hide it.
+            $order = Order::lockForUpdate()->findOrFail($data['order_id']);
 
             // orders.total is the authoritative charge amount (ADR-004) — the sum of
             // payments already made towards it (excluding refunded amounts) is what's left to collect.
+            // Freshly queried (not eager-loaded before the lock) so it reflects any payment
+            // committed by a transaction we were just blocked behind.
             $orderTotal = $order->total;
-            $totalAlreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+            $totalAlreadyPaid = round(
+                Payment::where('order_id', $order->id)->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
+                2
+            );
 
             // If the order has already been fully paid off, reject any new direct payment attempts.
             if($totalAlreadyPaid >= $orderTotal){
@@ -116,11 +124,14 @@ class PaymentService
 
             // Query all unpaid orders for this customer in chronological order (oldest first).
             // We use SQL subqueries to fetch orders where the sum of payments is less than the total item cost.
+            // lockForUpdate() so a concurrent payment operation for the same customer (another
+            // auto-payment, or a direct payment's FIFO excess distribution) blocks on these rows
+            // instead of racing on stale "amount owed" figures.
             $orders = Order::where('customer_id', $customerId)
                 ->where('tenant_id', $user->tenant_id)
                 ->whereUnpaid()
-                ->with('payments')
                 ->orderBy('created_at', 'asc')
+                ->lockForUpdate()
                 ->get();
 
             $payments = [];
@@ -129,9 +140,14 @@ class PaymentService
             foreach ($orders as $order) {
                 if ($remaining <= 0) break;
 
-                // Calculate total order cost and the total amount already paid.
+                // Calculate total order cost and the total amount already paid. A locking read
+                // (not a plain sum) so it can't reuse a snapshot pinned by an earlier read in
+                // this transaction — see applyFifo for why that matters here too.
                 $orderTotal = $order->total;
-                $alreadyPaid = $order->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+                $alreadyPaid = round(
+                    Payment::where('order_id', $order->id)->lockForUpdate()->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
+                    2
+                );
                 $orderOwed  = round($orderTotal - $alreadyPaid, 2);
 
                 if ($orderOwed <= 0) continue;
@@ -194,12 +210,16 @@ class PaymentService
         ?string $paymentReference = null,
     ): float {
         // Query other unpaid orders (excluding the one that was just paid) starting from the oldest.
+        // lockForUpdate() for the same reason as processAutoPayment: this runs nested inside
+        // processDirectPayment's transaction, which already did an earlier plain read (its own
+        // order's payment sum) — that pins this transaction's REPEATABLE READ snapshot, so a
+        // plain sum() here would silently reuse it instead of seeing what the lock unblocks into.
         $unpaidOrders = Order::where('customer_id', $customerId)
             ->where('tenant_id', $user->tenant_id)
             ->where('id', '!=', $excludeOrderId)
             ->whereUnpaid()
-            ->with('payments')
             ->orderBy('created_at', 'asc')
+            ->lockForUpdate()
             ->get();
 
         $remaining = round($excess, 2);
@@ -210,7 +230,10 @@ class PaymentService
 
             // Calculate the outstanding balance for this order.
             $orderTotal = $unpaidOrder->total;
-            $alreadyPaid = $unpaidOrder->payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+            $alreadyPaid = round(
+                Payment::where('order_id', $unpaidOrder->id)->lockForUpdate()->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
+                2
+            );
             $orderOwed   = round($orderTotal - $alreadyPaid, 2);
 
             if ($orderOwed <= 0) continue;

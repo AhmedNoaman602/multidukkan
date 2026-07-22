@@ -163,6 +163,66 @@ class DirectPaymentTest extends TestCase
         $response->assertJsonPath('message', 'Order is already fully paid.');
     }
 
+    public function test_direct_overpayment_excess_distributes_fifo_across_other_unpaid_orders(): void
+    {
+        [
+            'tenant'   => $tenant,
+            'user'     => $user,
+            'customer' => $customer,
+            'store'    => $store,
+            'order'    => $order,
+        ] = $this->setupOrder(300);
+
+        $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+
+        $olderOther = Order::factory()->create([
+            'tenant_id'   => $tenant->id,
+            'store_id'    => $store->id,
+            'customer_id' => $customer->id,
+            'total'       => 100,
+            'created_at'  => now()->subDays(2),
+        ]);
+        OrderItem::factory()->create([
+            'order_id'   => $olderOther->id,
+            'product_id' => $product->id,
+            'quantity'   => 1,
+            'unit_price' => 100,
+            'unit_type'  => 'base',
+        ]);
+
+        $newerOther = Order::factory()->create([
+            'tenant_id'   => $tenant->id,
+            'store_id'    => $store->id,
+            'customer_id' => $customer->id,
+            'total'       => 200,
+            'created_at'  => now()->subDay(),
+        ]);
+        OrderItem::factory()->create([
+            'order_id'   => $newerOther->id,
+            'product_id' => $product->id,
+            'quantity'   => 1,
+            'unit_price' => 200,
+            'unit_type'  => 'base',
+        ]);
+
+        // Pay 500 on the 300 order: 300 settles it, 200 excess should FIFO into
+        // olderOther (100, fully) then newerOther (100, partially).
+        $response = $this->actingAs($user)->postJson('/api/payments', [
+            'order_id'    => $order->id,
+            'customer_id' => $customer->id,
+            'amount'      => 500,
+            'method'      => 'cash',
+        ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('payments', ['order_id' => $olderOther->id, 'amount' => 100]);
+        $this->assertDatabaseHas('payments', ['order_id' => $newerOther->id, 'amount' => 100]);
+        $this->assertDatabaseMissing('ledger_entries', [
+            'customer_id' => $customer->id,
+            'type'        => 'CREDIT_APPLY',
+        ]);
+    }
+
     public function test_direct_payment_requires_authentication(): void
     {
         $response = $this->postJson('/api/payments', [
