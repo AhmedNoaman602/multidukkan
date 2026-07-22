@@ -25,6 +25,14 @@ class PurchaseOrderObserver
      */
     public function updated(PurchaseOrder $purchaseOrder): void
     {
+        // Same insert-then-fill flow as OrderObserver: PurchaseOrder::create() writes the header
+        // with 'total' => 0, then PurchaseOrderService fills the real total via ->update(). That
+        // create-time write is owned by the PURCHASE_CHARGE ledger entry, not a genuine edit —
+        // skip it. wasRecentlyCreated is false on a fresh model loaded for a real PATCH edit.
+        if ($purchaseOrder->wasRecentlyCreated) {
+            return;
+        }
+
         $changes = collect($purchaseOrder->getChanges())
             ->except('updated_at')
             ->mapWithKeys(fn ($newValue, $field) => [

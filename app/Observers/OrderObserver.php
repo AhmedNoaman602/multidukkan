@@ -24,6 +24,16 @@ class OrderObserver
      */
     public function updated(Order $order): void
     {
+        // Order creation is a two-step insert-then-fill flow: Order::create() writes the header,
+        // then OrderService immediately does ->update(['total' => ...]) (and ->save() for a custom
+        // order_date). Those in-creation writes fire this observer too, but they are part of the
+        // creation moment — already owned by the ORDER_CHARGE ledger entry — not genuine edits.
+        // wasRecentlyCreated stays true on that same instance, but is false on a fresh model
+        // loaded for a real PATCH edit, so this cleanly skips only the phantom create-time writes.
+        if ($order->wasRecentlyCreated) {
+            return;
+        }
+
         $changes = collect($order->getChanges())
             ->except('updated_at')
             ->mapWithKeys(fn ($newValue, $field) => [

@@ -194,4 +194,50 @@ class AuditLogTest extends TestCase
             collect($detail)->pluck('product_name')->all()
         );
     }
+
+    public function test_creating_an_order_writes_no_updated_audit_entry(): void
+    {
+        // Regression: order creation is a two-step insert-then-fill flow (Order::create then
+        // ->update(['total']) + a ->save() for the custom order_date). Those in-creation writes
+        // must NOT surface as phantom "updated" activity rows — the ORDER_CHARGE ledger entry
+        // already owns the creation moment.
+        $order = $this->actingAs($this->user)->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
+            'items'       => [
+                ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id],
+            ],
+        ])->assertStatus(201)->json();
+
+        $this->assertDatabaseMissing('audit_logs', [
+            'auditable_type' => Order::class,
+            'auditable_id'   => $order['id'],
+            'action'         => 'updated',
+        ]);
+    }
+
+    public function test_editing_an_order_still_writes_an_updated_audit_entry(): void
+    {
+        $order = $this->actingAs($this->user)->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
+            'items'       => [
+                ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id],
+            ],
+        ])->assertStatus(201)->json();
+
+        // A genuine post-creation edit loads a fresh model (wasRecentlyCreated = false), so it
+        // must still be logged.
+        $this->actingAs($this->user)
+            ->patchJson("/api/orders/{$order['id']}", ['notes' => 'Edited note'])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'auditable_type' => Order::class,
+            'auditable_id'   => $order['id'],
+            'action'         => 'updated',
+        ]);
+    }
 }
