@@ -50,9 +50,8 @@ public function insights(): JsonResponse
 
     if ($orders->isEmpty()) {
         return response()->json([
-            'opportunity' => ['title' => 'لا توجد بيانات', 'body' => 'لا توجد بيانات مبيعات كافية في آخر 30 يوم.'],
-            'urgent'      => ['title' => '', 'body' => ''],
-            'trend'       => ['title' => '', 'body' => ''],
+            'no_data' => true,
+            'message' => 'لا توجد بيانات مبيعات كافية في آخر 30 يوم.',
         ]);
 }
 

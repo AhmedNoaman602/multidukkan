@@ -34,7 +34,7 @@ class AIService
         $this->provider = Provider::Groq;
         
         // Set the default LLM model
-        $this->model = 'llama-3.3-70b-versatile';    
+        $this->model = 'llama-3.3-70b-versatile';
     }
 
     /**
@@ -58,13 +58,23 @@ class AIService
                     new UserMessage($userMessage),
                 ])
                 ->generate();
-            
-            return $response->text;
+
+            return $this->stripThinking($response->text);
         } catch (\Exception $e) {
             // Log the error for internal tracking and throw a user-friendly exception
             Log::error('AI Service Error: ' . $e->getMessage());
             throw new \RuntimeException('AI service is currently unavailable. Please try again.');
         }
+    }
+
+    /**
+     * Some reasoning models (e.g. Groq's qwen models) emit their chain-of-thought inline as a
+     * <think>...</think> block ahead of the actual answer — Prism's Groq provider doesn't strip
+     * it the way its Anthropic/Mistral providers do, so it leaks straight through to end users.
+     */
+    private function stripThinking(string $text): string
+    {
+        return trim(preg_replace('/<think>.*?<\/think>/is', '', $text));
     }
 
     /**
@@ -77,13 +87,19 @@ class AIService
     public function generateDescription(string $productName, float $price): array
     {
         // Define system guidelines to enforce JSON structure only
-        $systemPrompt = 'You are writing product descriptions for a construction tools and hardware shop. 
-The product is a tool, not food. Write a professional, practical description without. Respond with valid JSON only. No explanation, no markdown, no code blocks. Use exactly this structure: {"ar": "Arabic description", "en": "English description"}';
+        $systemPrompt = 'You are writing product descriptions for a construction tools and hardware shop.
+The product is a tool, not food. Write a professional, practical description. The "ar" field must be
+written entirely in natural Arabic — translate the product name itself into Arabic too, never leave
+English words inside the Arabic description. Respond with valid JSON only. No explanation, no markdown,
+no code blocks. Use exactly this structure: {"ar": "Arabic description", "en": "English description"}';
 
         // Provide the product details for the generation task
         $userMessage = "Write a 1-2 sentence product description for:
 Product: {$productName}
 Price: {$price} EGP
+
+The \"ar\" description must be fully in Arabic, including the product name translated — do not keep
+\"{$productName}\" in Latin script inside the Arabic text.
 
 JSON only: {\"ar\": \"...\", \"en\": \"...\"}";
 
@@ -96,8 +112,8 @@ JSON only: {\"ar\": \"...\", \"en\": \"...\"}";
         // Attempt to decode the response as JSON
         $decoded = json_decode($cleaned, true);
         if (json_last_error() === JSON_ERROR_NONE) {
-            $ar = $decoded['ar'] ?? $decoded['AR'] ?? '';
-            $en = $decoded['en'] ?? $decoded['EN'] ?? '';
+            $ar = trim($decoded['ar'] ?? $decoded['AR'] ?? '');
+            $en = trim($decoded['en'] ?? $decoded['EN'] ?? '');
             if ($ar || $en) {
                 return ['ar' => $ar, 'en' => $en];
             }
@@ -238,11 +254,13 @@ JSON only: {\"ar\": \"...\", \"en\": \"...\"}";
                 ->withMessages($messages)
                 ->generate();
 
-            if (empty($response->text)) {
+            $reply = $this->stripThinking($response->text);
+
+            if (empty($reply)) {
                 throw new \RuntimeException('AI returned empty response.');
             }
 
-            return $response->text;
+            return $reply;
         } catch (\Exception $e) {
             // Log the error and raise an exception
             Log::error('AI Chat Error: ' . $e->getMessage());
