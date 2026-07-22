@@ -5,6 +5,9 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Product;
@@ -62,5 +65,13 @@ class AppServiceProvider extends ServiceProvider
         Product::observe(ProductObserver::class);
         Supplier::observe(SupplierObserver::class);
         PurchaseOrder::observe(PurchaseOrderObserver::class);
+
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('ai', function (Request $request) {
+            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
+        });
     }
 }

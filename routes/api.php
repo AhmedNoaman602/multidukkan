@@ -25,7 +25,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1'); 
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
 
@@ -126,8 +126,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/search', [SearchController::class, 'search']);
 
-    Route::post('/ai/describe-product', [AIController::class, 'describeProduct']);
-    Route::get('/ai/insights', [AIController::class, 'insights']);
-    Route::post('/ai/chat', [AIController::class, 'chat']);
+    Route::post('/ai/describe-product', [AIController::class, 'describeProduct'])->middleware('throttle:ai');
+    Route::get('/ai/insights', [AIController::class, 'insights'])->middleware('throttle:ai');
+    Route::post('/ai/chat', [AIController::class, 'chat'])->middleware('throttle:ai');
 });
 
