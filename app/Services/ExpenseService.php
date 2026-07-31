@@ -4,10 +4,32 @@ namespace App\Services;
 
 use App\Models\Expense;
 use App\Models\User;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ExpenseService
 {
+    public function getTotalForPeriod(int $tenantId, string $from, string $to): float
+    {
+        return (float) Expense::where('tenant_id', $tenantId)
+            ->where('expense_date', '>=', $from)
+            ->where('expense_date', '<=', $to)
+            ->sum('amount');
+    }
+
+    public function getCategoryBreakdownForPeriod(int $tenantId, string $from, string $to): Collection
+    {
+        return Expense::where('tenant_id', $tenantId)
+            ->where('expense_date', '>=', $from)
+            ->where('expense_date', '<=', $to)
+            ->selectRaw('category, SUM(amount) as total')
+            ->groupBy('category')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($row) => ['category' => $row->category, 'total' => round((float) $row->total, 2)])
+            ->values();
+    }
+
     public function createExpense(array $data , User $user): Expense
     {
         return DB::transaction(function () use ($data, $user) {
