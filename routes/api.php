@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\SupplierPaymentController;
+use App\Http\Controllers\Api\V1\ExpenseController;
 use App\Http\Controllers\Api\V1\SupplierProductController;
 use App\Http\Controllers\Api\V1\AIController;
 use App\Http\Controllers\Api\V1\ReportController;
@@ -101,6 +102,11 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show']);
     Route::patch('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update']);
     Route::delete('/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'destroy'])->withTrashed();
+
+    Route::get('/expenses', [ExpenseController::class, 'index']);
+    Route::post('/expenses', [ExpenseController::class, 'store']);
+    Route::patch('/expenses/{expense}', [ExpenseController::class, 'update']);
+    Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy']);
 
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::post('/suppliers', [SupplierController::class, 'store']);

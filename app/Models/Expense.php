@@ -24,6 +24,7 @@ class Expense extends Model
         'description',
         'expense_date',
         'created_by',
+        'created_by_name',
     ];
 
     const CATEGORIES = [
