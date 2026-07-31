@@ -30,7 +30,7 @@ class StoreSupplierPaymentRequest extends FormRequest
         return [
             'supplier_id' => ['required', 'integer', new BelongsToTenant(Supplier::class, $tenantId)],
             'purchase_order_id' => ['nullable', 'integer', new BelongsToTenant(PurchaseOrder::class, $tenantId)],
-            'amount' => ['required', 'numeric', 'min:0.01'],
+            'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99', 'decimal:0,2'],
             'method' => ['required', 'in:cash,bank_transfer,check'],
             'paid_at' => ['nullable', 'date'],
         ];

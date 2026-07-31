@@ -29,7 +29,7 @@ class StorePaymentRequest extends FormRequest
                 'integer',
                 Rule::exists('customers', 'id')->where('tenant_id', $tenantId),
             ],
-            'amount'      => 'required|numeric|min:0.01',
+            'amount'      => 'required|numeric|min:0.01|max:99999999.99|decimal:0,2',
             'method'      => 'required|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
             'payment_reference' => 'nullable|string|max:255',
         ];

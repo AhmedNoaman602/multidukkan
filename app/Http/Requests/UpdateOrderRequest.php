@@ -25,7 +25,7 @@ class UpdateOrderRequest extends FormRequest
         return [
             'notes'      => ['sometimes', 'nullable', 'string', 'max:500'],
             'order_date' => ['sometimes', 'date', 'before_or_equal:today'],
-            'discount'   => ['sometimes', 'numeric', 'min:0'],
+            'discount'   => ['sometimes', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];
     }
 }

@@ -14,7 +14,7 @@ class StoreCreditRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'amount'      => 'required|numeric|min:0.01',
+            'amount'      => 'required|numeric|min:0.01|max:99999999.99|decimal:0,2',
             'description' => 'nullable|string|max:255',
         ];
     }

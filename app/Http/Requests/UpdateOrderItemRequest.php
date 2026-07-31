@@ -24,7 +24,7 @@ class UpdateOrderItemRequest extends FormRequest
     {
         return [
             'quantity'   => ['nullable', 'numeric', 'min:1'],
-            'unit_price' => ['nullable', 'numeric', 'min:0'],
+            'unit_price' => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];
     }
 

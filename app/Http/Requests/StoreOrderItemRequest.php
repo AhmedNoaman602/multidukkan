@@ -32,7 +32,7 @@ class StoreOrderItemRequest extends FormRequest
             'warehouse_id' => ['required', 'integer', new BelongsToTenant(Warehouse::class, $tenantId)],
             'quantity'     => ['required', 'numeric', 'min:1'],
             'unit_type'    => ['nullable', 'in:base,secondary'],
-            'unit_price'   => ['nullable', 'numeric', 'min:0'],
+            'unit_price'   => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];
     }
 }

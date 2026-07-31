@@ -35,7 +35,7 @@ class StorePurchaseOrderRequest extends FormRequest
         'items.*.product_id'   => ['required', 'integer', new BelongsToTenant(Product::class, $tenantId)],
         'items.*.warehouse_id' => ['required', 'integer', new BelongsToTenant(Warehouse::class, $tenantId)],
         'items.*.quantity'     => ['required', 'integer', 'min:1'],
-        'items.*.unit_price'   => ['required', 'numeric', 'min:0'],
+        'items.*.unit_price'   => ['required', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
     ];
 }
 }

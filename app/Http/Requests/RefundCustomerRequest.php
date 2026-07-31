@@ -31,7 +31,7 @@ class RefundCustomerRequest extends FormRequest
     public function rules(): array
 {
     return [
-        'amount'  => ['required', 'numeric', 'min:0.01'],
+        'amount'  => ['required', 'numeric', 'min:0.01', 'max:99999999.99', 'decimal:0,2'],
         'method'  => ['required', 'in:cash,bank_transfer,check'],
         'notes'   => ['nullable', 'string', 'max:500'],
         'order_id' => ['nullable', 'integer', 'exists:orders,id'],
