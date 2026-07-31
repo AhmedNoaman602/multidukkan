@@ -1,25 +1,37 @@
+# MultiDukkan Expenses — Final Implementation Plan (V1)
+
+## Context
+
+MultiDukkan tracks money coming *in* (orders, payments, ledger) but has no way to record money going *out* (rent, salaries, utilities, etc.). This adds a deliberately boring, backend-only Expenses feature — a plain record of money leaving the business. No accounting/journal/approval/vendor machinery, and **no ledger integration** (an expense has no customer/supplier counterparty balance, so `LedgerService` correctly stays out of it). React frontend is a separate repo, out of scope.
+
+Grounded decisions (confirmed against the codebase):
+- Money serialized as `(float)` at the Resource boundary (matches `OrderResource`, `PurchaseOrderResource`).
+- No active/inactive store concept exists — only validate store existence + tenant ownership.
+- `store_id` uses `nullOnDelete()` — historical expenses survive store deletion as tenant-level NULL-store rows.
+- Manager mutation requires **same tenant + same store + created_by = self**, enforced in the Policy itself.
+- No `GET /expenses/{expense}` show endpoint, no `withTrashed()` on DELETE, no restore endpoint in V1.
 
 ---
+
 # Phase 1 — Database Foundation
 
-## Migration
+## Migration (`2026_07_16_114554_create_expenses_table.php` — already on disk, verify only)
 
-- [ ] Review `create_expenses_table`
-- [ ] Change `store_id` FK to `nullOnDelete()`
-- [ ] Verify `created_by` uses `nullOnDelete()`
-- [ ] Keep only the required composite index `(tenant_id, expense_date)`
+- [ ] Confirm `store_id` FK uses `nullOnDelete()`
+- [ ] Confirm `created_by` FK uses `nullOnDelete()`
+- [ ] Confirm only the composite index `(tenant_id, expense_date)` exists (no redundant standalone indexes)
 - [ ] Verify column types
-  - [ ] category
+  - [ ] category `string`
   - [ ] amount `decimal(10,2)`
-  - [ ] description
-  - [ ] expense_date
+  - [ ] description `string` nullable
+  - [ ] expense_date `date`
   - [ ] softDeletes
 - [ ] Run migration
 
 ## Verify
 
 - [ ] Table created
-- [ ] Foreign keys correct
+- [ ] `store_id` / `created_by` FKs are `ON DELETE SET NULL`
 - [ ] Composite index exists
 - [ ] SoftDeletes enabled
 
@@ -33,33 +45,31 @@ feat: add expenses database schema
 
 # Phase 2 — Domain Layer
 
-## Expense Model
+## Expense Model (already on disk, verify only)
 
-- [ ] Fillable
-- [ ] Casts
-- [ ] `CATEGORIES` constant
-- [ ] tenant relation
-- [ ] store relation
-- [ ] creator relation
-- [ ] HasFactory
-- [ ] SoftDeletes
+- [ ] Fillable: tenant_id, store_id, category, amount, description, expense_date, created_by
+- [ ] Casts: `expense_date` => `date`, `amount` => `decimal:2`
+- [ ] `CATEGORIES` constant (SALARIES, RENT, UTILITIES, TRANSPORTATION, INTERNET, MAINTENANCE, SUPPLIES, MISCELLANEOUS)
+- [ ] tenant / store / creator relations
+- [ ] HasFactory + SoftDeletes
 
-## Factory
+## Factory — `database/factories/ExpenseFactory.php`
 
-- [ ] Create `ExpenseFactory`
-- [ ] Default category
-- [ ] Faker amount
-- [ ] Faker description
-- [ ] Faker date
+- [ ] Mirror `SupplierPaymentFactory`
+- [ ] Nullable FK defaults: tenant_id, store_id, created_by => null
+- [ ] Default category `'RENT'` (non-MISC)
+- [ ] Faker amount 100–5000
+- [ ] Faker description sentence
+- [ ] expense_date => `now()`
 
 ## Verify
 
-- [ ] Factory creates valid model
+- [ ] Factory creates a valid model
 
 ### Commit
 
 ```bash
-feat: add expense model and factory
+feat: add expense factory
 ```
 
 ---
@@ -68,113 +78,97 @@ feat: add expense model and factory
 
 ## StoreExpenseRequest
 
-- [ ] `authorize()`
-- [ ] Category validation
-- [ ] Amount validation
-- [ ] Decimal validation
-- [ ] Amount max validation
-- [ ] Description max length
-- [ ] MISC requires description
-- [ ] Expense date validation
-- [ ] Cairo timezone validation
-- [ ] Store ID tenant validation
-- [ ] **DO NOT** accept `created_by`
+- [ ] `authorize()` returns `true` (auth via Policy)
+- [ ] **No `created_by` field**
+- [ ] `store_id`: `[]` when user has a store; else `nullable | exists:stores,id | BelongsToTenant`
+- [ ] category: `required | Rule::in(Expense::CATEGORIES)`
+- [ ] amount: `required | numeric | gt:0 | max:99999999.99 | decimal:0,2`
+- [ ] description: `nullable | string | max:255`
+- [ ] MISCELLANEOUS requires description (`Rule::requiredIf`)
+- [ ] expense_date: `required | date | before_or_equal:today`
 
 ## UpdateExpenseRequest
 
-- [ ] Same validation
-- [ ] Effective-state MISC validation
-- [ ] Ignore `created_by`
-- [ ] Ignore `tenant_id`
-- [ ] Ignore `store_id` updates
+- [ ] Same field rules as Store
+- [ ] **Does not accept** `store_id` or `created_by` (immutable)
+- [ ] MISCELLANEOUS-requires-description validates **effective state** via `withValidator()` (payload value else existing model value)
 
 ## Manual Validation Tests
 
-- [ ] Future date → `422`
-- [ ] Invalid category → `422`
-- [ ] Negative amount → `422`
-- [ ] Zero amount → `422`
-- [ ] Overflow amount → `422`
-- [ ] Too many decimals → `422`
-- [ ] Description >255 → `422`
-- [ ] MISC without description → `422`
-- [ ] Update to MISC without description → `422`
+- [ ] Future date rejected
+- [ ] Zero / negative amount rejected
+- [ ] Amount over `99999999.99` rejected (422, not 500)
+- [ ] Invalid category rejected
+- [ ] Description over 255 rejected
+- [ ] MISC without description rejected on create
+- [ ] MISC without description rejected on update-to-MISC
 
 ### Commit
 
 ```bash
-feat: add expense validation
+feat: add expense form requests
 ```
 
 ---
 
 # Phase 4 — Authorization
 
-## ExpensePolicy
+## ExpensePolicy — tenant check first, `store_staff` always false
 
-- [ ] `viewAny`
-- [ ] `view`
-- [ ] `create`
-- [ ] `update`
-- [ ] `delete`
+- [ ] `viewAny`: admin or manager
+- [ ] `create`: admin or manager
+- [ ] `view`: same tenant AND (admin OR (manager AND `store_id === expense.store_id`))
+- [ ] `update`: same tenant AND (admin OR (manager AND `store_id === expense.store_id` AND `id === expense.created_by`))
+- [ ] `delete`: identical to `update`
 
-## Verify
+## Authorization matrix
 
-Every method should:
+| Action | tenant_admin | store_manager | store_staff |
+|---|---|---|---|
+| index / create | ✅ | ✅ | ❌ |
+| view | ✅ any in tenant | ✅ own-store only; ❌ tenant-wide NULL-store | ❌ |
+| update / delete | ✅ any in tenant | ✅ same tenant + own store + created_by = self | ❌ |
 
-- [ ] Check tenant first
-- [ ] Allow tenant admin
-- [ ] Restrict manager by ownership
-- [ ] Deny store staff
-- [ ] Handle orphaned creator safely
+Store Manager, precisely: can view own-store expenses; cannot view tenant-wide (NULL-store) expenses; can update/delete only own-store expenses they created; all require same tenant. A deleted store's expenses (`store_id → NULL`) become admin-only — intentional.
 
 ## Register Policy
 
-- [ ] Register in `AppServiceProvider`
+- [ ] `Gate::policy(Expense::class, ExpensePolicy::class)` in `AppServiceProvider::boot()`
+
+## Verify
+
+- [ ] `store_staff` blocked everywhere
+- [ ] Manager cannot act cross-store or on NULL-store expenses
 
 ### Commit
 
 ```bash
-feat: implement expense authorization
+feat: add expense policy with store-scoped manager authorization
 ```
 
 ---
 
 # Phase 5 — Business Logic
 
-## ExpenseService
+## ExpenseService (no constructor deps; all methods `DB::transaction`-wrapped)
 
-### `createExpense()`
-
-- [ ] Wrap in transaction
-- [ ] Force `tenant_id`
-- [ ] Force `created_by`
-- [ ] Force manager store
-- [ ] Allow admin store selection
-
-### `updateExpense()`
-
-- [ ] Wrap in transaction
-- [ ] Update editable fields only
-- [ ] Keep `created_by` immutable
-- [ ] Keep `store_id` immutable
-
-### `deleteExpense()`
-
-- [ ] Wrap in transaction
-- [ ] Soft delete
+- [ ] `createExpense(array $data, User $user): Expense`
+  - [ ] tenant_id = `$user->tenant_id`
+  - [ ] created_by = `$user->id` (never from payload)
+  - [ ] store_id = `$user->store_id ?? ($data['store_id'] ?? null)`
+- [ ] `updateExpense(Expense $expense, array $data): Expense`
+  - [ ] updates category / amount / description / expense_date only
+  - [ ] store_id + created_by immutable
+- [ ] `deleteExpense(Expense $expense): void` — soft `$expense->delete()`
 
 ## Manual Verification
 
-- [ ] `tenant_id` forced
-- [ ] `created_by` forced
-- [ ] Manager store forced
-- [ ] Immutable fields protected
+- [ ] Manager's foreign `store_id` / `created_by` in payload are overridden
 
 ### Commit
 
 ```bash
-feat: implement expense service
+feat: add expense service
 ```
 
 ---
@@ -183,18 +177,19 @@ feat: implement expense service
 
 ## ExpenseResource
 
-- [ ] Cast amount to float
-- [ ] Return raw category
-- [ ] Null-safe creator
-- [ ] Include store
-- [ ] Include creator
-- [ ] Include `created_at`
-- [ ] Include `expense_date`
+- [ ] `public static $wrap = null`
+- [ ] id
+- [ ] category (raw code only, no label)
+- [ ] amount as `(float)` — matches Order/PurchaseOrder convention
+- [ ] description
+- [ ] expense_date `->toDateString()`
+- [ ] store via `whenLoaded` (id + name)
+- [ ] creator via `whenLoaded`, null-safe (id + name)
+- [ ] created_at `->toDateTimeString()`
 
 ## Verify
 
-- [ ] No presentation label returned
-- [ ] JSON matches frontend contract
+- [ ] Response shape matches spec; no floating-point money issues
 
 ### Commit
 
@@ -206,73 +201,47 @@ feat: add expense resource
 
 # Phase 7 — CRUD Endpoints
 
-## Controller
+## Controller (constructor-inject ExpenseService)
 
-### `store()`
-
-- [ ] Authorize
-- [ ] Use `validated()`
-- [ ] Call service
-- [ ] Return resource
-
-### `show()`
-
-- [ ] Authorize
-- [ ] Tenant verification
-- [ ] Return resource
-
-### `update()`
-
-- [ ] Authorize
-- [ ] Tenant verification
-- [ ] Call service
-- [ ] Return resource
-
-### `destroy()`
-
-- [ ] Authorize
-- [ ] Tenant verification
-- [ ] Call service
-- [ ] Return success response
+- [ ] `store`: authorize `create` → `createExpense` → Resource, 201
+- [ ] `update`: authorize `update` + belt-and-suspenders tenant re-check (403) → `updateExpense` → Resource
+- [ ] `destroy`: authorize `delete` + tenant re-check → `deleteExpense` → `200 {message}`
+- [ ] **No `show` method**
 
 ## Manual API Testing
 
-- [ ] Create
-- [ ] Show
-- [ ] Update
-- [ ] Delete
+- [ ] Create / update / delete happy paths
+- [ ] Tenant re-check returns 403 on foreign tenant
 
 ### Commit
 
 ```bash
-feat: implement expense CRUD endpoints
+feat: add expense crud endpoints
 ```
 
 ---
 
 # Phase 8 — Audit Logging
 
-## ExpenseObserver
+## ExpenseObserver (copy StoreObserver)
 
-- [ ] `created()`
-- [ ] `updated()`
-- [ ] `deleted()`
+- [ ] `created`
+- [ ] `updated` (`getChanges()` diff, exclude `updated_at`)
+- [ ] `deleted` (fires on soft delete — free)
+- [ ] No `deleting()` guard, no manual audit calls in service
 
 ## Register Observer
 
-- [ ] Register in `AppServiceProvider`
+- [ ] `Expense::observe(ExpenseObserver::class)` in `AppServiceProvider::boot()`
 
 ## Verify
 
-- [ ] Create generates audit row
-- [ ] Update generates audit row
-- [ ] Delete generates audit row
-- [ ] Exactly one audit row per action
+- [ ] Create / update / delete each produce exactly one `audit_logs` row
 
 ### Commit
 
 ```bash
-feat: add expense observer
+feat: add expense audit observer
 ```
 
 ---
@@ -281,128 +250,130 @@ feat: add expense observer
 
 ## Base Query
 
-- [ ] Tenant scope
-- [ ] Manager store scope
-- [ ] Eager load `store`
-- [ ] Eager load `creator`
+- [ ] `where('tenant_id', $user->tenant_id)`
+- [ ] `->when($user->store_id, ...)` — manager own-store; hides NULL-store
+- [ ] `->with('store:id,name', 'creator:id,name')`
 
-## Filters
+## Filters (V1 only)
 
-- [ ] Category
-- [ ] Store
-- [ ] Creator
-- [ ] Search
-- [ ] Amount min
-- [ ] Amount max
-- [ ] Exact date
-- [ ] Date range
-- [ ] Month / Year
+- [ ] category
+- [ ] date_from (`where('expense_date','>=',...)` — plain where, keeps index)
+- [ ] date_to (`where('expense_date','<=',...)`)
+- [ ] store_id — admin only (`$r->store_id && !$user->store_id`)
 
 ## Sorting
 
-- [ ] Whitelist fields
-- [ ] Whitelist direction
-- [ ] Default sort
+- [ ] `sort_by` whitelist `in:expense_date,amount`
+- [ ] `sort_dir` whitelist `in:asc,desc`
+- [ ] Default `expense_date desc, id desc`
 
 ## Stats
 
-- [ ] `total_amount`
+- [ ] `total_amount` = `(clone $query)->sum('amount')` before pagination, cast `(float)`
 
 ## Pagination
 
-- [ ] `paginate(25)`
-- [ ] Meta
-- [ ] Stats
+- [ ] `->paginate(25)`
+- [ ] Response: `data` (Resource collection) + manual `meta` {current_page, last_page, total} + `stats`
 
 ## Verify
 
-- [ ] Date filters use `expense_date`
-- [ ] Managers cannot see tenant-wide expenses
-- [ ] Admin sees everything
-- [ ] No N+1 queries
-- [ ] Stable pagination
+- [ ] Category + date-range filters return correct subsets
+- [ ] `stats.total_amount` reflects filtered set
 
 ### Commit
 
 ```bash
-feat: implement expense listing
+feat: add expense listing api
 ```
 
 ---
 
 # Phase 10 — Routes & Wiring
 
-## Routes
+## Routes (in `auth:sanctum` group, near `/purchase-orders`)
 
 - [ ] `GET /expenses`
 - [ ] `POST /expenses`
-- [ ] `GET /expenses/{expense}`
 - [ ] `PATCH /expenses/{expense}`
-- [ ] `DELETE /expenses/{expense}`
+- [ ] `DELETE /expenses/{expense}` — **no `withTrashed()`**
+- [ ] No `GET /expenses/{expense}`
 
 ## AppServiceProvider
 
-- [ ] Register Policy
-- [ ] Register Observer
+- [ ] Policy registered
+- [ ] Observer registered
+- [ ] `use` imports added
 
 ## Verify
 
-- [ ] All endpoints registered
-- [ ] Policies working
-- [ ] Observer firing
+- [ ] Soft-deleted expense returns 404 via normal route binding
 
 ### Commit
 
 ```bash
-feat: wire expense feature
+feat: wire up expense routes
 ```
 
 ---
 
-# Phase 11 — Automated Tests
+# Phase 11 — Automated Tests (`tests/Feature/ExpenseTest.php`)
+
+PriceTierTest-style `setUp()`; typed props; factories; no hardcoded IDs; negative tests assert DB state.
 
 ## Validation
 
-- [ ] Future date
-- [ ] Amount validation
-- [ ] Category validation
-- [ ] Description validation
-- [ ] Update-to-MISC validation
+- [ ] Future date rejected
+- [ ] Zero / negative amount rejected
+- [ ] Amount over max rejected (422 not 500)
+- [ ] Invalid category rejected
+- [ ] Description over 255 rejected
+- [ ] MISC without description rejected on create AND update-to-MISC
 
-## Authorization
+## Authorization (role)
 
-- [ ] Staff denied
-- [ ] Manager owns expense
-- [ ] Manager cannot edit others
-- [ ] Admin allowed
+- [ ] `store_staff` → 403 on index/store/update/destroy
+- [ ] `tenant_admin` full access within tenant
+- [ ] Manager can update/delete own-store, self-created expense
 
-## Store Scoping
+## Authorization (cross-store & tenant-wide)
 
-- [ ] Manager only sees own store
-- [ ] Admin sees all stores
-- [ ] NULL-store expenses hidden from managers
+- [ ] **Case A** — Store-A manager updates Store-B expense → 403, row completely unchanged
+- [ ] **Case B** — manager updates AND deletes a NULL-store expense → 403 each, row unchanged
+- [ ] **Case C** — manager creates expense (store_id = own); store deleted (clear warehouses/unpaid orders first) → store_id becomes NULL; expense survives as tenant-level row; original manager can no longer update/delete (403, unchanged); tenant admin still can
+- [ ] Same-tenant-different-manager cannot update/delete another manager's same-store expense → 403, unchanged
+
+## Store Scoping (index)
+
+- [ ] Manager index excludes other stores' rows AND NULL-store rows
+- [ ] Admin sees all
+
+## Hardening
+
+- [ ] Payload `created_by` ignored → row = authenticated user
+- [ ] Manager `store_id` forced to own store even when payload differs
 
 ## Tenant Isolation
 
-- [ ] View
-- [ ] Update
-- [ ] Delete
-
-## Service
-
-- [ ] `created_by` forced
-- [ ] `tenant_id` forced
-- [ ] `store_id` forced
+- [ ] Tenant A cannot view/update/delete tenant B's expense (403/404, row untouched)
 
 ## Soft Delete
 
-- [ ] `assertSoftDeleted()`
+- [ ] `destroy` → `assertSoftDeleted`; hidden from index; re-DELETE → 404
 
-## Observer
+## Filtering
 
-- [ ] Create audit
-- [ ] Update audit
-- [ ] Delete audit
+- [ ] Category + date-range filters correct; `stats.total_amount` correct
+
+## Audit
+
+- [ ] Create/update/delete each produce exactly one `audit_logs` row (update `changes` diff non-empty)
+
+### Commit
+
+```bash
+test: add expense feature tests
+```
 
 ---
 
@@ -411,37 +382,22 @@ feat: wire expense feature
 ## Automated
 
 - [ ] `php artisan migrate`
-- [ ] `php artisan test --filter=ExpenseTest`
-- [ ] `php artisan test`
+- [ ] `php artisan test --filter=ExpenseTest` — all green
+- [ ] `php artisan test` — full suite, no regressions
 
 ## Manual
 
-- [ ] Create expense
-- [ ] Update expense
-- [ ] Delete expense
-- [ ] Manager permissions
-- [ ] Admin permissions
-- [ ] Cross-tenant access denied
-- [ ] Audit logs generated
-- [ ] Filters work
-- [ ] Stats correct
-- [ ] Pagination correct
-- [ ] Delete a store and confirm expenses remain with `store_id = NULL`
+- [ ] As manager, create expense sending foreign `store_id` + `created_by` → both overridden
+- [ ] Delete the store (after clearing warehouses/unpaid orders) → expense survives with `store_id = NULL`; manager can no longer mutate it; admin can
 
 ---
 
-# Definition of Done
+# Explicitly Deferred from V1 (do NOT build now)
 
-The feature is complete when:
-
-- [ ] Database schema is correct
-- [ ] Validation prevents invalid data
-- [ ] Authorization enforces tenant and role isolation
-- [ ] Business rules live in `ExpenseService`
-- [ ] CRUD endpoints function correctly
-- [ ] Audit logging works through the observer
-- [ ] Listing supports filtering, sorting, pagination, and stats
-- [ ] Routes are registered
-- [ ] Automated tests pass
-- [ ] Manual verification passes
-- [ ] Full project test suite passes
+- [ ] `GET /expenses/{expense}` show endpoint
+- [ ] Restore endpoint for soft-deleted expenses
+- [ ] Filters: `search`, `created_by`, `amount_min`/`amount_max`, separate `month`/`year` params
+- [ ] Richer audit-feed detail (amount/category in merged `/audit-log`)
+- [ ] Dashboard `today()`/`thisMonth()` scopes
+- [ ] Ledger integration (correct — no counterparty balance)
+- [ ] PHP native enum for categories
