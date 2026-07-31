@@ -6,11 +6,14 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\ExpenseService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
 class ReportController extends Controller
 {
+    public function __construct(protected ExpenseService $expenseService) {}
+
     public function daily(Request $request)
     {
         $tenantId = auth()->user()->tenant_id;
@@ -19,18 +22,20 @@ class ReportController extends Controller
         $isPrint = $request->boolean('print', false);
 
         $orders   = $this->fetchOrders($tenantId, $from, $to);
-        $payments = $this->fetchPayments($tenantId, $from, $to);  
+        $payments = $this->fetchPayments($tenantId, $from, $to);
+        $totalExpenses = $this->expenseService->getTotalForPeriod($tenantId, $from, $to);
         $perPage = $isPrint ? PHP_INT_MAX : ($request->per_page ?? 10);
 
-   
+
        return response()->json([
-            'summary'             => $this->buildSummary($orders, $payments),
+            'summary'             => $this->buildSummary($orders, $payments, $totalExpenses),
             'missing_cost_prices' => $this->countMissingCostPrices($orders),
             'profit_by_order'     => $this->paginate($this->buildProfitByOrder($orders),            $request->order_page    ?? 1, $perPage),
             'payments_history'    => $this->paginate($this->buildPaymentsHistory($payments),        $request->payment_page  ?? 1, $perPage),
             'orders_by_customer'  => $this->paginate($this->buildOrdersByCustomer($orders, $payments), $request->customer_page ?? 1, $perPage),
             'daily_breakdown'     => $this->paginate($this->buildDailyBreakdown($orders),           $request->daily_page    ?? 1, $perPage),
             'products_sold'       => $this->buildProductsSold($orders),
+            'expenses_by_category' => $this->expenseService->getCategoryBreakdownForPeriod($tenantId, $from, $to),
         ]);
     }
 
@@ -55,7 +60,7 @@ private function fetchOrders(int $tenantId, string $from, string $to): Collectio
 
     // ─── Builders ─────────────────────────────────────────────────────────────
 
-private function buildSummary(Collection $orders, Collection $payments): array {
+private function buildSummary(Collection $orders, Collection $payments, float $totalExpenses): array {
     $totalRevenue   = $orders->sum(fn($o) => $this->calcOrderTotal($o));
     $totalCollected = $payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
     $grossProfit    = $orders->sum(fn($o) =>
@@ -69,6 +74,8 @@ private function buildSummary(Collection $orders, Collection $payments): array {
             'total_collected' => round($totalCollected, 2),
             'outstanding'     => round($totalRevenue - $totalCollected, 2),
             'gross_profit'    => round($grossProfit, 2),
+            'total_expenses'  => round($totalExpenses, 2),
+            'net_profit'      => round($grossProfit - $totalExpenses, 2),
             'order_count'     => $orders->count(),
         ];
 }
