@@ -18,6 +18,7 @@ use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\PurchaseOrder;
 use App\Models\SupplierPayment;
+use App\Models\Expense;
 use App\Policies\OrderPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\ProductPolicy;
@@ -28,12 +29,14 @@ use App\Policies\StorePolicy;
 use App\Policies\SupplierPolicy;
 use App\Policies\PurchaseOrderPolicy;
 use App\Policies\SupplierPaymentPolicy;
+use App\Policies\ExpensePolicy;
 use App\Observers\StoreObserver;
 use App\Observers\CustomerObserver;
 use App\Observers\OrderObserver;
 use App\Observers\ProductObserver;
 use App\Observers\SupplierObserver;
 use App\Observers\PurchaseOrderObserver;
+use App\Observers\ExpenseObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -59,12 +62,14 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Supplier::class, SupplierPolicy::class);
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(SupplierPayment::class, SupplierPaymentPolicy::class);
+        Gate::policy(Expense::class, ExpensePolicy::class);
         Store::observe(StoreObserver::class);
         Customer::observe(CustomerObserver::class);
         Order::observe(OrderObserver::class);
         Product::observe(ProductObserver::class);
         Supplier::observe(SupplierObserver::class);
         PurchaseOrder::observe(PurchaseOrderObserver::class);
+        Expense::observe(ExpenseObserver::class);
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
