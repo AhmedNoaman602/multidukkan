@@ -44,6 +44,16 @@ Sign convention: **positive customer balance = customer owes the store**; negati
 Weighted average per PO line, base units, running per-product chain within a PO:
 `new_avg = (stock × current_cost + purchased_qty × line_price) / (stock + purchased_qty)`; zero-denominator fallback → `line_price`. Details + rejected alternatives: [ADR-008](../01-architecture/decisions/ADR-008-weighted-average-costing.md). **Profit** is therefore as-of-now (`price − cost_price`); historical per-order profit is not yet computable (cost isn't snapshotted on order items — known limitation).
 
+## Expenses & Net Profit (implementations: `ExpenseService`, `ReportController`)
+
+| Number | Formula | Method |
+|---|---|---|
+| Total expenses (period) | `Σ amount WHERE expense_date BETWEEN from,to` | `ExpenseService::getTotalForPeriod` |
+| Expenses by category | same, grouped by `category` | `ExpenseService::getCategoryBreakdownForPeriod` |
+| Net profit | `gross_profit − total_expenses` | `ReportController::buildSummary` |
+
+Net profit inherits gross_profit's known limitation: uses **current** `product.cost_price`, not a historical snapshot, so past-period net profit will drift if costs change later. Expenses are **not** ledger entries — they intentionally live outside `LedgerService`/`ledger_entries` (they're operating costs, not customer/supplier debt), so this is the one place their totals get aggregated.
+
 ## Taxes
 
 There are none. No VAT/tax fields exist anywhere. If taxes ever enter scope, they must be snapshotted per line (rate at sale time) — see [ADR-005](../01-architecture/decisions/ADR-005-snapshot-pricing.md) reasoning.
