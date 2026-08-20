@@ -20,15 +20,37 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $tenantId = auth()->user()->tenant_id;
-        $today = now()->toDateString();
+        $period = $request->query('period', 'today');
 
-        // Today's payments (cash received only — store-credit payments move no cash)
-        $todayPayments = Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
+        if (!in_array($period, ['today', 'week', 'month', 'year'])) {
+        $period = 'today';
+        }
+
+    $range = match ($period) {
+    'today' => [
+        'start' => now()->startOfDay(),
+        'end' => now()->endOfDay(),
+    ],
+    'week' => [
+        'start' => now()->startOfWeek(),
+        'end' => now()->endOfWeek(),
+    ],
+    'month' => [
+        'start' => now()->startOfMonth(),
+        'end' => now()->endOfMonth(),
+    ],
+    'year' => [
+        'start' => now()->startOfYear(),
+        'end' => now()->endOfYear(),
+    ],
+};
+        // Period payments (cash received only — store-credit payments move no cash)
+        $periodPayments = Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
             ->cashOnly()
-            ->whereDate('paid_at', $today)
+            ->whereBetween('paid_at', [$range['start'], $range['end']])
             ->get();
 
-        $todayRevenue = $todayPayments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+        $periodRevenue = $periodPayments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
 
         // Recent orders
         $recentOrders = Order::where('tenant_id', $tenantId)
@@ -37,13 +59,13 @@ class DashboardController extends Controller
             ->with(['payments', 'items', 'customer'])
             ->get();
 
-        // Today's orders
-        $todayOrders = Order::where('tenant_id', $tenantId)
-            ->whereDate('order_date', $today)
+        // Period orders
+        $periodOrders = Order::where('tenant_id', $tenantId)
+            ->whereBetween('order_date', [$range['start']->toDateString(), $range['end']->toDateString()])
             ->with('payments')
             ->get();
 
-        $todaySales = $todayOrders->sum(fn($o) => max(0, $o->total ?? 0));
+        $periodSales = $periodOrders->sum(fn($o) => max(0, $o->total ?? 0));
 
         // Unpaid orders — settlement definition: has the customer's debt been
         // cleared (store credit counts), not "did we receive cash".
@@ -100,10 +122,11 @@ class DashboardController extends Controller
 
         return response()->json([
             'stats' => [
-                'today_revenue'        => round($todayRevenue, 2),
-                'today_payments_count' => $todayPayments->count(),
-                'today_orders_count'   => $todayOrders->count(),
-                'today_sales'          => round($todaySales, 2),
+                'period'               => $period,
+                'today_revenue'        => round($periodRevenue, 2),
+                'today_payments_count' => $periodPayments->count(),
+                'today_orders_count'   => $periodOrders->count(),
+                'today_sales'          => round($periodSales, 2),
                 'unpaid_orders'        => $unpaidOrdersCount,
                 'total_owed'           => round($totalOwed, 2),
                 'total_customers'      => $totalCustomers,
