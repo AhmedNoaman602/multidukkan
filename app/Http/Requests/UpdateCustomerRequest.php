@@ -24,7 +24,7 @@ class UpdateCustomerRequest extends FormRequest
     {
         return [
             'name'       => ['sometimes', 'string', 'max:255'],
-            'phone'      => ['sometimes', 'string', 'max:20'],
+            'phone'      => ['sometimes', 'string', 'max:20', 'regex:/^\+?[0-9\s-]{7,20}$/'],
             'address'    => ['nullable', 'string', 'max:255'],
             'price_tier' => ['sometimes', 'nullable', 'in:default,a,b,c,d,e'],
             'area'       => ['nullable', 'string', 'max:255'],

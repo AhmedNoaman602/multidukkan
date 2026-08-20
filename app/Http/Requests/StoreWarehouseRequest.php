@@ -32,7 +32,7 @@ class StoreWarehouseRequest extends FormRequest
             'store_id' => $this->user()->store_id
                 ? []
                 : ['required', 'exists:stores,id', new BelongsToTenant(Store::class, $tenantId)],
-            'phone' => 'nullable|string|max:255',
+            'phone' => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s-]{7,20}$/'],
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:255',
         ];

@@ -26,7 +26,7 @@ class UpdateSupplierRequest extends FormRequest
         $tenantId = auth()->user()->tenant_id;
         return [
             'name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:255'],
+            'phone' => ['required', 'string', 'max:20', 'regex:/^\+?[0-9\s-]{7,20}$/'],
             'email' => ['nullable', 'string', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
             'area' => ['nullable', 'string', 'max:255'],

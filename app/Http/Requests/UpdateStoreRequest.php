@@ -25,7 +25,7 @@ class UpdateStoreRequest extends FormRequest
         return [
             'name'    => ['sometimes', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
-            'phone'   => ['nullable', 'string', 'max:20'],
+            'phone'   => ['nullable', 'string', 'max:20', 'regex:/^\+?[0-9\s-]{7,20}$/'],
         ];
     }
 }

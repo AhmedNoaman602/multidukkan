@@ -25,7 +25,7 @@ class StoreCustomerRequest extends FormRequest
         return [
             'code'       => ['nullable', 'string', 'max:255'],
             'name'       => ['required', 'string', 'max:255'],
-            'phone'      => ['required', 'string', 'max:20'],
+            'phone'      => ['required', 'string', 'max:20', 'regex:/^\+?[0-9\s-]{7,20}$/'],
             'address'    => ['nullable', 'string', 'max:255'],
             'price_tier' => ['nullable', 'in:default,a,b,c,d,e'],
             'area'       => ['nullable', 'string', 'max:255'],
