@@ -107,7 +107,7 @@ class OrderController extends Controller
             ->response()
             ->setStatusCode(201);
     } catch (ValidationException $e) {
-        return response()->json(['message' => $e->errors()], 422);
+        return response()->json(['message' => collect($e->errors())->flatten()->first()], 422);
     }
 }
 
