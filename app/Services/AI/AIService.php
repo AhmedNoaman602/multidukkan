@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\AI;
 
 use Prism\Prism\Facades\Prism;
 use Prism\Prism\Enums\Provider;
@@ -84,53 +84,53 @@ class AIService
      * @param float $price The price of the product.
      * @return array An array containing 'ar' (Arabic) and 'en' (English) descriptions.
      */
-    public function generateDescription(string $productName, float $price): array
-    {
-        // Define system guidelines to enforce JSON structure only
-        $systemPrompt = 'You are writing product descriptions for a construction tools and hardware shop.
-The product is a tool, not food. Write a professional, practical description. The "ar" field must be
-written entirely in natural Arabic — translate the product name itself into Arabic too, never leave
-English words inside the Arabic description. Respond with valid JSON only. No explanation, no markdown,
-no code blocks. Use exactly this structure: {"ar": "Arabic description", "en": "English description"}';
+//     public function generateDescription(string $productName, float $price): array
+//     {
+//         // Define system guidelines to enforce JSON structure only
+//         $systemPrompt = 'You are writing product descriptions for a construction tools and hardware shop.
+// The product is a tool, not food. Write a professional, practical description. The "ar" field must be
+// written entirely in natural Arabic — translate the product name itself into Arabic too, never leave
+// English words inside the Arabic description. Respond with valid JSON only. No explanation, no markdown,
+// no code blocks. Use exactly this structure: {"ar": "Arabic description", "en": "English description"}';
 
-        // Provide the product details for the generation task
-        $userMessage = "Write a 1-2 sentence product description for:
-Product: {$productName}
-Price: {$price} EGP
+//         // Provide the product details for the generation task
+//         $userMessage = "Write a 1-2 sentence product description for:
+// Product: {$productName}
+// Price: {$price} EGP
 
-The \"ar\" description must be fully in Arabic, including the product name translated — do not keep
-\"{$productName}\" in Latin script inside the Arabic text.
+// The \"ar\" description must be fully in Arabic, including the product name translated — do not keep
+// \"{$productName}\" in Latin script inside the Arabic text.
 
-JSON only: {\"ar\": \"...\", \"en\": \"...\"}";
+// JSON only: {\"ar\": \"...\", \"en\": \"...\"}";
 
-        // Send the request to the AI model
-        $raw = $this->generate($systemPrompt, $userMessage, 300);
+//         // Send the request to the AI model
+//         $raw = $this->generate($systemPrompt, $userMessage, 300);
 
-        // Strip markdown code blocks (e.g., ```json ... ```) from the response if present
-        $cleaned = preg_replace('/^```json\s*|\s*```$/s', '', trim($raw));
+//         // Strip markdown code blocks (e.g., ```json ... ```) from the response if present
+//         $cleaned = preg_replace('/^```json\s*|\s*```$/s', '', trim($raw));
 
-        // Attempt to decode the response as JSON
-        $decoded = json_decode($cleaned, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            $ar = trim($decoded['ar'] ?? $decoded['AR'] ?? '');
-            $en = trim($decoded['en'] ?? $decoded['EN'] ?? '');
-            if ($ar || $en) {
-                return ['ar' => $ar, 'en' => $en];
-            }
-        }
+//         // Attempt to decode the response as JSON
+//         $decoded = json_decode($cleaned, true);
+//         if (json_last_error() === JSON_ERROR_NONE) {
+//             $ar = trim($decoded['ar'] ?? $decoded['AR'] ?? '');
+//             $en = trim($decoded['en'] ?? $decoded['EN'] ?? '');
+//             if ($ar || $en) {
+//                 return ['ar' => $ar, 'en' => $en];
+//             }
+//         }
 
-        // Fallback parsing: check if the model used regex-like "AR: ... EN: ..." format
-        if (preg_match('/AR:\s*(.+?)(?=\s*EN:)/s', $raw, $arMatch) &&
-            preg_match('/EN:\s*(.+?)$/s', $raw, $enMatch)) {
-            return [
-                'ar' => trim($arMatch[1]),
-                'en' => trim($enMatch[1]),
-            ];
-        }
+//         // Fallback parsing: check if the model used regex-like "AR: ... EN: ..." format
+//         if (preg_match('/AR:\s*(.+?)(?=\s*EN:)/s', $raw, $arMatch) &&
+//             preg_match('/EN:\s*(.+?)$/s', $raw, $enMatch)) {
+//             return [
+//                 'ar' => trim($arMatch[1]),
+//                 'en' => trim($enMatch[1]),
+//             ];
+//         }
 
-        // Final fallback: return the raw response as English description
-        return ['ar' => '', 'en' => trim($raw)];
-    }
+//         // Final fallback: return the raw response as English description
+//         return ['ar' => '', 'en' => trim($raw)];
+//     }
 
     /**
      * Analyzes sales data for the last 30 days and generates insights.

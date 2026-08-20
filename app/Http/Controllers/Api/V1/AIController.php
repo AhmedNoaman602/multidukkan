@@ -4,39 +4,39 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Services\AIService;
+use App\Services\AI\AIService;
 use Illuminate\Http\JsonResponse;
 
 class AIController extends Controller
 {
     public function __construct(protected AIService $ai) {}
 
-    public function describeProduct(Request $request): JsonResponse
-{
-    $validated = $request->validate([
-        'name'  => 'required|string',
-        'price' => 'required|numeric|min:0',
-    ]);
-try{
- $description = $this->ai->generateDescription(
-        productName: $validated['name'],
-        price:       (float) $validated['price'],
-    );
-}catch (\RuntimeException $e) {
-    return response()->json(['message' => $e->getMessage()], 503);
-}
+//     public function describeProduct(Request $request): JsonResponse
+// {
+//     $validated = $request->validate([
+//         'name'  => 'required|string',
+//         'price' => 'required|numeric|min:0',
+//     ]);
+// try{
+//  $description = $this->ai->generateDescription(
+//         productName: $validated['name'],
+//         price:       (float) $validated['price'],
+//     );
+// }catch (\RuntimeException $e) {
+//     return response()->json(['message' => $e->getMessage()], 503);
+// }
    
 
-    if (empty($description['ar']) && empty($description['en'])) {
-        return response()->json(['message' => 'Failed to generate description'], 500);
-    }
+//     if (empty($description['ar']) && empty($description['en'])) {
+//         return response()->json(['message' => 'Failed to generate description'], 500);
+//     }
 
-    return response()->json([
-        'ar' => $description['ar'],
-        'en' => $description['en'],
-    ]);
+//     return response()->json([
+//         'ar' => $description['ar'],
+//         'en' => $description['en'],
+//     ]);
 
-}
+// }
 
 public function insights(): JsonResponse
 {
@@ -89,6 +89,8 @@ try {
 
 return response()->json($insights);
 }
+
+// INSIGHTS
 
 public function chat(Request $request): JsonResponse
 {
