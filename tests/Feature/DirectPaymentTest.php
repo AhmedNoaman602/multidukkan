@@ -59,7 +59,7 @@ class DirectPaymentTest extends TestCase
             'order'    => $order,
         ] = $this->setupOrder(500);
 
-        $response = $this->actingAs($user)->postJson('/api/payments', [
+        $response = $this->actingAs($user)->withHeaders(['X-Locale' => 'en'])->postJson('/api/payments', [
             'order_id'    => $order->id,
             'customer_id' => $customer->id,
             'amount'      => 500,
@@ -67,7 +67,7 @@ class DirectPaymentTest extends TestCase
         ]);
 
         $response->assertStatus(201);
-        $response->assertJsonPath('message', 'Payment processed successfully.');
+        $response->assertJsonPath('message', 'Payment processed successfully');
         $this->assertDatabaseHas('payments', [
             'order_id'    => $order->id,
             'customer_id' => $customer->id,
@@ -152,7 +152,7 @@ class DirectPaymentTest extends TestCase
             'amount'      => 500,
         ]);
 
-        $response = $this->actingAs($user)->postJson('/api/payments', [
+        $response = $this->actingAs($user)->withHeaders(['X-Locale' => 'en'])->postJson('/api/payments', [
             'order_id'    => $order->id,
             'customer_id' => $customer->id,
             'amount'      => 100,
@@ -160,7 +160,7 @@ class DirectPaymentTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonPath('message', 'Order is already fully paid.');
+        $response->assertJsonPath('message', 'Order is already fully paid');
     }
 
     public function test_direct_overpayment_excess_distributes_fifo_across_other_unpaid_orders(): void

@@ -46,20 +46,20 @@ class AuthTest extends TestCase
 
     public function test_login_fails_with_wrong_password(): void
     {
-        $this->postJson('/api/login', [
+        $this->withHeaders(['X-Locale' => 'en'])->postJson('/api/login', [
             'email'    => 'ahmed@test.com',
             'password' => 'wrongpassword',
         ])->assertStatus(401)
-          ->assertJson(['message' => 'Invalid credentials.']);
+          ->assertJson(['message' => 'Invalid credentials']);
     }
 
     public function test_login_fails_with_nonexistent_email(): void
     {
-        $this->postJson('/api/login', [
+        $this->withHeaders(['X-Locale' => 'en'])->postJson('/api/login', [
             'email'    => 'nobody@test.com',
             'password' => 'password123',
         ])->assertStatus(401)
-          ->assertJson(['message' => 'Invalid credentials.']);
+          ->assertJson(['message' => 'Invalid credentials']);
     }
 
     public function test_login_requires_email(): void
@@ -83,9 +83,10 @@ class AuthTest extends TestCase
     public function test_user_can_logout(): void
     {
         $this->actingAs($this->user)
+            ->withHeaders(['X-Locale' => 'en'])
             ->postJson('/api/logout')
             ->assertStatus(200)
-            ->assertJson(['message' => 'Logged out successfully.']);
+            ->assertJson(['message' => 'Logged out successfully']);
     }
 
     public function test_logout_requires_authentication(): void

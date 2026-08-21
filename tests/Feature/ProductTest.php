@@ -77,9 +77,10 @@ public function test_cannot_delete_product_with_order_history(): void
     ]);
 
     $this->actingAs($user)
+        ->withHeaders(['X-Locale' => 'en'])
         ->deleteJson("/api/products/{$product->id}")
         ->assertStatus(422)
-        ->assertJsonPath('message', 'Cannot delete a product that appears in existing orders.');
+        ->assertJsonPath('message', 'Cannot delete a product that appears in existing orders');
 
     $this->assertDatabaseHas('products', ['id' => $product->id]);
     $this->assertDatabaseHas('order_items', ['product_id' => $product->id]);

@@ -169,6 +169,7 @@ class AuditLogTest extends TestCase
 
         // But the activity feed shows ONE grouped SALE row for the whole order, not two.
         $response = $this->actingAs($this->user)
+            ->withHeaders(['X-Locale' => 'en'])
             ->getJson('/api/audit-log?source=inventory')
             ->assertStatus(200);
 
