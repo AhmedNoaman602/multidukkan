@@ -89,7 +89,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
 
             return [
                 'invoice_number' => $o->invoice_number,
-                'customer_name'  => $o->customer_name_snapshot ?? 'Walk-in',
+                'customer_name'  => $o->customer_name_snapshot ?? __('messages.walk_in_label'),
                 'revenue'        => $revenue,
                 'cost'           => $cost,
                 'profit'         => $profit,
@@ -102,7 +102,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
     {
         return $payments->map(fn($p) => [
             'invoice_number' => $p->order?->invoice_number,
-            'customer_name'  => $p->order?->customer_name_snapshot ?? 'Walk-in',
+            'customer_name'  => $p->order?->customer_name_snapshot ?? __('messages.walk_in_label'),
             'amount'         => round($p->amount - ($p->refunded_amount ?? 0), 2),
             'method'         => $p->method,
             'paid_at'        => $p->paid_at,
@@ -117,7 +117,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
             ->map(fn($customerOrders) => [
                 'customer_name' => $customerOrders->first()->customer_name_snapshot
                     ?? $customerOrders->first()->customer?->name
-                    ?? 'Walk-in',
+                    ?? __('messages.walk_in_label'),
                 'orders_count'  => $customerOrders->count(),
                 'total'         => round($customerOrders->sum(fn($o) => $this->calcOrderTotal($o)), 2),
                 'collected'     => round(

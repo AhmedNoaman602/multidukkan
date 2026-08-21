@@ -88,7 +88,7 @@ class SupplierController extends Controller
     {
         $this->authorize('view', $supplier);
         if ($supplier->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         return new SupplierResource($supplier);
     }
@@ -97,7 +97,7 @@ class SupplierController extends Controller
     {
         $this->authorize('update', $supplier);
         if ($supplier->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         $supplier->update($request->validated());
         return new SupplierResource($supplier);
@@ -107,11 +107,11 @@ class SupplierController extends Controller
     {
         $this->authorize('delete', $supplier);
         if ($supplier->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         try{
             $supplier->delete();
-            return response()->json(['message' => 'Supplier deleted successfully.']);
+            return response()->json(['message' => __('messages.supplier_deleted')]);
         }catch(ValidationException $e){
             return response()->json(['message' => $e->errors()['supplier'][0]],422);    
         }
@@ -180,7 +180,7 @@ class SupplierController extends Controller
     $this->authorize('view', $supplier);
 
     if ($supplier->tenant_id !== auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
     $products = $supplier->products()->with('inventories')->get();

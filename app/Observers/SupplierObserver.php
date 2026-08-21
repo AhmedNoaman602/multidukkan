@@ -49,7 +49,7 @@ public function deleting(Supplier $supplier): void
 {
     if ($supplier->purchaseOrders()->withTrashed()->exists()) {
         throw ValidationException::withMessages([
-            'supplier' => 'Cannot delete a supplier with existing purchase orders.',
+            'supplier' => __('messages.supplier_has_purchase_orders'),
         ]);
     }
 }

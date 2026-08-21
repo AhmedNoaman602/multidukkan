@@ -63,7 +63,7 @@ class AIService
         } catch (\Exception $e) {
             // Log the error for internal tracking and throw a user-friendly exception
             Log::error('AI Service Error: ' . $e->getMessage());
-            throw new \RuntimeException('AI service is currently unavailable. Please try again.');
+            throw new \RuntimeException(__('messages.ai_unavailable'));
         }
     }
 
@@ -257,14 +257,14 @@ class AIService
             $reply = $this->stripThinking($response->text);
 
             if (empty($reply)) {
-                throw new \RuntimeException('AI returned empty response.');
+                throw new \RuntimeException(__('messages.ai_empty_response'));
             }
 
             return $reply;
         } catch (\Exception $e) {
             // Log the error and raise an exception
             Log::error('AI Chat Error: ' . $e->getMessage());
-            throw new \RuntimeException('AI service is currently unavailable. Please try again.');
+            throw new \RuntimeException(__('messages.ai_unavailable'));
         }
     }
 }

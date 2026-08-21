@@ -392,7 +392,7 @@ public function restoreCredit(array $data): LedgerEntry
             $payment = Payment::lockForUpdate()->findOrFail($data['payment_id_target']);
             if ($payment->is_auto_reversible) {
                 throw ValidationException::withMessages([
-                    'payment' => 'Credit payments cannot be refunded as cash. Cancel the order instead.'
+                    'payment' => __('messages.credit_payment_no_cash_refund')
                 ]);
             }
             $available = $this->refundableForPayment($payment);
@@ -400,7 +400,7 @@ public function restoreCredit(array $data): LedgerEntry
             // Validate that we aren't refunding more than what was paid on this specific payment.
             if ($data['amount'] > $available) {
                 throw ValidationException::withMessages([
-                    'amount' => "Cannot refund more than {$available} EGP from this payment."
+                    'amount' => __('messages.refund_exceeds_payment', ['available' => $available])
                 ]);
             }
             // Increment the payment's refunded counter.
@@ -424,7 +424,7 @@ public function restoreCredit(array $data): LedgerEntry
             // Validate that the refund request doesn't exceed the total amount paid on the order.
             if ($data['amount'] > $totalPaid) {
                 throw ValidationException::withMessages([
-                    'amount' => "Refund amount exceeds total paid ({$totalPaid} EGP).",
+                    'amount' => __('messages.refund_exceeds_total_paid', ['total' => $totalPaid]),
                 ]);
             }
 
@@ -447,7 +447,7 @@ public function restoreCredit(array $data): LedgerEntry
         } else {
             // Throw exception if neither target payment nor order is provided.
             throw ValidationException::withMessages([
-                'order_id' => 'Please select a specific order or payment to refund from.',
+                'order_id' => __('messages.refund_select_order_or_payment'),
             ]);
         }
 
@@ -493,7 +493,7 @@ public function restoreCredit(array $data): LedgerEntry
         // Block adjustment if the payment has already been refunded.
         if ($payment->refunded_amount > 0) {
             throw ValidationException::withMessages([
-                'amount' => 'Cannot edit a refunded payment. Reverse the refund first.'
+                'amount' => __('messages.cannot_edit_refunded_payment')
             ]);
         }
 
@@ -505,7 +505,7 @@ public function restoreCredit(array $data): LedgerEntry
         // Block setting new amount below already refunded amounts on this specific payment.
         if ($newAmount <= $payment->refunded_amount) {
             throw ValidationException::withMessages([
-                'amount' => 'Cannot set amount below refunded amount.'
+                'amount' => __('messages.amount_below_refunded')
             ]);
         }
 

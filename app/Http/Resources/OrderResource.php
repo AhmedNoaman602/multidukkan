@@ -45,7 +45,7 @@ class OrderResource extends JsonResource
         'tenant_id'  => $this->tenant_id,
         'store_id'   => $this->store_id,
         'customer_id'=> $this->customer_id,
-        'customer_name' => $this->customer_name_snapshot ?? $this->customer?->name ?? 'Deleted Customer',        
+        'customer_name' => $this->customer_name_snapshot ?? $this->customer?->name ?? __('messages.deleted_customer'),
         'created_by' => $this->created_by,
         'notes'      => $this->notes,
         'subtotal'       => round($subtotal, 2),  

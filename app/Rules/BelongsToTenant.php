@@ -25,7 +25,7 @@ class BelongsToTenant implements ValidationRule
         ->exists();
 
         if(!$exists){
-            $fail('The selected :attribute does not belong to this tenant.');
+            $fail(__('messages.field_not_tenant_owned', ['attribute' => $attribute]));
         }
     }
 }

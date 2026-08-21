@@ -116,7 +116,7 @@ class OrderController extends Controller
         $this->authorize('view', $order);
         
         if ($order->tenant_id != auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
         return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
@@ -128,7 +128,7 @@ class OrderController extends Controller
 
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
     $validated = $request->validated();
@@ -148,17 +148,17 @@ try {
         $this->authorize('delete', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         
         if ($order->trashed()) {
-            return response()->json(['message' => 'Order already cancelled'], 422);
+            return response()->json(['message' => __('messages.order_already_cancelled')], 422);
         }
 
         try{
             $this->order->cancelOrder($order, auth()->user());
 
-            return response()->json(['message' => 'Order cancelled and ledger reversed successfully'], 200);
+            return response()->json(['message' => __('messages.order_cancelled')], 200);
         }catch(ValidationException $e){
             return response()->json(['message' => $e->getMessage()], 422);
         } 
@@ -170,11 +170,11 @@ try {
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         if ($item->order_id !== $order->id) {
-            return response()->json(['message' => 'Item does not belong to this order.'], 404);
+            return response()->json(['message' => __('messages.order_item_mismatch')], 404);
         }
 
          $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
@@ -188,7 +188,7 @@ try {
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
 $this->order->addItem($order, $request->validated());

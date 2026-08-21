@@ -23,7 +23,7 @@ class PurchaseOrderResource extends JsonResource
         'invoice_number' => $this->invoice_number,
         'tenant_id'      => $this->tenant_id,
         'supplier_id'    => $this->supplier_id,
-        'supplier_name'  => $this->supplier_name_snapshot ?? $this->supplier?->name ?? 'Deleted Supplier',
+        'supplier_name'  => $this->supplier_name_snapshot ?? $this->supplier?->name ?? __('messages.deleted_supplier'),
         'supplier_phone' => $this->supplier->phone ?? '',
         'notes'          => $this->notes,
         'subtotal'       => round($subtotal, 2), 
@@ -31,7 +31,7 @@ class PurchaseOrderResource extends JsonResource
         'status'         => $this->resolveStatus($totalPaid, $total),
         'items_count'    => $this->items->count(),
         'items'          => $this->items->map(fn($item) => [
-            'product_name' => $item->product?->name ?? 'Deleted Product',
+            'product_name' => $item->product?->name ?? __('messages.deleted_product'),
             'quantity'     => $item->quantity,
             'unit_price'   => $item->unit_price,
             'total'        => $item->unit_price * $item->quantity,

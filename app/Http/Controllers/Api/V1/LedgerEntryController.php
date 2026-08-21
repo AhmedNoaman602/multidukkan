@@ -92,7 +92,7 @@ class LedgerEntryController extends Controller
     $balance = $this->ledger->getBalance($user->tenant_id, $customer->id);
 
     return response()->json([
-        'message'     => 'Credit added successfully',
+        'message'     => __('messages.credit_added'),
         'entry'       => $entry,
         'new_balance' => $balance,
     ], 201);

@@ -62,7 +62,7 @@ public function index(Request $request)
         $this->authorize('view', $inventory);
         
         if($inventory->tenant_id !== auth()->user()->tenant_id){
-            return response()->json(['message'=>'Unauthorized'] , 403);
+            return response()->json(['message' => __('messages.unauthorized')] , 403);
         }
         return new InventoryResource($inventory);
     }
@@ -87,7 +87,7 @@ public function index(Request $request)
         $this->authorize('update', $inventory);
         
         if ($inventory->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         $inventory->update($request->validated());
         return new InventoryResource($inventory);
@@ -99,7 +99,7 @@ public function index(Request $request)
         
         $user = auth()->user();
         if ($inventory->tenant_id !== $user->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         
        try {
@@ -114,7 +114,7 @@ public function index(Request $request)
         );
     } catch (ValidationException $e) {
         return response()->json([
-            'message' => 'Validation error',
+            'message' => __('messages.validation_error'),
             'errors' => $e->errors(),
         ], 422);
     }

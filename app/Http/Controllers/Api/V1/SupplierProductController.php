@@ -29,7 +29,7 @@ class SupplierProductController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Product attached to supplier'
+            'message' => __('messages.supplier_product_attached')
         ]);
     }
 
@@ -52,7 +52,7 @@ class SupplierProductController extends Controller
         $product = $products->get($item['product_id']);
 
         if (! $product) {
-            abort(403, 'One or more products do not belong to your tenant.');
+            abort(403, __('messages.supplier_products_tenant_mismatch'));
         }
 
         $syncData[$item['product_id']] = [
@@ -64,7 +64,7 @@ class SupplierProductController extends Controller
 
     $supplier->products()->syncWithoutDetaching($syncData);
 
-    return response()->json(['message' => 'Products linked to supplier']);
+    return response()->json(['message' => __('messages.supplier_products_linked')]);
 }
 
     public function update(Supplier $supplier , Product $product , Request $request) : JsonResponse{
@@ -85,7 +85,7 @@ class SupplierProductController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Product updated successfully'
+            'message' => __('messages.supplier_product_updated')
         ]);
     }
 
@@ -98,7 +98,7 @@ class SupplierProductController extends Controller
         $supplier->products()->detach($product->id);
 
         return response()->json([
-            'message' => 'Product detached from supplier'
+            'message' => __('messages.supplier_product_detached')
         ]);
     }
 
@@ -109,7 +109,7 @@ class SupplierProductController extends Controller
         abort_if(
             $supplier->tenant_id !== auth()->user()->tenant_id,
             403,
-            'This supplier does not belong to your tenant.'
+            __('messages.supplier_tenant_mismatch')
         );
     }
 
@@ -118,7 +118,7 @@ class SupplierProductController extends Controller
         abort_if(
             $product->tenant_id !== auth()->user()->tenant_id,
             403,
-            'This product does not belong to your tenant.'
+            __('messages.product_tenant_mismatch')
         );
     }
 }

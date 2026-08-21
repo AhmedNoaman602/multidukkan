@@ -50,7 +50,7 @@ class StoreController extends Controller
         $this->authorize('view', $store);
         
         if ($store->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         return new StoreResource($store);
@@ -61,7 +61,7 @@ class StoreController extends Controller
         $this->authorize('update', $store);
 
         if ($store->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $validated = $request->validated();
@@ -76,12 +76,12 @@ class StoreController extends Controller
     $this->authorize('delete', $store);
 
     if ($store->tenant_id !== auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
     try {
         $store->delete();
-        return response()->json(['message' => 'Store deleted successfully']);
+        return response()->json(['message' => __('messages.store_deleted')]);
     } catch (ValidationException $e) {
         return response()->json(['message' => $e->errors()['store'][0]], 422);
     }

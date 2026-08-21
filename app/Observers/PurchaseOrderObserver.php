@@ -61,7 +61,7 @@ class PurchaseOrderObserver
     {
         if ($purchaseOrder->supplierPayments()->exists()) {
             throw ValidationException::withMessages([
-                'purchase_order' => 'Cannot cancel a purchase order with payments. Remove payments first.',
+                'purchase_order' => __('messages.purchase_order_has_payments'),
             ]);
         }
     }

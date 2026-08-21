@@ -41,8 +41,8 @@ class SupplierPaymentController extends Controller
         try{
         $payments = $this->supplierPaymentService->processSupplierPayment($data, auth()->user());
         return response()->json([
-            'message'  => 'Payment distributed across ' . count($payments) . ' order(s).',
-            'payments' => $payments,           
+            'message'  => __('messages.payment_distributed', ['count' => count($payments)]),
+            'payments' => $payments,
         ], 201);
         }catch(\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
@@ -55,13 +55,13 @@ class SupplierPaymentController extends Controller
         $this->authorize('delete', $supplierPayment);
 
         if ($supplierPayment->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         try {
             $this->supplierPaymentService->reversePayment($supplierPayment, auth()->user());
 
-            return response()->json(['message' => 'Payment reversed successfully.'], 200);
+            return response()->json(['message' => __('messages.payment_reversed')], 200);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

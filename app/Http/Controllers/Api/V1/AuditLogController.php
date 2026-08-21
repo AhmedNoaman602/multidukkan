@@ -21,7 +21,7 @@ class AuditLogController extends Controller
         $user = auth()->user();
 
         if($user->role !== 'tenant_admin'){
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $ledgerQuery = DB::table('ledger_entries')
@@ -136,8 +136,8 @@ class AuditLogController extends Controller
             // Sales/returns never carry notes (that's reserved for manual adjustments) — build a
             // reasonable description from the product(s) + the order/PO that moved the stock instead.
             $stockLabel = $itemCount > 1
-                ? "{$itemCount} products"
-                : ($products[$row->product_id] ?? 'Product');
+                ? __('messages.product_count', ['count' => $itemCount])
+                : ($products[$row->product_id] ?? __('messages.product_fallback_label'));
 
             $description = $row->description ?? match ($row->source) {
                 'audit'     => trim(($entityName ?? $auditableType) . ' ' . $row->type),
@@ -185,7 +185,7 @@ class AuditLogController extends Controller
         $user = auth()->user();
 
         if ($user->role !== 'tenant_admin') {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $items = InventoryTransaction::where('tenant_id', $user->tenant_id)
@@ -193,13 +193,13 @@ class AuditLogController extends Controller
             ->with('product:id,name', 'warehouse:id,name')
             ->get()
             ->map(fn ($t) => [
-                'product_name'   => $t->product?->name ?? 'Deleted product',
+                'product_name'   => $t->product?->name ?? __('messages.deleted_product'),
                 'warehouse_name' => $t->warehouse?->name ?? '—',
                 'quantity'       => $t->quantity,
             ]);
 
         if ($items->isEmpty()) {
-            return response()->json(['message' => 'Batch not found.'], 404);
+            return response()->json(['message' => __('messages.batch_not_found')], 404);
         }
 
         return response()->json(['data' => $items]);

@@ -5,7 +5,7 @@ use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\Warehouse;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 
 
@@ -29,9 +29,13 @@ class InventoryService
     $available = $inventory?->quantity ?? 0;
 
     if (!$inventory || $inventory->quantity < $quantity) {
-        throw ValidationException::withMessages([
-            'message' => "لا يوجد مخزون كافي لـ {$productName} في {$warehouseName}. المتاح: {$available}"
-        ]);
+        throw new HttpResponseException(
+            response()->json(['message' => __('messages.insufficient_stock', [
+                'product'   => $productName,
+                'warehouse' => $warehouseName,
+                'available' => $available,
+            ])], 422)
+        );
     }
 }
 
@@ -91,9 +95,12 @@ class InventoryService
 
     if ($direction === 'out') {
         if ($inventory->quantity < $quantity) {
-            throw ValidationException::withMessages([
-                'message' => "لا يمكن إزالة {$quantity}. المتاح فقط: {$inventory->quantity}"
-            ]);
+            throw new HttpResponseException(
+                response()->json(['message' => __('messages.insufficient_removal_quantity', [
+                    'quantity'  => $quantity,
+                    'available' => $inventory->quantity,
+                ])], 422)
+            );
         }
         $inventory->decrement('quantity', $quantity);
         $type = InventoryTransaction::TYPE_ADJUSTMENT_OUT;

@@ -113,7 +113,7 @@ class CustomerController extends Controller
         $this->authorize('view', $customer);
         
         if ($customer->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         return new CustomerResource($customer);
@@ -127,7 +127,7 @@ class CustomerController extends Controller
         $this->authorize('update', $customer);
 
         if ($customer->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $validated = $request->validated();
@@ -144,12 +144,12 @@ class CustomerController extends Controller
     $this->authorize('delete', $customer);
 
     if ($customer->tenant_id !== auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
     try {
         $customer->delete();
-        return response()->json(['message' => 'Customer deleted successfully.']);
+        return response()->json(['message' => __('messages.customer_deleted')]);
     } catch (ValidationException $e) {
         return response()->json(['message' => $e->errors()['customer'][0]],422);
     }
@@ -160,7 +160,7 @@ class CustomerController extends Controller
     $this->authorize('update', $customer);
 
     if ($customer->tenant_id !== auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
     $validated = $request->validated();
@@ -184,7 +184,7 @@ class CustomerController extends Controller
     );
 
     return response()->json([
-        'message'         => 'Refund issued successfully.',
+        'message'         => __('messages.refund_issued'),
         'refunded_amount' => $validated['amount'],
         'new_balance'     => $newBalance,
         'entry_id'        => $entry->id,

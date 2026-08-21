@@ -28,7 +28,7 @@ class UnitController extends Controller
             ->exists();
 
         if ($exists) {
-            return response()->json(['message' => 'هذه الوحدة موجودة بالفعل'], 422);
+            return response()->json(['message' => __('messages.unit_already_exists')], 422);
         }
 
         $unit = Unit::create([
@@ -41,9 +41,9 @@ class UnitController extends Controller
 
     public function destroy(Unit $unit){
         if ($unit->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         $unit->delete();
-        return response()->json(['message' => 'تم حذف الوحدة بنجاح']);
+        return response()->json(['message' => __('messages.unit_deleted')]);
     }
 }

@@ -52,19 +52,19 @@ public function deleting(Product $product): void
 {
     if ($product->orderItems()->exists()) {
         throw ValidationException::withMessages([
-            'product' => 'Cannot delete a product that appears in existing orders.',
+            'product' => __('messages.product_in_orders'),
         ]);
     }
 
     if ($product->purchaseOrderItems()->withTrashed()->exists()) {
         throw ValidationException::withMessages([
-            'product' => 'Cannot delete a product that appears in existing purchase orders.',
+            'product' => __('messages.product_in_purchase_orders'),
         ]);
     }
 
     if ($product->inventories()->where('quantity', '>', 0)->exists()) {
         throw ValidationException::withMessages([
-            'product' => 'Cannot delete a product with existing stock. Reduce stock to zero first.',
+            'product' => __('messages.product_has_stock'),
         ]);
     }
 }

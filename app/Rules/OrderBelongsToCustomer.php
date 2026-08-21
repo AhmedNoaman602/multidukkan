@@ -22,7 +22,7 @@ class OrderBelongsToCustomer implements ValidationRule
         $order = Order::find($value);
 
         if ($order && $order->customer_id !== $this->customerId) {
-            $fail('Customer does not match the order.');
+            $fail(__('messages.customer_order_mismatch'));
         }
     }
 }

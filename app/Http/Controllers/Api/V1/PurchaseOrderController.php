@@ -103,7 +103,7 @@ class PurchaseOrderController extends Controller
         $user = auth()->user();
 
         if ($purchaseOrder->tenant_id !== $user->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         return new PurchaseOrderResource($purchaseOrder->load('supplier', 'items.product', 'supplierPayments'));
@@ -114,7 +114,7 @@ class PurchaseOrderController extends Controller
         $this->authorize('update', $purchaseOrder);
         $user = auth()->user();
         if ($purchaseOrder->tenant_id !== $user->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $purchaseOrder->update($request->validated());
@@ -126,14 +126,14 @@ class PurchaseOrderController extends Controller
         $this->authorize('delete', $purchaseOrder);
         
         if ($purchaseOrder->trashed()) {
-            return response()->json(['message' => 'Order already cancelled'], 422);
+            return response()->json(['message' => __('messages.purchase_order_already_cancelled')], 422);
         }
 
         if ($purchaseOrder->tenant_id != auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         $this->purchaseOrderService->cancelPurchaseOrder($purchaseOrder, auth()->user());
 
-        return response()->json(['message' => 'Order cancelled and ledger reversed successfully'], 200);
+        return response()->json(['message' => __('messages.purchase_order_cancelled')], 200);
     }
 }

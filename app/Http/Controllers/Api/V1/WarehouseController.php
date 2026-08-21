@@ -30,7 +30,7 @@ class WarehouseController extends Controller
 
     if (!$storeId) {
         return response()->json([
-            'message' => 'store_id is required.'
+            'message' => __('messages.store_id_required')
         ], 422);
     }
 
@@ -53,7 +53,7 @@ class WarehouseController extends Controller
         $this->authorize('view', $warehouse);
         
         if($warehouse->tenant_id !== auth()->user()->tenant_id){
-            return response()->json(['message'=>'Unauthorized'] , 403);
+            return response()->json(['message' => __('messages.unauthorized')] , 403);
         }
         return new WarehouseResource($warehouse);
     }
@@ -62,7 +62,7 @@ class WarehouseController extends Controller
         $this->authorize('update', $warehouse);
         
         if ($warehouse->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $warehouse->update([
@@ -78,7 +78,7 @@ class WarehouseController extends Controller
         $this->authorize('delete', $warehouse);
         
         if ($warehouse->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $hasInventory = $warehouse->inventories()
@@ -87,13 +87,13 @@ class WarehouseController extends Controller
 
         if ($hasInventory) {
             return response()->json([
-                'message' => 'Cannot delete warehouse with existing inventory.',
+                'message' => __('messages.warehouse_has_inventory'),
             ], 422);
         }
 
         $warehouse->delete();
         return response()->json([
-            'message' => 'Warehouse deleted successfully',
+            'message' => __('messages.warehouse_deleted'),
         ]);
     }
 }

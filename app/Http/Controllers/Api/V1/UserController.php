@@ -47,7 +47,7 @@ class UserController extends Controller
         };
 
         if (empty($allowedRoles)) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $newUser = User::create([
@@ -75,11 +75,11 @@ class UserController extends Controller
         $authUser = auth()->user();
 
         if ($user->tenant_id !== $authUser->tenant_id) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         if ($user->id === $authUser->id) {
-            return response()->json(['message' => 'Cannot delete yourself.'], 422);
+            return response()->json(['message' => __('messages.cannot_delete_self')], 422);
         }
 
         $allowedRoles = match($authUser->role) {
@@ -89,11 +89,11 @@ class UserController extends Controller
         };
 
         if (!in_array($user->role, $allowedRoles)) {
-            return response()->json(['message' => 'Unauthorized to delete this user.'], 403);
+            return response()->json(['message' => __('messages.unauthorized_delete_user')], 403);
         }
 
         $user->delete();
 
-        return response()->json(['message' => 'User deleted successfully.']);
+        return response()->json(['message' => __('messages.user_deleted')]);
     }
 }

@@ -64,7 +64,7 @@ class OrderObserver
 
     if ($hasUnrefundedPayments) {
         throw ValidationException::withMessages([
-            'order' => 'Cannot delete an order with payments. Remove payments first.',
+            'order' => __('messages.order_has_payments'),
         ]);
     }
 }

@@ -50,7 +50,7 @@ class PaymentService
             // If the order has already been fully paid off, reject any new direct payment attempts.
             if($totalAlreadyPaid >= $orderTotal){
                 throw ValidationException::withMessages([
-                    'amount' => 'Order is already fully paid.',
+                    'amount' => __('messages.order_already_fully_paid'),
                 ]);
             }
 

@@ -385,7 +385,7 @@ if (!empty($data['pay_immediately'])) {
     {
         if ($order->isSettled()) {
             throw ValidationException::withMessages([
-                'order' => 'This order is fully paid and locked. Create a new order or invoice for additional items.',
+                'order' => __('messages.order_fully_paid_locked'),
             ]);
         }
 
@@ -394,7 +394,7 @@ if (!empty($data['pay_immediately'])) {
 
         if ($isPartiallyPaid && !$isManagerOrAbove) {
             throw ValidationException::withMessages([
-                'order' => 'This order has partial payments — only a manager can modify it.',
+                'order' => __('messages.order_partial_payments_manager_only'),
             ]);
         }
     }
@@ -512,7 +512,7 @@ public function updateOrder(Order $order, array $data): Order
 
         if ($hasUnrefundedPayments) {
             throw ValidationException::withMessages([
-                'order' => 'Please refund all payments before cancelling this order.'
+                'order' => __('messages.refund_before_cancel')
             ]);
         }
 

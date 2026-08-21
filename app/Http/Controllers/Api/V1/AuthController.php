@@ -75,7 +75,7 @@ foreach ($defaultUnits as $unit) {
        $user = User::where('email', $request->email)->first();
 
 if (!$user || !Hash::check($request->password, $user->password)) {
-    return response()->json(['message' => 'Invalid credentials.'], 401);
+    return response()->json(['message' => __('messages.invalid_credentials')], 401);
 }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -108,8 +108,8 @@ if (!$user || !Hash::check($request->password, $user->password)) {
        } //condition is only for testing files
 
        return response()->json([
-        'message' => 'Logged out successfully.'
-       ]); 
+        'message' => __('messages.logged_out')
+       ]);
 
     }
 

@@ -47,7 +47,7 @@ public function store(StorePaymentRequest $request){
          try {
         $payment = $this->payment->processDirectPayment($data, auth()->user());
         return response()->json([
-            'message' => 'Payment processed successfully.',
+            'message' => __('messages.payment_processed'),
             'payment' => $payment,
         ], 201);
     } catch (\InvalidArgumentException $e) {
@@ -65,7 +65,7 @@ public function update(UpdatePaymentRequest $request, Payment $payment)
     $this->ledger->adjustPayment($payment, $data['amount'], $data['method']);
 
     return response()->json([
-        'message' => 'Payment adjusted successfully.',
+        'message' => __('messages.payment_adjusted'),
         'payment' => $payment->fresh(),
     ]);
 }
@@ -82,7 +82,7 @@ try{
             auth()->user()
         );
         return response()->json([
-            'message'  => 'Payment distributed across ' . count($payments) . ' order(s).',
+            'message'  => __('messages.payment_distributed', ['count' => count($payments)]),
             'payments' => $payments,
         ],201);
     }catch (\InvalidArgumentException $e) {

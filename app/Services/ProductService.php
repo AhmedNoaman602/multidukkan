@@ -65,7 +65,7 @@ class ProductService
                     ?? $this->getDefaultWarehouse($tenantId);
                 if (!$warehouseId) {
                     throw new HttpResponseException(
-                        response()->json(['message' => 'لا يوجد مخزن متاح. يرجى إنشاء مخزن أولاً.'], 422)
+                        response()->json(['message' => __('messages.no_warehouse_available')], 422)
                     );
                 }
 

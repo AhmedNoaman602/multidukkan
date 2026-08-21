@@ -69,7 +69,7 @@ class ProductController extends Controller
         $this->authorize('view', $product);
 
         if ($product->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         
         return new ProductResource($product);
@@ -83,7 +83,7 @@ class ProductController extends Controller
         $this->authorize('update', $product);
 
         if ($product->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         
         $product->update([
@@ -123,7 +123,7 @@ class ProductController extends Controller
             }
         } catch (ValidationException $e) {
             return response()->json([
-                'message' => 'Validation error',
+                'message' => __('messages.validation_error'),
                 'errors' => $e->errors(),
             ], 422);
         }
@@ -139,7 +139,7 @@ class ProductController extends Controller
     $this->authorize('delete', $product);
 
     if ($product->tenant_id !== auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
     // Block deletion if product has stock
@@ -149,19 +149,19 @@ class ProductController extends Controller
 
     if ($hasStock) {
         return response()->json([
-            'message' => 'Cannot delete product with existing inventory. Reduce stock to zero first.'
+            'message' => __('messages.product_has_inventory')
         ], 422);
     }
 
     $product->delete();
 
-    return response()->json(['message' => 'Product deleted successfully']);
+    return response()->json(['message' => __('messages.product_deleted')]);
 }
 
 public function suppliers(Product $product)
 {
     if ($product->tenant_id !== auth()->user()->tenant_id) {
-        return response()->json(['message' => 'Unauthorized'], 403);
+        return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
     $suppliers = $product->suppliers()->get();

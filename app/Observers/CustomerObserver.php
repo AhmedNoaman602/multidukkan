@@ -50,13 +50,13 @@ public function deleting(Customer $customer): void
 {
     if ($customer->orders()->withTrashed()->exists()) {
         throw ValidationException::withMessages([
-            'customer' => 'Cannot delete a customer who has existing orders.',
+            'customer' => __('messages.customer_has_orders'),
         ]);
     }
 
     if ($customer->payments()->exists()) {
         throw ValidationException::withMessages([
-            'customer' => 'Cannot delete a customer who has existing payments.',
+            'customer' => __('messages.customer_has_payments'),
         ]);
     }
 
@@ -65,7 +65,7 @@ public function deleting(Customer $customer): void
 
     if ($balance != 0) {
         throw ValidationException::withMessages([
-            'customer' => 'Cannot delete a customer with outstanding balance.',
+            'customer' => __('messages.customer_has_balance'),
         ]);
     }
 }

@@ -51,7 +51,7 @@ public function insights(): JsonResponse
     if ($orders->isEmpty()) {
         return response()->json([
             'no_data' => true,
-            'message' => 'لا توجد بيانات مبيعات كافية في آخر 30 يوم.',
+            'message' => __('messages.no_sales_data'),
         ]);
 }
 
@@ -75,14 +75,14 @@ public function insights(): JsonResponse
     }
 
     $salesData = [
-        'period'         => 'آخر 30 يوم',
+        'period'         => __('messages.ai_period_last_30_days'),
         'total_orders'   => $orders->count(),
         'total_revenue'  => round($orders->sum('total'), 2),
         'products'       => array_values($productSales),
     ];
 
 try {
-    $insights = $this->ai->generateInsights($salesData, $user->tenant->name ?? 'صاحب المتجر');
+    $insights = $this->ai->generateInsights($salesData, $user->tenant->name ?? __('messages.ai_shop_owner_fallback'));
 } catch (\RuntimeException $e) {
     return response()->json(['message' => $e->getMessage()], 503);
 }
@@ -118,9 +118,13 @@ public function chat(Request $request): JsonResponse
         );
 
         $reply = $lowStock->isEmpty()
-            ? 'لا توجد منتجات منخفضة المخزون حالياً. كل المنتجات فوق الحد الأدنى.'
-            : 'المنتجات المنخفضة المخزون:' . "\n" . $lowStock->map(
-                fn($p) => "- {$p->name}: {$p->inventories->sum('quantity')} وحدة (الحد الأدنى: {$p->inventories->min('threshold')})"
+            ? __('messages.ai_no_low_stock')
+            : __('messages.ai_low_stock_header') . "\n" . $lowStock->map(
+                fn($p) => __('messages.ai_low_stock_item', [
+                    'name'      => $p->name,
+                    'quantity'  => $p->inventories->sum('quantity'),
+                    'threshold' => $p->inventories->min('threshold'),
+                ])
             )->join("\n");
 
         return response()->json([

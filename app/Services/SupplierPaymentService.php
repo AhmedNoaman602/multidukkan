@@ -25,7 +25,7 @@ if (!empty($data['purchase_order_id'])) {
 
     if ((int) $order->supplier_id !== (int) $supplierId) {
         throw ValidationException::withMessages([
-            'purchase_order_id' => 'This purchase order does not belong to the selected supplier.'
+            'purchase_order_id' => __('messages.purchase_order_supplier_mismatch')
         ]);
     }
 
@@ -33,7 +33,7 @@ if (!empty($data['purchase_order_id'])) {
 
     if ($remaining > $orderOwed) {
     throw ValidationException::withMessages([
-        'amount' => "Payment amount ({$remaining} EGP) exceeds the amount owed on this order ({$orderOwed} EGP)."
+        'amount' => __('messages.payment_exceeds_order_owed', ['remaining' => $remaining, 'owed' => $orderOwed])
     ]);
 }
 
@@ -72,7 +72,7 @@ if (!empty($data['purchase_order_id'])) {
 
 if ($remaining > $totalOwed) {
     throw ValidationException::withMessages([
-        'amount' => "Payment amount ({$remaining} EGP) exceeds the total amount owed to this supplier ({$totalOwed} EGP)."
+        'amount' => __('messages.payment_exceeds_supplier_owed', ['remaining' => $remaining, 'owed' => $totalOwed])
     ]);
 }
 
@@ -129,7 +129,7 @@ if ($remaining > $totalOwed) {
             $locked = SupplierPayment::where('id', $payment->id)->lockForUpdate()->first();
 
             if (! $locked) {
-                throw new \InvalidArgumentException('This payment has already been reversed.');
+                throw new \InvalidArgumentException(__('messages.payment_already_reversed'));
             }
 
             $this->ledger->reverseSupplierPayment([

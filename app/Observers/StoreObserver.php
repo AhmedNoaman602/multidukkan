@@ -50,19 +50,19 @@ class StoreObserver
     $storeCount = Store::where('tenant_id', $store->tenant_id)->count();
     if ($storeCount <= 1) {
         throw ValidationException::withMessages([
-            'store' => 'Cannot delete the only store. At least one store is required.',
+            'store' => __('messages.store_is_only_store'),
         ]);
     }
 
     if ($store->warehouses()->exists()) {
         throw ValidationException::withMessages([
-            'store' => 'Cannot delete a store with existing warehouses. Remove warehouses first.',
+            'store' => __('messages.store_has_warehouses'),
         ]);
     }
 
     if ($store->orders()->whereUnpaid()->exists()) {
         throw ValidationException::withMessages([
-            'store' => 'Cannot delete a store with unpaid orders. Settle all orders first.',
+            'store' => __('messages.store_has_unpaid_orders'),
         ]);
     }
 }

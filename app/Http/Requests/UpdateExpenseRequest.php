@@ -52,7 +52,7 @@ class UpdateExpenseRequest extends FormRequest
             $description = $this->has('description') ? $this->input('description') : $expense->description;
 
             if ($category === 'MISCELLANEOUS' && blank($description)) {
-                $validator->errors()->add('description', 'A description is required for MISCELLANEOUS expenses.');
+                $validator->errors()->add('description', __('messages.description_required_for_misc_expense'));
             }
         });
     }

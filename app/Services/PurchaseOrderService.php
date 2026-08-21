@@ -77,12 +77,12 @@ class PurchaseOrderService
 
             if ($products->count() !== $productIds->count()) {
 
-                throw new \InvalidArgumentException('One or more products do not belong to this tenant.');
+                throw new \InvalidArgumentException(__('messages.purchase_order_products_tenant_mismatch'));
 
             }
             if (!$supplier) {
 
-                 throw new \InvalidArgumentException('Supplier does not belong to this tenant.');
+                 throw new \InvalidArgumentException(__('messages.purchase_order_supplier_tenant_mismatch'));
 
             }
 

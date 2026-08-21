@@ -78,7 +78,7 @@ class ExpenseController extends Controller
 
         // Belt-and-suspenders tenant re-check, matching every other controller.
         if ($expense->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $expense = $this->expenseService->updateExpense($expense, $request->validated());
@@ -91,11 +91,11 @@ class ExpenseController extends Controller
         $this->authorize('delete', $expense);
 
         if ($expense->tenant_id !== auth()->user()->tenant_id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
         $this->expenseService->deleteExpense($expense);
 
-        return response()->json(['message' => 'Expense deleted successfully.']);
+        return response()->json(['message' => __('messages.expense_deleted')]);
     }
 }
