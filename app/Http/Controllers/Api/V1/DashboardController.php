@@ -44,7 +44,6 @@ class DashboardController extends Controller
         'end' => now()->endOfYear(),
     ],
 };
-        // Period payments (cash received only — store-credit payments move no cash)
         $periodPayments = Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
             ->cashOnly()
             ->whereBetween('paid_at', [$range['start'], $range['end']])
@@ -52,14 +51,12 @@ class DashboardController extends Controller
 
         $periodRevenue = $periodPayments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
 
-        // Recent orders
         $recentOrders = Order::where('tenant_id', $tenantId)
             ->orderByDesc('id')
             ->limit(5)
             ->with(['payments', 'items', 'customer'])
             ->get();
 
-        // Period orders
         $periodOrders = Order::where('tenant_id', $tenantId)
             ->whereBetween('order_date', [$range['start']->toDateString(), $range['end']->toDateString()])
             ->with('payments')
@@ -67,8 +64,6 @@ class DashboardController extends Controller
 
         $periodSales = $periodOrders->sum(fn($o) => max(0, $o->total ?? 0));
 
-        // Unpaid orders — settlement definition: has the customer's debt been
-        // cleared (store credit counts), not "did we receive cash".
         $unpaidOrdersCount = Order::where('tenant_id', $tenantId)
             ->whereUnpaid()
             ->count();
@@ -101,11 +96,9 @@ class DashboardController extends Controller
             'unpaid_orders_count' => $unpaidCountsByCustomer[$c->id] ?? 0,
         ])->sortByDesc('balance')->take(5)->values();
 
-        // Counts
         $totalCustomers = count($customerIds);
         $totalProducts  = Product::where('tenant_id', $tenantId)->count();
 
-        // Low stock
         $lowStock = Inventory::where('tenant_id', $tenantId)
             ->whereColumn('quantity', '<=', 'threshold')
             ->where('quantity', '>', 0)
