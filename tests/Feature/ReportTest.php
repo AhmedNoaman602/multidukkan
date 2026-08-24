@@ -185,4 +185,106 @@ class ReportTest extends TestCase
         // Category with no spend in range never appears.
         $this->assertArrayNotHasKey('SALARIES', $breakdown->toArray());
     }
+
+    // ── Business-timezone boundaries ─────────────────────────────────────────
+    //
+    // Reports are bounded by the SHOP's trading day, unlike the rest of the app which
+    // follows the viewer. These tests pin that difference down, because it is the one
+    // place where honouring X-Timezone would be a bug.
+
+    /**
+     * A payment at 21:30 UTC on 21 Aug is 00:30 on 22 Aug in Cairo — so it belongs to
+     * the shop's 22nd, even though a viewer in UTC would call it the 21st.
+     */
+    private function makeCashPaymentAt(string $utc, float $amount = 250): void
+    {
+        $order = Order::factory()->create([
+            'tenant_id'   => $this->tenant->id,
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'total'       => $amount,
+            'order_date'  => '2026-08-22',
+        ]);
+
+        \App\Models\Payment::factory()->create([
+            'tenant_id'          => $this->tenant->id,
+            'order_id'           => $order->id,
+            'customer_id'        => $this->customer->id,
+            'amount'             => $amount,
+            'method'             => 'cash',
+            'is_auto_reversible' => false,   // cashOnly() scope
+            'paid_at'            => \Illuminate\Support\Carbon::parse($utc, 'UTC'),
+        ]);
+    }
+
+    public function test_report_exposes_the_business_timezone_it_was_bounded_by(): void
+    {
+        $response = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl(now()->toDateString()))
+            ->assertOk();
+
+        $this->assertSame(config('app.business_timezone'), $response->json('business_timezone'));
+    }
+
+    public function test_report_day_boundaries_follow_the_shop_not_the_viewer(): void
+    {
+        config(['app.business_timezone' => 'Africa/Cairo']);
+
+        // 00:30 on 22 Aug in Cairo.
+        $this->makeCashPaymentAt('2026-08-21 21:30:00');
+
+        // A viewer in UTC — who would call this instant the 21st — asking for the
+        // shop's 22nd must still see it, because the shop's day is what bounds the
+        // report. Under viewer-timezone boundaries this would return 0.
+        $onShopDay = $this->actingAs($this->admin)
+            ->withHeaders(['X-Timezone' => 'UTC'])
+            ->getJson('/api/reports/daily?from=2026-08-22&to=2026-08-22')
+            ->assertOk();
+
+        $this->assertEquals(250, $onShopDay->json('summary.total_collected'));
+
+        // And it must NOT also fall into the previous shop day.
+        $onPreviousDay = $this->actingAs($this->admin)
+            ->withHeaders(['X-Timezone' => 'UTC'])
+            ->getJson('/api/reports/daily?from=2026-08-21&to=2026-08-21')
+            ->assertOk();
+
+        $this->assertEquals(0, $onPreviousDay->json('summary.total_collected'));
+    }
+
+    public function test_report_totals_are_identical_whatever_timezone_the_viewer_sends(): void
+    {
+        config(['app.business_timezone' => 'Africa/Cairo']);
+
+        $this->makeCashPaymentAt('2026-08-21 21:30:00');
+
+        $url = '/api/reports/daily?from=2026-08-22&to=2026-08-22';
+
+        // Same report, three very different viewers. A business report must not change
+        // depending on who opens it or where from.
+        $cairo = $this->actingAs($this->admin)->withHeaders(['X-Timezone' => 'Africa/Cairo'])->getJson($url)->assertOk();
+        $utc   = $this->actingAs($this->admin)->withHeaders(['X-Timezone' => 'UTC'])->getJson($url)->assertOk();
+        $ny    = $this->actingAs($this->admin)->withHeaders(['X-Timezone' => 'America/New_York'])->getJson($url)->assertOk();
+
+        $this->assertSame($cairo->json('summary'), $utc->json('summary'));
+        $this->assertSame($cairo->json('summary'), $ny->json('summary'));
+        $this->assertSame($cairo->json('business_timezone'), $ny->json('business_timezone'));
+    }
+
+    public function test_changing_the_configured_business_timezone_moves_the_boundary(): void
+    {
+        // Proves the zone is genuinely read from config rather than hardcoded anywhere.
+        // The same instant belongs to the 22nd in Cairo but the 21st in UTC.
+        $this->makeCashPaymentAt('2026-08-21 21:30:00');
+
+        config(['app.business_timezone' => 'UTC']);
+
+        $shopOnUtc = $this->actingAs($this->admin)
+            ->withHeaders(['X-Timezone' => 'Africa/Cairo'])
+            ->getJson('/api/reports/daily?from=2026-08-21&to=2026-08-21')
+            ->assertOk();
+
+        $this->assertSame('UTC', $shopOnUtc->json('business_timezone'));
+        $this->assertEquals(250, $shopOnUtc->json('summary.total_collected'));
+    }
 }

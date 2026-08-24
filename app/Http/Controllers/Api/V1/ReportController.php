@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\ExpenseService;
+use App\Support\LocalDateRange;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
@@ -17,17 +18,26 @@ class ReportController extends Controller
     public function daily(Request $request)
     {
         $tenantId = auth()->user()->tenant_id;
-        $from = $request->from ?? today()->toDateString();
-        $to   = $request->to   ?? today()->toDateString();
+
+        // Reports are bounded by the SHOP's trading day, not the viewer's and not UTC.
+        // A daily report must show the same figures whoever opens it, so this ignores
+        // X-Timezone on purpose — the one place in the app where that is correct.
+        $timezone = LocalDateRange::businessTimezone();
+        $from = $request->from ?? LocalDateRange::today($timezone)->toDateString();
+        $to   = $request->to   ?? LocalDateRange::today($timezone)->toDateString();
         $isPrint = $request->boolean('print', false);
 
         $orders   = $this->fetchOrders($tenantId, $from, $to);
-        $payments = $this->fetchPayments($tenantId, $from, $to);
+        $payments = $this->fetchPayments($tenantId, $from, $to, $timezone);
         $totalExpenses = $this->expenseService->getTotalForPeriod($tenantId, $from, $to);
         $perPage = $isPrint ? PHP_INT_MAX : ($request->per_page ?? 10);
 
 
        return response()->json([
+            // The zone these figures are bounded by. Sent so the report pages render
+            // times in the same day the totals were calculated for, instead of each
+            // side deciding independently.
+            'business_timezone'   => $timezone,
             'summary'             => $this->buildSummary($orders, $payments, $totalExpenses),
             'missing_cost_prices' => $this->countMissingCostPrices($orders),
             'profit_by_order'     => $this->paginate($this->buildProfitByOrder($orders),            $request->order_page    ?? 1, $perPage),
@@ -41,17 +51,24 @@ class ReportController extends Controller
 
 // ─── Data Fetching ────────────────────────────────────────────────────────
 
-private function fetchPayments(int $tenantId, string $from, string $to) : Collection {
+private function fetchPayments(int $tenantId, string $from, string $to, string $timezone) : Collection {
 
+    // paid_at is a stored UTC instant, so the local from/to dates become the UTC
+    // instants bounding those local days rather than a DATE() comparison.
     return Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
     ->cashOnly()
-    ->whereBetween(DB::raw('DATE(paid_at)'), [$from, $to])
+    ->whereBetween('paid_at', [
+        LocalDateRange::startOfDay($from, $timezone),
+        LocalDateRange::endOfDay($to, $timezone),
+    ])
     ->with(['order.items.product', 'order.customer'])
     ->get();
 }
 
 private function fetchOrders(int $tenantId, string $from, string $to): Collection
 {
+    // order_date is a calendar DATE column with no instant behind it — compared as
+    // plain local dates, never timezone-converted.
     return Order::where('tenant_id', $tenantId)
         ->whereBetween(DB::raw('DATE(order_date)'), [$from, $to])
         ->with(['items.product', 'customer'])
