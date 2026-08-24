@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Http\Requests\StoreSupplierPaymentRequest;
 use App\Services\SupplierPaymentService;
 use App\Models\SupplierPayment;
+use App\Support\LocalDateRange;
 
 class SupplierPaymentController extends Controller
 {
@@ -14,14 +15,15 @@ class SupplierPaymentController extends Controller
         protected SupplierPaymentService $supplierPaymentService
     ) {}
 
-    public function index(){
+    public function index(Request $request){
         $this->authorize('viewAny', SupplierPayment::class);
 
         $user = auth()->user();
 
         $payments = SupplierPayment::where('tenant_id', $user->tenant_id)
-        ->when(request('date'), fn($q) => $q->whereDate('created_at', request('date')))
-        ->when(request('year'), fn($q) => $q->whereYear('created_at', request('year')))
+        ->tap(fn($q) => LocalDateRange::apply($q, $request->merge([
+            'date_exact' => $request->input('date'),
+        ])))
         ->with('supplier:id,name', 'purchaseOrder:id,supplier_id')
         ->orderBy('created_at', 'desc')
         ->get();

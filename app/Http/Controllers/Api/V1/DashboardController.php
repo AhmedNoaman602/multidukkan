@@ -11,6 +11,7 @@ use App\Models\Payment;
 use App\Models\Inventory;
 use App\Http\Resources\OrderResource;
 use App\Services\LedgerService;
+use App\Support\LocalDateRange;
 
 class DashboardController extends Controller
 {
@@ -26,27 +27,38 @@ class DashboardController extends Controller
         $period = 'today';
         }
 
+    // Boundaries are the viewer's LOCAL calendar. Anchoring on now() alone would make
+    // "today" start at 00:00 UTC — 03:00 in Cairo — so the first three hours of the
+    // local day were counted as yesterday and the previous evening leaked into today.
+    $timezone = LocalDateRange::timezoneFor($request);
+    $localNow = now($timezone);
+
     $range = match ($period) {
     'today' => [
-        'start' => now()->startOfDay(),
-        'end' => now()->endOfDay(),
+        'start' => $localNow->copy()->startOfDay(),
+        'end' => $localNow->copy()->endOfDay(),
     ],
     'week' => [
-        'start' => now()->startOfWeek(),
-        'end' => now()->endOfWeek(),
+        'start' => $localNow->copy()->startOfWeek(),
+        'end' => $localNow->copy()->endOfWeek(),
     ],
     'month' => [
-        'start' => now()->startOfMonth(),
-        'end' => now()->endOfMonth(),
+        'start' => $localNow->copy()->startOfMonth(),
+        'end' => $localNow->copy()->endOfMonth(),
     ],
     'year' => [
-        'start' => now()->startOfYear(),
-        'end' => now()->endOfYear(),
+        'start' => $localNow->copy()->startOfYear(),
+        'end' => $localNow->copy()->endOfYear(),
     ],
 };
+        // paid_at is a stored instant, so the local boundaries convert to UTC before
+        // comparison. order_date below is a calendar DATE column and stays local.
         $periodPayments = Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
             ->cashOnly()
-            ->whereBetween('paid_at', [$range['start'], $range['end']])
+            ->whereBetween('paid_at', [
+                $range['start']->copy()->utc(),
+                $range['end']->copy()->utc(),
+            ])
             ->get();
 
         $periodRevenue = $periodPayments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));

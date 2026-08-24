@@ -9,6 +9,7 @@ use App\Http\Requests\StorePurchaseOrderRequest;
 use App\Http\Requests\UpdatePurchaseOrderRequest;
 use App\Http\Resources\PurchaseOrderResource;
 use App\Services\PurchaseOrderService;
+use App\Support\LocalDateRange;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseOrderController extends Controller
@@ -37,21 +38,7 @@ class PurchaseOrderController extends Controller
                       $q->where('name', 'like', "%$request->search%"));
             });
         })
-        ->when($request->year, fn($q) =>
-            $q->whereYear('created_at', $request->year)
-        )
-        ->when($request->month, fn($q) =>
-            $q->whereMonth('created_at', $request->month)
-        )
-        ->when($request->date_from, fn($q) =>
-            $q->whereDate('created_at', '>=', $request->date_from)
-        )
-        ->when($request->date_to, fn($q) =>
-            $q->whereDate('created_at', '<=', $request->date_to)
-        )
-        ->when($request->date_exact, fn($q) =>
-            $q->whereDate('created_at', $request->date_exact)
-        );
+        ->tap(fn($q) => LocalDateRange::apply($q, $request));
 
     $totalSpent = (clone $query)->sum('total');
 

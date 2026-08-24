@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\LocalDateRange;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -24,7 +25,12 @@ class UpdateOrderRequest extends FormRequest
     {
         return [
             'notes'      => ['sometimes', 'nullable', 'string', 'max:500'],
-            'order_date' => ['sometimes', 'date', 'before_or_equal:today'],
+            // See StoreOrderRequest — "today" is the viewer's calendar day, not UTC's.
+            'order_date' => [
+                'sometimes',
+                'date',
+                'before_or_equal:' . LocalDateRange::today(LocalDateRange::timezoneFor($this))->toDateString(),
+            ],
             'discount'   => ['sometimes', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];
     }

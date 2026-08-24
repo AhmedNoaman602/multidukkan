@@ -8,13 +8,14 @@ use App\Http\Requests\UpdatePaymentRequest;
 use App\Http\Requests\AutoPaymentRequest;
 use App\Services\PaymentService;
 use App\Models\Payment;
+use App\Support\LocalDateRange;
 use Illuminate\Http\Request;
 use App\Services\LedgerService;
 class PaymentController extends Controller
 {
     public function __construct(protected PaymentService $payment , protected LedgerService $ledger) {}
 
- public function index()
+ public function index(Request $request)
 {
     $this->authorize('viewAny', Payment::class);
 
@@ -24,8 +25,9 @@ class PaymentController extends Controller
         ->when($user->store_id, function($q) use ($user) {
             $q->whereHas('order', fn($o) => $o->where('store_id', $user->store_id));
         })
-        ->when(request('date'), fn($q) => $q->whereDate('created_at', request('date')))
-        ->when(request('year'), fn($q) => $q->whereYear('created_at', request('year')))
+        ->tap(fn($q) => LocalDateRange::apply($q, $request->merge([
+            'date_exact' => $request->input('date'),
+        ])))
         ->where('method' , '!=', 'credit')
         ->with('customer:id,name', 'order:id,store_id')
         ->orderBy('created_at', 'desc')

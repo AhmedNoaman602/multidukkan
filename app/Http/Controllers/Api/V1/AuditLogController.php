@@ -12,7 +12,9 @@ use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Support\LocalDateRange;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class AuditLogController extends Controller
@@ -24,16 +26,28 @@ class AuditLogController extends Controller
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
+        // created_at is stored in UTC, but date_from/date_to are the viewer's local
+        // calendar dates. Translate them into the UTC instants that bound those local
+        // days once, here, and reuse for all three union arms. Comparing the raw column
+        // (rather than whereDate's DATE(created_at)) also keeps the index usable.
+        $timezone = LocalDateRange::timezoneFor($request);
+        $from = LocalDateRange::startOfDay($request->date_from, $timezone);
+        $to   = LocalDateRange::endOfDay($request->date_to, $timezone);
+
+        $applyDateRange = function ($query) use ($from, $to) {
+            if ($from) {
+                $query->where('created_at', '>=', $from);
+            }
+            if ($to) {
+                $query->where('created_at', '<=', $to);
+            }
+        };
+
         $ledgerQuery = DB::table('ledger_entries')
             ->selectRAW('id, type, amount, description, reference_type, reference_id, customer_id, "ledger" as source, null as quantity , null as product_id, null as warehouse_id, user_id, Case WHEN entity_type = "supplier" THEN entity_id ELSE null END as supplier_id, null as changes, created_at, null as batch_id, null as item_count')
             ->where('tenant_id', $user->tenant_id);
 
-            if ($request->date_from) {
-                $ledgerQuery->whereDate('created_at', '>=', $request->date_from);
-            }
-            if ($request->date_to) {
-                $ledgerQuery->whereDate('created_at', '<=', $request->date_to);
-            }
+        $applyDateRange($ledgerQuery);
 
         // Grouped by batch_id so an order/PO's line-item stock movements show as one event
         // instead of one row per product — falls back to one group per row when batch_id is
@@ -42,12 +56,7 @@ class AuditLogController extends Controller
             ->selectRAW('COALESCE(batch_id, CAST(id AS CHAR)) as id, MAX(type) as type, null as amount, null as description, MAX(reference_type) as reference_type, MAX(reference_id) as reference_id, null as customer_id, "inventory" as source, SUM(quantity) as quantity, MIN(product_id) as product_id, MIN(warehouse_id) as warehouse_id, MAX(user_id) as user_id, null as supplier_id, null as changes, MAX(created_at) as created_at, MAX(batch_id) as batch_id, COUNT(DISTINCT product_id) as item_count')
             ->where('tenant_id', $user->tenant_id);
 
-        if ($request->date_from) {
-            $inventoryQuery->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->date_to) {
-            $inventoryQuery->whereDate('created_at', '<=', $request->date_to);
-        }
+        $applyDateRange($inventoryQuery);
 
         $inventoryQuery->groupByRaw('COALESCE(batch_id, CAST(id AS CHAR))');
 
@@ -55,12 +64,7 @@ class AuditLogController extends Controller
             ->selectRAW('id, action as type, null as amount, null as description, auditable_type as reference_type, auditable_id as reference_id, null as customer_id, "audit" as source, null as quantity, null as product_id, null as warehouse_id, user_id, null as supplier_id, changes, created_at, null as batch_id, null as item_count')
             ->where('tenant_id', $user->tenant_id);
 
-        if ($request->date_from) {
-            $auditQuery->whereDate('created_at', '>=', $request->date_from);
-        }
-        if ($request->date_to) {
-            $auditQuery->whereDate('created_at', '<=', $request->date_to);
-        }
+        $applyDateRange($auditQuery);
 
         $combined = match($request->source) {
             'ledger'    => $ledgerQuery,
@@ -160,7 +164,10 @@ class AuditLogController extends Controller
                 'auditable_type' => $auditableType,
                 'entity_name'    => $entityName,
                 'changes'        => $row->changes ? json_decode($row->changes, true) : null,
-                'created_at'     => $row->created_at,
+                // Raw DB::table() hands back an unmarked string; without an explicit Z the
+                // browser parses it as local time and renders it hours off. Microseconds are
+                // kept — feed ordering relies on them (see LedgerEntry::$dateFormat).
+                'created_at'     => Carbon::parse($row->created_at, 'UTC')->toIso8601ZuluString('microsecond'),
                 'batch_id'       => $row->batch_id,
                 'item_count'     => $itemCount,
             ];
