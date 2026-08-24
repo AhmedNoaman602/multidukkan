@@ -177,15 +177,12 @@ foreach ($aggregated as $itemData) {
                 'discount' => $data['discount'] ?? 0,
                 'customer_name_snapshot' => $customer->name,
                 'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
+                // The business date the shop puts on the order — a calendar date, and the
+                // only field the user controls here. It is deliberately NOT written to
+                // created_at: that stays the true creation instant, so the order and the
+                // ledger entry written alongside it agree about when this happened.
+                'order_date' => $data['order_date'],
             ]);
-
-            // If a custom order date is provided in the input, override the default timestamps and save the custom date.
-            if (isset($data['order_date'])) {
-                $order->timestamps = false;
-                $order->created_at = $data['order_date'];
-                $order->save();
-                $order->timestamps = true;
-            }
 
             $mergedItems = [];
 foreach ($validatedItems as $v) {

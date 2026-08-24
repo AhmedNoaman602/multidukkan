@@ -13,6 +13,7 @@ use App\Http\Requests\StoreOrderItemRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
+use App\Support\LocalDateRange;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -28,18 +29,28 @@ class OrderController extends Controller
 
     $user = auth()->user();
 
-    $months = Order::where('tenant_id', $user->tenant_id)
-    ->selectRaw('MONTH(created_at) as month, YEAR(created_at) as year')
-    ->distinct()
-    ->orderBy('year', 'desc')
-    ->orderBy('month', 'desc')
-    ->get();
-
-    $years = Order::where('tenant_id', $user->tenant_id)
-        ->selectRaw('YEAR(created_at) as year')
+    // Dropdowns and the filter below all key off order_date — the business date on the
+    // order, which is what "show me August" means to the shop.
+    //
+    // The year/month pairs are derived in PHP rather than with MONTH()/YEAR() so the
+    // query stays portable (SQLite, used by the test suite, has neither function). The
+    // set is bounded by distinct trading days, so this stays small.
+    $orderDates = Order::where('tenant_id', $user->tenant_id)
+        ->whereNotNull('order_date')
         ->distinct()
-        ->orderBy('year', 'desc')
-        ->pluck('year');
+        ->orderByDesc('order_date')
+        ->pluck('order_date')
+        ->map(fn ($d) => substr((string) $d, 0, 10));
+
+    $months = $orderDates
+        ->map(fn ($d) => ['year' => (int) substr($d, 0, 4), 'month' => (int) substr($d, 5, 2)])
+        ->unique(fn ($m) => $m['year'] . '-' . $m['month'])
+        ->values();
+
+    $years = $orderDates
+        ->map(fn ($d) => (int) substr($d, 0, 4))
+        ->unique()
+        ->values();
 
     // Extract base query into variable so we can clone it for stats
     $query = Order::where('tenant_id', $user->tenant_id)
@@ -51,21 +62,7 @@ class OrderController extends Controller
                   $q->where('name', 'like', "%$request->search%"));
         });
     })
-    ->when($request->year, fn($q) =>
-        $q->whereYear('created_at', $request->year)
-    )
-    ->when($request->month, fn($q) =>
-        $q->whereMonth('created_at', $request->month)
-    )
-    ->when($request->date_from, fn($q) =>
-        $q->whereDate('created_at', '>=', $request->date_from)
-    )
-    ->when($request->date_to, fn($q) =>
-        $q->whereDate('created_at', '<=', $request->date_to)
-    )
-    ->when($request->date_exact, fn($q) =>
-    $q->whereDate('created_at', $request->date_exact)
-);
+    ->tap(fn($q) => LocalDateRange::applyCalendarDate($q, $request, 'order_date'));
 
 
     $totalRevenue = (clone $query)->sum('total');
