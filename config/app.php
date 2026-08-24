@@ -59,13 +59,49 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | The application always runs in UTC: every instant is generated, stored
+    | and serialized in UTC, and only converted to a local wall-clock at the
+    | edges. Do not set this to a local zone — see 'display_timezone' below,
+    | which is the zone used for "what calendar day is it for this viewer".
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Display Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Fallback zone for interpreting a viewer's *calendar day* when the request
+    | carries no usable X-Timezone header (see App\Http\Middleware\SetTimezone).
+    | Used only to convert date-filter boundaries and to resolve "today" during
+    | validation. It never affects how an instant is stored or serialized.
+    |
+    */
+
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Africa/Cairo'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Business Timezone
+    |--------------------------------------------------------------------------
+    |
+    | The shop's own zone. Business reports are bounded by the shop's trading day,
+    | not the viewer's — a daily report opened from another country must still show
+    | the shop's day, so this is deliberately independent of X-Timezone.
+    |
+    | Distinct from 'display_timezone' above, which is only a fallback for the
+    | viewer's zone. Both are Africa/Cairo today, but they answer different
+    | questions and must not be collapsed into one key.
+    |
+    | When MultiDukkan serves shops in more than one zone, this becomes the default
+    | behind a per-tenant column; LocalDateRange::businessTimezone() is the single
+    | place that would need to change.
+    |
+    */
+
+    'business_timezone' => env('APP_BUSINESS_TIMEZONE', 'Africa/Cairo'),
 
     /*
     |--------------------------------------------------------------------------

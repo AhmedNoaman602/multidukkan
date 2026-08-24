@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\HandleCors;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\SetTimezone;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -16,7 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(fn() => response()->json(['message' => __('messages.unauthenticated')], 401));
         $middleware->prepend(HandleCors::class);
-        $middleware->api(append: [SetLocale::class]);
+        $middleware->api(append: [SetLocale::class, SetTimezone::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
