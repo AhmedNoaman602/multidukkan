@@ -19,7 +19,7 @@ return new class extends Migration
             $table->unsignedInteger('quantity')->default(0);
             $table->unsignedInteger('threshold')->default(0);
             $table->unique(['warehouse_id', 'product_id']);
-            $table->timestamps();
+            $table->datetimes();
         });
     }
 

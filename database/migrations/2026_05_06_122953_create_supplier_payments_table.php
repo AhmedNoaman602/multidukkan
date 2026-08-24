@@ -18,8 +18,8 @@ return new class extends Migration
             $table->foreignId('supplier_id')->constrained()->cascadeOnDelete();
             $table->decimal('amount', 10, 2);
             $table->string('method');
-            $table->timestamp('paid_at')->nullable();
-            $table->timestamps();
+            $table->dateTime('paid_at')->nullable();
+            $table->datetimes();
         });
     }
 

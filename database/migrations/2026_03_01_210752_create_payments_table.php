@@ -18,8 +18,8 @@ return new class extends Migration
             $table->foreignId('customer_id')->constrained()->cascadeOnDelete();
             $table->decimal('amount', 10, 2);
             $table->enum('method', ['cash', 'bank_transfer', 'credit'])->default('cash');
-            $table->timestamp('paid_at')->nullable();
-            $table->timestamps();
+            $table->dateTime('paid_at')->nullable();
+            $table->datetimes();
         });
     }
 

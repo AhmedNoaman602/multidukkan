@@ -56,6 +56,12 @@ return [
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => '',
             'prefix_indexes' => true,
+            // Pins the MySQL session to UTC. The instant columns are DATETIME, which
+            // MySQL never timezone-converts, so this is not what keeps stored values
+            // correct — it makes raw SQL agree with PHP. NOW(), CURDATE() and
+            // CURRENT_DATE (used by the orders.order_date default) resolve in UTC,
+            // matching now(), and any TIMESTAMP column added later is safe by default.
+            'timezone' => env('DB_TIMEZONE', '+00:00'),
             'strict' => true,
             'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? array_filter([

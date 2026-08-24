@@ -21,8 +21,8 @@ return new class extends Migration
         ->constrained('users')
         ->nullOnDelete();
     $table->text('notes')->nullable();
-    $table->softDeletes();
-    $table->timestamps();
+    $table->softDeletesDatetime();
+    $table->datetimes();
 });
     }
 

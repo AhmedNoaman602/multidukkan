@@ -35,7 +35,7 @@ return new class extends Migration
     $table->string('description')->nullable();
     $table->string('reference_id')->nullable();
     $table->string('reference_type')->nullable();
-    $table->timestamps(6);
+    $table->datetimes(6);
 });
 
 }

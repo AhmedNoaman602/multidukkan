@@ -19,7 +19,7 @@ return new class extends Migration
             $table->unique(['tenant_id', 'sku']);
             $table->decimal('price', 10, 2);
             $table->string('unit');
-            $table->timestamps();
+            $table->datetimes();
         });
     }
 

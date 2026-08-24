@@ -17,7 +17,7 @@ return new class extends Migration
           $table->date('last_purchased_at')->nullable();
           $table->boolean('is_preferred')->default(false);
           $table->string('notes')->nullable();
-          $table->timestamps();
+          $table->datetimes();
 
         });
     }

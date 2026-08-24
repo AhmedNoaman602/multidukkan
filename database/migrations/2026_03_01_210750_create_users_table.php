@@ -20,7 +20,7 @@ Schema::create('users', function (Blueprint $table) {
     $table->string('email')->unique();
     $table->string('password');
     $table->string('role')->default('store_staff');
-    $table->timestamps();
+    $table->datetimes();
 });
     }
 

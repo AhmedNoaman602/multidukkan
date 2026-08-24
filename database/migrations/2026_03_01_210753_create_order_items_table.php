@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('product_name');
             $table->integer('quantity');
             $table->decimal('unit_price', 10, 2);
-            $table->timestamps();
+            $table->datetimes();
         });
     }
 

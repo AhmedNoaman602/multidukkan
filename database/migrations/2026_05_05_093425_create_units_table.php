@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->unique(['tenant_id', 'name']);
-            $table->timestamps();
+            $table->datetimes();
         });
     }
 

@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('type');
             $table->string('reference_type')->nullable();
             $table->foreignId('reference_id')->nullable();            
-            $table->timestamps(6);
+            $table->datetimes(6);
         });
     }
 

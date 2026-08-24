@@ -19,8 +19,8 @@ return new class extends Migration
             $table->string('supplier_name_snapshot')->nullable();
             $table->decimal('total', 10, 2);
             $table->text('notes')->nullable();
-            $table->softDeletes();
-            $table->timestamps();
+            $table->softDeletesDatetime();
+            $table->datetimes();
             $table->unique(['tenant_id', 'invoice_number']);
         });
     }

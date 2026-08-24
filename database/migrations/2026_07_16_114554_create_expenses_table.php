@@ -23,8 +23,8 @@ return new class extends Migration
             // Snapshot of the creator's name at creation time, so it survives the
             // creator's user being hard-deleted (mirrors orders.customer_name_snapshot).
             $table->string('created_by_name')->nullable();
-            $table->softDeletes();
-            $table->timestamps();
+            $table->softDeletesDatetime();
+            $table->datetimes();
 
             $table->index(['tenant_id', 'expense_date']);
         });

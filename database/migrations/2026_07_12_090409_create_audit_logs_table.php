@@ -18,7 +18,7 @@ return new class extends Migration
             $table->morphs('auditable');
             $table->string('action');
             $table->json('changes')->nullable();
-            $table->timestamp('created_at', 6);
+            $table->dateTime('created_at', 6);
 });
     }
 

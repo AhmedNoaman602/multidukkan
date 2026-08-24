@@ -20,9 +20,9 @@ return new class extends Migration
     $table->string('email')->nullable();
     $table->string('address')->nullable();
     $table->string('area')->nullable();
-    $table->softDeletes();
+    $table->softDeletesDatetime();
     $table->text('notes')->nullable();
-    $table->timestamps();
+    $table->datetimes();
 });
     }
 
