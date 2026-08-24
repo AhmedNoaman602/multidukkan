@@ -37,7 +37,7 @@ class PurchaseOrderResource extends JsonResource
             'total'        => $item->unit_price * $item->quantity,
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
-        'created_at' => $this->created_at->toDateTimeString(),
+        'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
     ];
 }
 private function resolveStatus(float $totalPaid, float $total): string

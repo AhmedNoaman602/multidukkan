@@ -23,7 +23,7 @@ class CustomerResource extends JsonResource
             'price_tier' => $this->price_tier,
             'address' => $this->address,
             'area' => $this->area,
-            'created_at' => $this->created_at->toDateTimeString(),
+            'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
             'balance' => $this->balance ?? 0,
         ];
     }

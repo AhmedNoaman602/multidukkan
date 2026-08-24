@@ -35,7 +35,7 @@ class ExpenseResource extends JsonResource
                 'id'   => $this->created_by,
                 'name' => $this->created_by_name ?? $this->creator?->name,
             ],
-            'created_at'   => $this->created_at->toDateTimeString(),
+            'created_at'   => $this->created_at?->toIso8601ZuluString('microsecond'),
         ];
     }
 }

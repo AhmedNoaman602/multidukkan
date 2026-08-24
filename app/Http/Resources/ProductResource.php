@@ -51,7 +51,7 @@ class ProductResource extends JsonResource
         'unit'              => $this->unit,
         'secondary_unit'    => $this->secondary_unit,
         'conversion_factor' => $this->conversion_factor,
-        'created_at'        => $this->created_at->format('Y-m-d H:i:s'),
+        'created_at'        => $this->created_at?->toIso8601ZuluString('microsecond'),
         'stocks'            => $this->inventories->map(fn($inv) => [
             'warehouse_id'   => $inv->warehouse_id,
             'warehouse_name' => $inv->warehouse->name,

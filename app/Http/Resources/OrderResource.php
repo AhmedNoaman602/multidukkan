@@ -89,7 +89,7 @@ class OrderResource extends JsonResource
             'cost_price'     => $item->product?->cost_price ?? null,
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
-        'created_at' => $this->created_at->toDateTimeString(),
+        'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
         'order_date' => $this->order_date,
     ];
 }
