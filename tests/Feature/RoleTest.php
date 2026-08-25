@@ -254,6 +254,37 @@ public function test_staff_cannot_create_product(): void
         ])->assertStatus(403);
 }
 
+public function test_staff_cannot_update_product(): void
+{
+    $this->actingAs($this->staff)
+        ->putJson("/api/products/{$this->product->id}", [
+            'name'  => 'Renamed',
+            'sku'   => 'SKU-001',
+            'price' => 999,
+            'unit'  => 'pcs',
+        ])->assertStatus(403);
+
+    $this->assertDatabaseHas('products', [
+        'id'    => $this->product->id,
+        'name'  => 'Test Product',
+        'price' => 100,
+    ]);
+}
+
+/** A duplicate is just another create — the same door, and it stays shut. */
+public function test_staff_cannot_duplicate_an_existing_product(): void
+{
+    $this->actingAs($this->staff)
+        ->postJson('/api/products', [
+            'name'  => $this->product->name,
+            'sku'   => $this->product->sku . '-COPY',
+            'price' => $this->product->price,
+            'unit'  => $this->product->unit,
+        ])->assertStatus(403);
+
+    $this->assertDatabaseCount('products', 1);
+}
+
 public function test_staff_can_create_customer(): void
 {
     $this->actingAs($this->staff)
