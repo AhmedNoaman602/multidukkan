@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+use App\Models\Concerns\ScopedToTenant;
 use App\Models\Inventory;
 use App\Models\Tenant;
 use App\Models\Store;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Warehouse extends Model
 {
-    use HasFactory;
+    use HasFactory, ScopedToTenant;
     protected $fillable = [
         'id',
         'tenant_id',

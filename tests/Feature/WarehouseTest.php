@@ -34,7 +34,10 @@ class WarehouseTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
         ]);
+        // Without tenant_id the factory default mints a fresh Tenant, so this stock
+        // belonged to a different tenant than its own warehouse.
         $this->inventory = Inventory::factory()->create([
+            'tenant_id'    => $this->tenant->id,
             'warehouse_id' => $this->warehouse->id,
             'product_id'   => $this->product->id,
             'quantity'     => 50,

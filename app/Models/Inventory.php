@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+use App\Models\Concerns\ScopedToTenant;
 use App\Models\InventoryTransaction;
 use App\Models\Tenant;
 use App\Models\Warehouse;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Inventory extends Model
 {
-    use HasFactory;
+    use HasFactory, ScopedToTenant;
 
     protected $table = 'inventory';
 

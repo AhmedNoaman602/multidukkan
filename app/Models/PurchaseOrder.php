@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 class PurchaseOrder extends Model
 {
-    use HasFactory , SoftDeletes;
+    use HasFactory , SoftDeletes, ScopedToTenant;
 
     protected $fillable = [
         'invoice_number',

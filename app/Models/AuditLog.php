@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class AuditLog extends Model
 {
+    use ScopedToTenant;
+
     protected $casts = [
         'changes' => 'array',
     ];

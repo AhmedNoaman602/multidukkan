@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Supplier extends Model
 {
     /** @use HasFactory<\Database\Factories\SupplierFactory> */
-    use HasFactory , SoftDeletes;
+    use HasFactory , SoftDeletes, ScopedToTenant;
     protected $fillable = [
         'tenant_id',
         'code',

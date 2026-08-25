@@ -226,9 +226,13 @@ class LedgerTest extends TestCase
             'role'      => 'tenant_admin',
         ]);
 
+        // 404, not 403: the tenant scope hides the row from route-model binding, so a
+        // probe cannot confirm the ID exists in another tenant.
         $this->actingAs($otherUser)
             ->deleteJson("/api/orders/{$orderId}")
-            ->assertStatus(403);
+            ->assertStatus(404);
+
+        $this->assertNotSoftDeleted('orders', ['id' => $orderId]);
     }
 
     public function test_cannot_modify_order_after_payment(): void

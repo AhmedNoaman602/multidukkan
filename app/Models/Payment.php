@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Payment extends Model
 {
     /** @use HasFactory<\Database\Factories\PaymentFactory> */
-    use HasFactory;
+    use HasFactory, ScopedToTenant;
     protected $fillable = [
         'tenant_id',
         'order_id',

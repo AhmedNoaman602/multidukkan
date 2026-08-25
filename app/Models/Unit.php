@@ -1,13 +1,14 @@
 <?php
 
 namespace App\Models;
+use App\Models\Concerns\ScopedToTenant;
 use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Unit extends Model
 {
-    use HasFactory;
+    use HasFactory, ScopedToTenant;
     protected $fillable = [
         'tenant_id',
         'name',

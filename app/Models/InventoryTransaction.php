@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class InventoryTransaction extends Model
 {
+    use ScopedToTenant;
+
     const TYPE_SALE         = 'SALE';
     const TYPE_RETURN       = 'RETURN';
     const TYPE_TRANSFER_IN  = 'TRANSFER_IN';
