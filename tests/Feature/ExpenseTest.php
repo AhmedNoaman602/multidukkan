@@ -337,12 +337,15 @@ class ExpenseTest extends TestCase
             'amount'     => 100,
         ]);
 
+        // 404, not 403: the global tenant scope hides the row from route-model binding,
+        // so the request never reaches the controller's check. A 403 would confirm the
+        // ID exists in another tenant.
         $this->actingAs($this->admin)
             ->patchJson("/api/expenses/{$foreign->id}", ['amount' => 999])
-            ->assertStatus(403);
+            ->assertStatus(404);
         $this->actingAs($this->admin)
             ->deleteJson("/api/expenses/{$foreign->id}")
-            ->assertStatus(403);
+            ->assertStatus(404);
 
         $this->assertDatabaseHas('expenses', ['id' => $foreign->id, 'amount' => 100]);
         $this->assertNotSoftDeleted('expenses', ['id' => $foreign->id]);
