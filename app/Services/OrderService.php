@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Support\LocalDateRange;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -31,7 +32,13 @@ class OrderService
 
     private function generateInvoiceNumber(int $tenantId): string
     {
-        $year = now()->year;
+        // Invoice numbering is business-calendar logic: the year on the invoice is the
+        // shop's year. Resolved in UTC, a sale rung up at 02:30 Cairo on 1 January
+        // would be numbered against the year that had already ended.
+        //
+        // The lookup below matches on the invoice_number prefix rather than a date
+        // column, so it follows this year automatically — no range needed here.
+        $year = now(LocalDateRange::businessTimezone())->year;
 
         $last = Order::withTrashed()
             ->where('tenant_id', $tenantId)

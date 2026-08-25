@@ -25,11 +25,12 @@ class UpdateOrderRequest extends FormRequest
     {
         return [
             'notes'      => ['sometimes', 'nullable', 'string', 'max:500'],
-            // See StoreOrderRequest — "today" is the viewer's calendar day, not UTC's.
+            // See StoreOrderRequest — "today" is the shop's calendar day, not UTC's
+            // and not the viewer's.
             'order_date' => [
                 'sometimes',
                 'date',
-                'before_or_equal:' . LocalDateRange::today(LocalDateRange::timezoneFor($this))->toDateString(),
+                'before_or_equal:' . LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString(),
             ],
             'discount'   => ['sometimes', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];

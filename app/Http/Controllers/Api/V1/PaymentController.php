@@ -27,7 +27,7 @@ class PaymentController extends Controller
         })
         ->tap(fn($q) => LocalDateRange::apply($q, $request->merge([
             'date_exact' => $request->input('date'),
-        ])))
+        ]), 'created_at', LocalDateRange::businessTimezone()))
         ->where('method' , '!=', 'credit')
         ->with('customer:id,name', 'order:id,store_id')
         ->orderBy('created_at', 'desc')

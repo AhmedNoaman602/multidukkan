@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Support\LocalDateRange;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -208,19 +209,31 @@ class TimezoneTest extends TestCase
         $this->assertCount(0, $previousDay, 'It must not also appear under the previous local day.');
     }
 
-    public function test_the_same_instant_buckets_differently_for_a_utc_viewer(): void
+    public function test_the_audit_boundary_follows_configured_business_timezone_not_the_header(): void
     {
-        // Same row, different viewer zone: proves the boundary really is derived from
-        // the header rather than hardcoded to Egypt.
-        $this->inventoryTransactionAt('2026-08-20 21:30:00');
+        // Originally this asserted the boundary moved with X-Timezone. It no longer
+        // does, deliberately — the feed is a business record. The property still worth
+        // proving is that the boundary is not hardcoded to Egypt, so instead of
+        // changing the viewer we change the shop.
+        $this->inventoryTransactionAt('2026-08-20 21:30:00');   // 00:30 Cairo on the 21st
 
-        $utcViewer = $this->actingAs($this->user)
-            ->withHeaders(['X-Timezone' => 'UTC'])
+        // Shop in Cairo: this belongs to the 21st, and a UTC viewer cannot drag it
+        // back to the 20th.
+        $this->assertCount(1, $this->actingFrom('UTC')
+            ->getJson('/api/audit-log?source=inventory&date_from=2026-08-21&date_to=2026-08-21')
+            ->assertStatus(200)->json('data'));
+
+        $this->assertCount(0, $this->actingFrom('UTC')
             ->getJson('/api/audit-log?source=inventory&date_from=2026-08-20&date_to=2026-08-20')
-            ->assertStatus(200)
-            ->json('data');
+            ->assertStatus(200)->json('data'));
 
-        $this->assertCount(1, $utcViewer);
+        // Move the shop to UTC and the same instant now belongs to the 20th — proving
+        // the boundary is read from config rather than baked in.
+        config(['app.business_timezone' => 'UTC']);
+
+        $this->assertCount(1, $this->actingFrom(self::CAIRO)
+            ->getJson('/api/audit-log?source=inventory&date_from=2026-08-20&date_to=2026-08-20')
+            ->assertStatus(200)->json('data'));
     }
 
     // ── 5. Dashboard "today" is the local day ────────────────────────────────
@@ -262,7 +275,238 @@ class TimezoneTest extends TestCase
         );
     }
 
-    // ── 6. "today" validation respects the viewer's zone ─────────────────────
+    // ── 5b. Business day vs viewer day ───────────────────────────────────────
+    //
+    // The shop trades in Cairo; the owner is in Berlin. Cairo runs an hour ahead, so
+    // there is a window each night where the two disagree about the date:
+    //
+    //     2026-08-21 21:30 UTC  ==  23:30 Berlin on the 21st
+    //                           ==  00:30 Cairo  on the 22nd
+    //
+    // Every business-day question must answer "the 22nd" no matter who is asking.
+    // Display of the instant itself still follows the viewer — that is not a bug.
+
+    private const CROSSOVER_UTC = '2026-08-21 21:30:00';
+    private const BUSINESS_DAY  = '2026-08-22';   // Cairo
+    private const VIEWER_DAY    = '2026-08-21';   // Berlin
+
+    private function actingFrom(string $timezone)
+    {
+        return $this->actingAs($this->user)->withHeaders([
+            'X-Timezone' => $timezone,
+            'X-Locale'   => 'en',
+        ]);
+    }
+
+    private function cashPaymentAtCrossover(float $amount = 400): Order
+    {
+        $order = Order::factory()->create([
+            'tenant_id'   => $this->tenant->id,
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'total'       => $amount,
+            'order_date'  => self::BUSINESS_DAY,
+        ]);
+
+        Payment::factory()->create([
+            'tenant_id'          => $this->tenant->id,
+            'order_id'           => $order->id,
+            'customer_id'        => $this->customer->id,
+            'amount'             => $amount,
+            'method'             => 'cash',
+            'is_auto_reversible' => false,
+            'paid_at'            => Carbon::parse(self::CROSSOVER_UTC, 'UTC'),
+        ]);
+
+        return $order;
+    }
+
+    public function test_instant_still_displays_in_the_viewers_zone_not_the_shops(): void
+    {
+        // Display must keep following the viewer. This is the control for every
+        // assertion below — if this ever flips, the business-day fix went too far.
+        $this->inventoryTransactionAt(self::CROSSOVER_UTC);
+
+        $row = $this->actingFrom('Europe/Berlin')
+            ->getJson('/api/audit-log?source=inventory')
+            ->assertStatus(200)
+            ->json('data.0');
+
+        $this->assertSame(
+            '2026-08-21 23:30',
+            Carbon::parse($row['created_at'])->setTimezone('Europe/Berlin')->format('Y-m-d H:i'),
+            'The Berlin viewer must still see 23:30 on the 21st.'
+        );
+
+        $this->assertSame(
+            '2026-08-22 00:30',
+            Carbon::parse($row['created_at'])->setTimezone(self::CAIRO)->format('Y-m-d H:i'),
+            'The same instant is 00:30 on the 22nd in the shop\'s zone.'
+        );
+    }
+
+    public function test_dashboard_counts_the_sale_in_the_shops_business_day(): void
+    {
+        // "Now" is the crossover instant, so the shop is on the 22nd and Berlin is
+        // still on the 21st. period=today must mean the shop's 22nd.
+        Carbon::setTestNow(Carbon::parse(self::CROSSOVER_UTC, 'UTC'));
+        $this->cashPaymentAtCrossover(400);
+
+        $stats = $this->actingFrom('Europe/Berlin')
+            ->getJson('/api/dashboard?period=today')
+            ->assertStatus(200)
+            ->json('stats');
+
+        $this->assertEquals(400, $stats['today_revenue'], 'The sale belongs to the shop\'s today.');
+        $this->assertEquals(1, $stats['today_payments_count']);
+    }
+
+    public function test_dashboard_totals_are_identical_wherever_the_owner_is(): void
+    {
+        // The whole point: a till is reconciled against one number.
+        Carbon::setTestNow(Carbon::parse(self::CROSSOVER_UTC, 'UTC'));
+        $this->cashPaymentAtCrossover(400);
+
+        $cairo  = $this->actingFrom(self::CAIRO)->getJson('/api/dashboard?period=today')->assertStatus(200)->json('stats');
+        $berlin = $this->actingFrom('Europe/Berlin')->getJson('/api/dashboard?period=today')->assertStatus(200)->json('stats');
+        $ny     = $this->actingFrom('America/New_York')->getJson('/api/dashboard?period=today')->assertStatus(200)->json('stats');
+
+        $this->assertSame($cairo, $berlin);
+        $this->assertSame($cairo, $ny, 'Even 7 hours behind, the business day is the shop\'s.');
+    }
+
+    public function test_today_validation_means_the_shops_day_not_the_viewers(): void
+    {
+        // Berlin is still on the 21st, but the shop is trading on the 22nd. A sale
+        // dated to the shop's today must be accepted from a Berlin device.
+        Carbon::setTestNow(Carbon::parse(self::CROSSOVER_UTC, 'UTC'));
+
+        $this->actingFrom('Europe/Berlin')->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => self::BUSINESS_DAY,
+            'items'       => [
+                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+            ],
+        ])->assertStatus(201);
+    }
+
+    public function test_audit_log_date_filter_uses_the_shops_calendar(): void
+    {
+        // Filtering the shop's 22nd finds it; the viewer's 21st does not.
+        $this->inventoryTransactionAt(self::CROSSOVER_UTC);
+
+        $onBusinessDay = $this->actingFrom('Europe/Berlin')
+            ->getJson('/api/audit-log?source=inventory&date_from=' . self::BUSINESS_DAY . '&date_to=' . self::BUSINESS_DAY)
+            ->assertStatus(200)->json('data');
+
+        $this->assertCount(1, $onBusinessDay);
+
+        $onViewerDay = $this->actingFrom('Europe/Berlin')
+            ->getJson('/api/audit-log?source=inventory&date_from=' . self::VIEWER_DAY . '&date_to=' . self::VIEWER_DAY)
+            ->assertStatus(200)->json('data');
+
+        $this->assertCount(0, $onViewerDay, 'The viewer\'s calendar must not move the business boundary.');
+    }
+
+    public function test_last_purchased_at_stores_the_shops_calendar_date(): void
+    {
+        // last_purchased_at is a DATE column. At the crossover the shop is on the
+        // 22nd while UTC is still the 21st — it must record the shop's date.
+        Carbon::setTestNow(Carbon::parse(self::CROSSOVER_UTC, 'UTC'));
+
+        $supplier = \App\Models\Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->actingFrom('Europe/Berlin')->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'items'       => [
+                ['product_id' => $this->product->id, 'quantity' => 5, 'unit_price' => 10, 'warehouse_id' => $this->warehouse->id],
+            ],
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('supplier_products', [
+            'supplier_id'       => $supplier->id,
+            'product_id'        => $this->product->id,
+            'last_purchased_at' => self::BUSINESS_DAY,
+        ]);
+    }
+
+    // ── 5c. Invoice numbering across the business New Year ───────────────────
+    //
+    // 2026-12-31 23:30 UTC is already 2027-01-01 02:30 in Cairo. The invoice year is
+    // the shop's year, so the first sale of the Egyptian new year must be numbered
+    // 2027 even though UTC is still in 2026.
+
+    private const NEW_YEAR_UTC = '2026-12-31 23:30:00';   // 02:30 Cairo on 1 Jan 2027
+
+    private function createOrderViaApi(): string
+    {
+        return $this->asCairoUser()->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString(),
+            'items'       => [
+                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+            ],
+        ])->assertStatus(201)->json('invoice_number');
+    }
+
+    private function createPurchaseOrderViaApi(int $supplierId): string
+    {
+        return $this->asCairoUser()->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplierId,
+            'items'       => [
+                ['product_id' => $this->product->id, 'quantity' => 2, 'unit_price' => 10, 'warehouse_id' => $this->warehouse->id],
+            ],
+        ])->assertStatus(201)->json('data.invoice_number');
+    }
+
+    public function test_order_invoice_uses_the_business_year_across_new_year(): void
+    {
+        Carbon::setTestNow(Carbon::parse(self::NEW_YEAR_UTC, 'UTC'));
+
+        $first = $this->createOrderViaApi();
+        $this->assertSame('2027-001', $first, 'UTC is still 2026, but the shop is in 2027.');
+
+        // The second sale must find the first, proving the lookup agrees with the label.
+        $second = $this->createOrderViaApi();
+        $this->assertSame('2027-002', $second);
+    }
+
+    public function test_order_invoice_numbering_is_unchanged_on_an_ordinary_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse(self::EVENT_UTC, 'UTC'));   // 22:04 Cairo, 21 Aug
+
+        $this->assertSame('2026-001', $this->createOrderViaApi());
+        $this->assertSame('2026-002', $this->createOrderViaApi());
+    }
+
+    public function test_purchase_order_invoice_uses_the_business_year_across_new_year(): void
+    {
+        // This is the one that needed a UTC range: the lookup is on created_at, so a
+        // whereYear() in UTC would not see the PO issued minutes earlier under 2027.
+        Carbon::setTestNow(Carbon::parse(self::NEW_YEAR_UTC, 'UTC'));
+
+        $supplier = \App\Models\Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $first = $this->createPurchaseOrderViaApi($supplier->id);
+        $this->assertSame('2027-001', $first);
+
+        $second = $this->createPurchaseOrderViaApi($supplier->id);
+        $this->assertSame('2027-002', $second, 'The lookup must find the 2027 PO created moments before.');
+    }
+
+    public function test_purchase_order_invoice_numbering_is_unchanged_on_an_ordinary_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse(self::EVENT_UTC, 'UTC'));
+
+        $supplier = \App\Models\Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->assertSame('2026-001', $this->createPurchaseOrderViaApi($supplier->id));
+        $this->assertSame('2026-002', $this->createPurchaseOrderViaApi($supplier->id));
+    }
+
+    // ── 6. "today" validation respects the shop's zone ───────────────────────
 
     public function test_order_date_of_local_today_is_accepted_just_after_local_midnight(): void
     {

@@ -38,7 +38,7 @@ class PurchaseOrderController extends Controller
                       $q->where('name', 'like', "%$request->search%"));
             });
         })
-        ->tap(fn($q) => LocalDateRange::apply($q, $request));
+        ->tap(fn($q) => LocalDateRange::apply($q, $request, 'created_at', LocalDateRange::businessTimezone()));
 
     $totalSpent = (clone $query)->sum('total');
 

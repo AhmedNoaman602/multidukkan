@@ -23,7 +23,7 @@ class SupplierPaymentController extends Controller
         $payments = SupplierPayment::where('tenant_id', $user->tenant_id)
         ->tap(fn($q) => LocalDateRange::apply($q, $request->merge([
             'date_exact' => $request->input('date'),
-        ])))
+        ]), 'created_at', LocalDateRange::businessTimezone()))
         ->with('supplier:id,name', 'purchaseOrder:id,supplier_id')
         ->orderBy('created_at', 'desc')
         ->get();

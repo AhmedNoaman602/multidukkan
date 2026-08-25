@@ -26,11 +26,13 @@ class AuditLogController extends Controller
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
-        // created_at is stored in UTC, but date_from/date_to are the viewer's local
-        // calendar dates. Translate them into the UTC instants that bound those local
-        // days once, here, and reuse for all three union arms. Comparing the raw column
-        // (rather than whereDate's DATE(created_at)) also keeps the index usable.
-        $timezone = LocalDateRange::timezoneFor($request);
+        // created_at is stored in UTC, but date_from/date_to are calendar dates. The
+        // feed is a business record, so they are the SHOP's calendar dates — "show me
+        // the 22nd" means the shop's 22nd wherever the admin is reading from.
+        // Translate them into the UTC instants bounding that day once, here, and reuse
+        // for all three union arms. Comparing the raw column (rather than whereDate's
+        // DATE(created_at)) also keeps the index usable.
+        $timezone = LocalDateRange::businessTimezone();
         $from = LocalDateRange::startOfDay($request->date_from, $timezone);
         $to   = LocalDateRange::endOfDay($request->date_to, $timezone);
 

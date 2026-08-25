@@ -62,7 +62,7 @@ class OrderController extends Controller
                   $q->where('name', 'like', "%$request->search%"));
         });
     })
-    ->tap(fn($q) => LocalDateRange::applyCalendarDate($q, $request, 'order_date'));
+    ->tap(fn($q) => LocalDateRange::applyCalendarDate($q, $request, 'order_date', LocalDateRange::businessTimezone()));
 
 
     $totalRevenue = (clone $query)->sum('total');

@@ -7,6 +7,7 @@ use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Support\LocalDateRange;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,10 +23,19 @@ class PurchaseOrderService
 
     private function generateInvoiceNumber(int $tenantId): string
     {
-        $year = now()->year;
+        // Invoice numbering is business-calendar logic: the year on the invoice is the
+        // shop's year, not UTC's.
+        //
+        // Unlike OrderService, this looks up the previous number by created_at — an
+        // instant column — so the year has to become the pair of UTC instants that the
+        // shop's year spans. whereYear() would bucket in UTC and, on New Year's night,
+        // miss the POs already issued under the new business year.
+        $timezone = LocalDateRange::businessTimezone();
+        $year = now($timezone)->year;
+        [$yearStart, $yearEnd] = LocalDateRange::yearRange($year, $timezone);
 
         $last = PurchaseOrder::where('tenant_id', $tenantId)
-            ->whereYear('created_at', $year)
+            ->whereBetween('created_at', [$yearStart, $yearEnd])
             ->whereNotNull('invoice_number')
             ->orderByDesc('id')
             ->value('invoice_number');
@@ -137,11 +147,17 @@ class PurchaseOrderService
 
             // Pre-build the supplier_products pivot payload for every item up front, so the
             // actual sync call can happen once after the loop instead of once per item.
+            // last_purchased_at is a DATE column — a calendar label, not an instant.
+            // Passing now() would store the UTC date, so a PO received at 01:00 Cairo
+            // would be recorded as the previous day. Resolve the shop's calendar date
+            // once and store it as a plain Y-m-d string.
+            $purchasedOn = LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString();
+
             $syncData = [];
             foreach($validatedItems as $v) {
                 $syncData[$v['product']->id] = [
                     'last_purchase_price' => $v['unitPrice'],
-                    'last_purchased_at' => now(),
+                    'last_purchased_at' => $purchasedOn,
                 ];
             }
 

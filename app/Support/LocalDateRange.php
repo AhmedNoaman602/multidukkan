@@ -82,14 +82,16 @@ class LocalDateRange
 
     /**
      * Apply the standard year / month / date_from / date_to / date_exact filters to a
-     * query, interpreting every one of them as the viewer's local calendar.
+     * query, interpreting every one of them as a local calendar.
      *
-     * Shared by the order and purchase-order list endpoints, which expose an identical
-     * filter surface.
+     * $timezone selects WHOSE calendar. Omit it for the viewer's — right when the
+     * question is "what did I do on my Tuesday". Pass businessTimezone() when the
+     * question is "which trading day does this belong to", so the answer does not
+     * change depending on where the person asking happens to be standing.
      */
-    public static function apply($query, Request $request, string $column = 'created_at'): void
+    public static function apply($query, Request $request, string $column = 'created_at', ?string $timezone = null): void
     {
-        $timezone = self::timezoneFor($request);
+        $timezone ??= self::timezoneFor($request);
 
         // A local month or year is a contiguous span of UTC instants, so it becomes a
         // range rather than whereYear/whereMonth (which bucket in UTC and would drop a
@@ -132,11 +134,16 @@ class LocalDateRange
      *
      * Contrast apply() above, which exists because an instant column needs the
      * opposite treatment.
+     *
+     * $timezone is consulted for one thing only: deciding which year "this month"
+     * falls in when a month is given without one. Pass businessTimezone() so that
+     * stays the shop's year rather than the viewer's.
      */
-    public static function applyCalendarDate($query, Request $request, string $column): void
+    public static function applyCalendarDate($query, Request $request, string $column, ?string $timezone = null): void
     {
         if ($request->filled('year') || $request->filled('month')) {
-            $year = (int) ($request->input('year') ?: Carbon::now(self::timezoneFor($request))->year);
+            $timezone ??= self::timezoneFor($request);
+            $year = (int) ($request->input('year') ?: Carbon::now($timezone)->year);
 
             $query->whereYear($column, $year);
 

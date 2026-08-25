@@ -39,13 +39,15 @@ class StoreOrderRequest extends FormRequest
             'manual_total' => 'nullable|numeric|min:0|max:9999999999.99|decimal:0,2',
             'pay_immediately' => 'nullable|boolean',
             'payment_method'   => 'nullable|string|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
-            // "today" must be the viewer's calendar day. Resolved against the app
-            // timezone (UTC) it rejects a genuinely-today order for the first hours
-            // of every local morning.
+            // "today" is the SHOP's calendar day. Resolved against the app timezone
+            // (UTC) it would reject a genuinely-today order for the first hours of
+            // every local morning; resolved against the viewer's zone, a travelling
+            // owner would be blocked from dating an order to the day the shop is
+            // actually having.
             'order_date' => [
                 'required',
                 'date',
-                'before_or_equal:' . LocalDateRange::today(LocalDateRange::timezoneFor($this))->toDateString(),
+                'before_or_equal:' . LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString(),
             ],
         ];
     }
