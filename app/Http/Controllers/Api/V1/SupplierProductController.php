@@ -2,30 +2,25 @@
 
 namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AttachSupplierProductRequest;
+use App\Http\Requests\BulkAttachSupplierProductRequest;
+use App\Http\Requests\UpdateSupplierProductRequest;
 use App\Models\Product;
 use App\Models\Supplier;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
 class SupplierProductController extends Controller
 {
-    public function attach(Supplier $supplier, Product $product , Request $request) : JsonResponse
+    private const PIVOT_FIELDS = ['cost_price', 'is_preferred', 'notes'];
+
+    public function attach(Supplier $supplier, Product $product , AttachSupplierProductRequest $request) : JsonResponse
     {
         $this->authorizeTenant($supplier);
         $this->authorizeProductTenant($product);
-        
-        $request->validate([
-            'cost_price'   => 'nullable|numeric',
-            'is_preferred' => 'nullable|boolean',
-            'notes'        => 'nullable|string|max:255',
-        ]);
+        $this->authorize('update', $product);
 
-        $supplier->products()->syncWithoutDetaching([
-            $product->id => [
-                'cost_price'   => $request->cost_price,
-                'is_preferred' => $request->is_preferred,
-                'notes'        => $request->notes,
-            ]
+        $supplier->syncProducts([
+            $product->id => $this->pivotPayload($request->validated()),
         ]);
 
         return response()->json([
@@ -33,56 +28,42 @@ class SupplierProductController extends Controller
         ]);
     }
 
-    public function bulkAttach(Supplier $supplier, Request $request): JsonResponse
+    public function bulkAttach(Supplier $supplier, BulkAttachSupplierProductRequest $request): JsonResponse
 {
     $this->authorizeTenant($supplier);
 
-    $request->validate([
-        'products'                  => 'required|array|min:1',
-        'products.*.product_id'     => 'required|exists:products,id',
-        'products.*.cost_price'     => 'nullable|numeric',
-        'products.*.is_preferred'   => 'nullable|boolean',
-        'products.*.notes'          => 'nullable|string|max:255',
-    ]);
-    $productIds = collect($request->products)->pluck('product_id')->unique();
+    $validated = $request->validated();
+    $productIds = collect($validated['products'])->pluck('product_id')->unique();
     $products = Product::whereIn('id', $productIds)->where('tenant_id', auth()->user()->tenant_id)->get()->keyBy('id');
-    
+
     $syncData = [];
-    foreach ($request->products as $item) {
+    foreach ($validated['products'] as $item) {
         $product = $products->get($item['product_id']);
 
         if (! $product) {
             abort(403, __('messages.supplier_products_tenant_mismatch'));
         }
 
-        $syncData[$item['product_id']] = [
-            'cost_price'   => $item['cost_price'] ?? null,
-            'is_preferred' => $item['is_preferred'] ?? false,
-            'notes'        => $item['notes'] ?? null,
-        ];
+        $this->authorize('update', $product);
+
+        $syncData[$item['product_id']] = $this->pivotPayload($item);
     }
 
-    $supplier->products()->syncWithoutDetaching($syncData);
+    $supplier->syncProducts($syncData);
 
     return response()->json(['message' => __('messages.supplier_products_linked')]);
 }
 
-    public function update(Supplier $supplier , Product $product , Request $request) : JsonResponse{
+    public function update(Supplier $supplier , Product $product , UpdateSupplierProductRequest $request) : JsonResponse{
         $this->authorizeTenant($supplier);
         $this->authorizeProductTenant($product);
+        $this->authorize('update', $product);
 
-        $request->validate([
-            'cost_price'   => 'nullable|numeric',
-            'is_preferred' => 'nullable|boolean',
-            'notes'        => 'nullable|string|max:255',
-        ]);
+        $payload = $this->pivotPayload($request->validated());
 
-        $supplier->products()->updateExistingPivot(
-            $product->id , [
-                'cost_price'   => $request->cost_price,
-                'is_preferred' => $request->is_preferred,
-                'notes'        => $request->notes,
-        ]);
+        if ($payload !== []) {
+            $supplier->products()->updateExistingPivot($product->id, $payload);
+        }
 
         return response()->json([
             'message' => __('messages.supplier_product_updated')
@@ -94,6 +75,7 @@ class SupplierProductController extends Controller
     {
         $this->authorizeTenant($supplier);
         $this->authorizeProductTenant($product);
+        $this->authorize('update', $product);
 
         $supplier->products()->detach($product->id);
 
@@ -103,6 +85,10 @@ class SupplierProductController extends Controller
     }
 
 
+    private function pivotPayload(array $data): array
+    {
+        return array_intersect_key($data, array_flip(self::PIVOT_FIELDS));
+    }
 
     private function authorizeTenant(Supplier $supplier): void
     {

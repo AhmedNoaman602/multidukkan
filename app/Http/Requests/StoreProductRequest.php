@@ -48,12 +48,12 @@ class StoreProductRequest extends FormRequest
             'secondary_unit'    => 'nullable|string|max:50',
             'conversion_factor' => 'nullable|integer|min:2',
             'stocks'                  => 'nullable|array',
-'stocks.*.warehouse_id' => [
-    'required',
-    'integer',
-    new BelongsToTenant(Warehouse::class, $tenantId),
-],            'stocks.*.quantity'       => 'nullable|integer|min:0',
-            'stocks.*.threshold'      => 'nullable|integer|min:0',
+            'stocks.*.warehouse_id' => [
+            'required',
+            'integer',
+             new BelongsToTenant(Warehouse::class, $tenantId),
+        ],            'stocks.*.quantity'       => 'nullable|integer|min:0',
+                      'stocks.*.threshold'      => 'nullable|integer|min:0',
         ];
     }
 }

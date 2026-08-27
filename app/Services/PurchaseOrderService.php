@@ -23,13 +23,6 @@ class PurchaseOrderService
 
     private function generateInvoiceNumber(int $tenantId): string
     {
-        // Invoice numbering is business-calendar logic: the year on the invoice is the
-        // shop's year, not UTC's.
-        //
-        // Unlike OrderService, this looks up the previous number by created_at — an
-        // instant column — so the year has to become the pair of UTC instants that the
-        // shop's year spans. whereYear() would bucket in UTC and, on New Year's night,
-        // miss the POs already issued under the new business year.
         $timezone = LocalDateRange::businessTimezone();
         $year = now($timezone)->year;
         [$yearStart, $yearEnd] = LocalDateRange::yearRange($year, $timezone);
@@ -48,8 +41,6 @@ class PurchaseOrderService
 
     public function createPurchaseOrder(array $data): PurchaseOrder
     {
-        // Unique index on (tenant_id, invoice_number) guards against a collision;
-        // retry with a freshly generated number if one ever happens.
         $lastException = null;
 
         for ($attempt = 1; $attempt <= self::MAX_INVOICE_RETRIES; $attempt++) {
@@ -78,9 +69,6 @@ class PurchaseOrderService
         return DB::transaction(function () use ($data) {
             $user = auth()->user();
 
-            // Tenant guard: fetch supplier + all requested products scoped to this tenant in one query each.
-            // If any requested id doesn't come back, it either doesn't exist or belongs to another tenant —
-            // either way we reject the whole PO instead of silently dropping the bad line.
             $supplier = Supplier::where('id', $data['supplier_id'])->where('tenant_id', $user->tenant_id)->first();
             $productIds = collect($data['items'])->pluck('product_id')->unique();
             $products = Product::whereIn('id', $productIds)->where('tenant_id', $user->tenant_id)->get()->keyBy('id');
@@ -96,9 +84,6 @@ class PurchaseOrderService
 
             }
 
-            // Normalize each raw item line into base units: convert quantity/price when the line
-            // was entered in a "secondary" unit (e.g. box) using the product's conversion_factor,
-            // so everything downstream works in base units consistently.
             $validatedItems = [];
             foreach ($data['items'] as $itemData) {
                 $product = $products->get($itemData['product_id']);
@@ -124,7 +109,6 @@ class PurchaseOrderService
                 ];
             }
 
-            // Create the PO header shell first (total is a placeholder, filled in once items are totaled below).
             $purchaseOrder = PurchaseOrder::create([
                 'tenant_id' => $user->tenant_id,
                 'supplier_id' => $data['supplier_id'],
@@ -144,13 +128,6 @@ class PurchaseOrderService
                 ->groupBy('product_id')
                 ->pluck('total_stock', 'product_id');
 
-
-            // Pre-build the supplier_products pivot payload for every item up front, so the
-            // actual sync call can happen once after the loop instead of once per item.
-            // last_purchased_at is a DATE column — a calendar label, not an instant.
-            // Passing now() would store the UTC date, so a PO received at 01:00 Cairo
-            // would be recorded as the previous day. Resolve the shop's calendar date
-            // once and store it as a plain Y-m-d string.
             $purchasedOn = LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString();
 
             $syncData = [];
@@ -165,9 +142,6 @@ class PurchaseOrderService
             $runningCost = [];
             $batchId = (string) Str::uuid();
 
-            // Main line-item loop: create each PO item row, recompute the product's weighted-average
-            // cost_price, push stock into inventory (if a warehouse was given), and accumulate the
-            // PO's total.
             $totalAmount = 0;
             foreach ($validatedItems as $v) {
                 $purchaseOrderItem = $purchaseOrder->items()->create([
@@ -178,10 +152,7 @@ class PurchaseOrderService
                     'total' => $v['unitPrice'] * $v['quantity'],
                 ]);
 
-                // Weighted-average cost math: blends existing stock (at its existing cost) with the
-                // newly purchased quantity (at this line's price). See BUG note above on $stockMap —
-                // $currentStock here is always the pre-PO snapshot, never "stock after a prior line
-                // in this same PO already ran".
+              
                 $currentStock = $runningStock[$v['product']->id] ?? $stockMap[$v['product']->id] ?? 0;
                 $currentCost = $runningCost[$v['product']->id] ?? $v['product']->cost_price ?? $v['unitPrice'];
                 $effectiveStock = $currentStock;
@@ -195,8 +166,7 @@ class PurchaseOrderService
                 $v['product']->update(['cost_price' => round($newAvg, 2)]);
                 $runningStock[$v['product']->id] = $effectiveStock + $v['stockQty'];
                 $runningCost[$v['product']->id] = round($newAvg, 2);
-                // Only push stock into inventory if this line specified a warehouse (warehouse_id
-                // is nullable on order/PO items by design — no warehouse means skip the stock move).
+                
                 if ($v['warehouseId']) {
                     $this->inventory->restoreStock(
                         $v['product']->id,
@@ -212,8 +182,7 @@ class PurchaseOrderService
                 $totalAmount += ($purchaseOrderItem->unit_price * $purchaseOrderItem->quantity);
             }
 
-            // Single batched pivot sync (built above) instead of one sync call per item.
-            $supplier->products()->syncWithoutDetaching($syncData);
+            $supplier->syncProducts($syncData);
             $purchaseOrder->update(['total' => round($totalAmount, 2)]);
 
             $this->ledger->purchaseCharge([

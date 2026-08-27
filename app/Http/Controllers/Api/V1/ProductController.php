@@ -47,14 +47,13 @@ class ProductController extends Controller
     public function store(StoreProductRequest $request)
     {
         $this->authorize('create', Product::class);
-
         $user = auth()->user();
      
- $product = $this->productService->createProduct(
-        $request->validated(),
-        $user->tenant_id,
-        $user->id
-    );
+        $product = $this->productService->createProduct(
+         $request->validated(),
+         $user->tenant_id,
+         $user->id
+        );
 
         return (new ProductResource($product))
             ->response()

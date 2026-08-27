@@ -45,4 +45,14 @@ public function products()
     ->withPivot('cost_price', 'last_purchase_price', 'last_purchased_at', 'is_preferred', 'notes')
     ->withTimestamps();
 }
+
+public function syncProducts(array $pivotData): void
+{
+    foreach ($pivotData as $productId => $attributes) {
+        $attributes['tenant_id'] = $this->tenant_id;
+        $pivotData[$productId] = $attributes;
+    }
+
+    $this->products()->syncWithoutDetaching($pivotData);
+}
 }
