@@ -168,6 +168,12 @@ class PurchaseOrderService
                 $runningCost[$v['product']->id] = round($newAvg, 2);
                 
                 if ($v['warehouseId']) {
+                    $this->inventory->ensureStockRow(
+                        $v['product']->id,
+                        $v['warehouseId'],
+                        $user->tenant_id
+                    );
+
                     $this->inventory->restoreStock(
                         $v['product']->id,
                         $v['warehouseId'],

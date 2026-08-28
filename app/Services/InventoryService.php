@@ -78,6 +78,27 @@ class InventoryService
         'batch_id'       => $batchId,
     ]);
    }
+    /**
+     * Ensure a warehouse/product inventory row exists, without moving any stock.
+     * Callers that legitimately introduce a new warehouse/product pairing (purchase
+     * receiving, the product stocks[] editor) call this first; deductStock and
+     * restoreStock stay strict and fail on a missing row.
+     */
+    public function ensureStockRow(int $productId, int $warehouseId, int $tenantId, ?int $threshold = null): Inventory
+    {
+        return Inventory::firstOrCreate(
+            [
+                'warehouse_id' => $warehouseId,
+                'product_id'   => $productId,
+            ],
+            [
+                'tenant_id' => $tenantId,
+                'quantity'  => 0,
+                'threshold' => $threshold ?? 10,
+            ]
+        );
+    }
+
    public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base', ?int $userId = null, ?string $notes = null, ?string $batchId = null): void{
    DB::transaction(function() use ($productId, $warehouseId, $quantity, $direction, $unitType, $userId, $notes, $batchId){
 
@@ -130,19 +151,9 @@ class InventoryService
     public function setStock(int $productId, int $warehouseId, int $tenantId, ?int $quantity, ?int $threshold = null, ?int $userId = null, ?string $notes = null, ?string $batchId = null): Inventory
     {
         return DB::transaction(function () use ($productId, $warehouseId, $tenantId, $quantity, $threshold, $userId, $notes, $batchId) {
-            $inventory = Inventory::where('warehouse_id', $warehouseId)
-                ->where('product_id', $productId)
-                ->first();
+            $inventory = $this->ensureStockRow($productId, $warehouseId, $tenantId, $threshold);
 
-            if (!$inventory) {
-                $inventory = Inventory::create([
-                    'tenant_id'    => $tenantId,
-                    'warehouse_id' => $warehouseId,
-                    'product_id'   => $productId,
-                    'quantity'     => 0,
-                    'threshold'    => $threshold ?? 10,
-                ]);
-            } elseif ($threshold !== null) {
+            if (!$inventory->wasRecentlyCreated && $threshold !== null) {
                 $inventory->update(['threshold' => $threshold]);
             }
 

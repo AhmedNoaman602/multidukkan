@@ -61,6 +61,55 @@ class PurchaseOrderMoneyTest extends TestCase
         ], $overrides));
     }
 
+    public function test_purchase_order_creates_inventory_row_for_unstocked_product(): void
+    {
+        $newProduct = Product::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->assertDatabaseMissing('inventory', [
+            'warehouse_id' => $this->warehouse->id,
+            'product_id'   => $newProduct->id,
+        ]);
+
+        $response = $this->createPurchaseOrder([
+            'items' => [
+                ['product_id' => $newProduct->id, 'quantity' => 7, 'warehouse_id' => $this->warehouse->id, 'unit_price' => 50],
+            ],
+        ]);
+
+        $response->assertCreated();
+
+        $this->assertDatabaseHas('inventory', [
+            'tenant_id'    => $this->tenant->id,
+            'warehouse_id' => $this->warehouse->id,
+            'product_id'   => $newProduct->id,
+            'quantity'     => 7,
+        ]);
+
+        $this->assertDatabaseHas('inventory_transactions', [
+            'tenant_id'      => $this->tenant->id,
+            'warehouse_id'   => $this->warehouse->id,
+            'product_id'     => $newProduct->id,
+            'type'           => \App\Models\InventoryTransaction::TYPE_PURCHASE_IN,
+            'quantity'       => 7,
+            'reference_type' => PurchaseOrder::class,
+        ]);
+    }
+
+    public function test_restore_stock_still_fails_when_inventory_row_is_missing(): void
+    {
+        $newProduct = Product::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $this->actingAs($this->user);
+
+        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+
+        app(\App\Services\InventoryService::class)->restoreStock(
+            $newProduct->id,
+            $this->warehouse->id,
+            5
+        );
+    }
+
     // ─────────────────────────────────────────
     // 1. Invoice number generator
     // ─────────────────────────────────────────
