@@ -12,8 +12,9 @@ class PurchaseOrderItem extends Model
    'purchase_order_id', 
    'product_id',
    'warehouse_id', 
-   'quantity', 
-   'unit_price', 
+   'quantity',
+   'unit_type',
+   'unit_price',
    'total'
    ];
    

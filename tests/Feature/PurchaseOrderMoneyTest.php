@@ -95,6 +95,83 @@ class PurchaseOrderMoneyTest extends TestCase
         ]);
     }
 
+    public function test_purchase_in_secondary_units_converts_stock_and_cost_but_not_the_invoice(): void
+    {
+        $carton = Product::factory()->create([
+            'tenant_id'         => $this->tenant->id,
+            'secondary_unit'    => 'carton',
+            'conversion_factor' => 12,
+        ]);
+
+        $response = $this->createPurchaseOrder([
+            'items' => [
+                [
+                    'product_id'   => $carton->id,
+                    'quantity'     => 5,
+                    'unit_type'    => 'secondary',
+                    'warehouse_id' => $this->warehouse->id,
+                    'unit_price'   => 120,
+                ],
+            ],
+        ])->assertStatus(201);
+
+        $poId = $response->json('data.id');
+
+        $this->assertDatabaseHas('purchase_order_items', [
+            'purchase_order_id' => $poId,
+            'product_id'        => $carton->id,
+            'quantity'          => 5,
+            'unit_type'         => 'secondary',
+            'unit_price'        => 120,
+            'total'             => 600,
+        ]);
+
+        $this->assertDatabaseHas('purchase_orders', ['id' => $poId, 'total' => 600]);
+
+        $this->assertDatabaseHas('inventory', [
+            'warehouse_id' => $this->warehouse->id,
+            'product_id'   => $carton->id,
+            'quantity'     => 60,
+        ]);
+
+        $this->assertEquals(10, (float) $carton->fresh()->cost_price);
+    }
+
+    public function test_cancelling_a_secondary_unit_purchase_returns_the_converted_quantity(): void
+    {
+        $carton = Product::factory()->create([
+            'tenant_id'         => $this->tenant->id,
+            'secondary_unit'    => 'carton',
+            'conversion_factor' => 12,
+        ]);
+
+        $poId = $this->createPurchaseOrder([
+            'items' => [
+                [
+                    'product_id'   => $carton->id,
+                    'quantity'     => 5,
+                    'unit_type'    => 'secondary',
+                    'warehouse_id' => $this->warehouse->id,
+                    'unit_price'   => 120,
+                ],
+            ],
+        ])->assertStatus(201)->json('data.id');
+
+        $this->actingAs($this->user)->deleteJson("/api/purchase-orders/{$poId}")->assertStatus(200);
+
+        $this->assertDatabaseHas('inventory', [
+            'warehouse_id' => $this->warehouse->id,
+            'product_id'   => $carton->id,
+            'quantity'     => 0,
+        ]);
+
+        $this->assertDatabaseHas('inventory_transactions', [
+            'product_id' => $carton->id,
+            'type'       => \App\Models\InventoryTransaction::TYPE_PURCHASE_OUT,
+            'quantity'   => 60,
+        ]);
+    }
+
     public function test_restore_stock_still_fails_when_inventory_row_is_missing(): void
     {
         $newProduct = Product::factory()->create(['tenant_id' => $this->tenant->id]);

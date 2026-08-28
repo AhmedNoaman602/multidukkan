@@ -94,10 +94,10 @@ class PurchaseOrderService
                     ? $itemData['quantity'] * $product->conversion_factor
                     : $itemData['quantity'];
 
-                $price = $itemData['unit_price'];
-                $unitPrice = $unitType === 'secondary' && $product->conversion_factor
-                    ? $price * $product->conversion_factor
-                    : $price;
+                $unitPrice = $itemData['unit_price'];
+                $costPerBaseUnit = $unitType === 'secondary' && $product->conversion_factor
+                    ? $unitPrice / $product->conversion_factor
+                    : $unitPrice;
 
                 $validatedItems[] = [
                     'product' => $product,
@@ -106,6 +106,7 @@ class PurchaseOrderService
                     'quantity' => $itemData['quantity'],
                     'unitType' => $unitType,
                     'unitPrice' => $unitPrice,
+                    'costPerBaseUnit' => $costPerBaseUnit,
                 ];
             }
 
@@ -133,7 +134,7 @@ class PurchaseOrderService
             $syncData = [];
             foreach($validatedItems as $v) {
                 $syncData[$v['product']->id] = [
-                    'last_purchase_price' => $v['unitPrice'],
+                    'last_purchase_price' => $v['costPerBaseUnit'],
                     'last_purchased_at' => $purchasedOn,
                 ];
             }
@@ -147,6 +148,7 @@ class PurchaseOrderService
                 $purchaseOrderItem = $purchaseOrder->items()->create([
                     'product_id' => $v['product']->id,
                     'quantity' => $v['quantity'],
+                    'unit_type' => $v['unitType'],
                     'unit_price' => $v['unitPrice'],
                     'warehouse_id' => $v['warehouseId'],
                     'total' => $v['unitPrice'] * $v['quantity'],
@@ -154,14 +156,14 @@ class PurchaseOrderService
 
               
                 $currentStock = $runningStock[$v['product']->id] ?? $stockMap[$v['product']->id] ?? 0;
-                $currentCost = $runningCost[$v['product']->id] ?? $v['product']->cost_price ?? $v['unitPrice'];
+                $currentCost = $runningCost[$v['product']->id] ?? $v['product']->cost_price ?? $v['costPerBaseUnit'];
                 $effectiveStock = $currentStock;
 
                 if ($effectiveStock + $v['stockQty'] > 0) {
-                    $newAvg = ($effectiveStock * $currentCost + $v['stockQty'] * $v['unitPrice'])
+                    $newAvg = ($effectiveStock * $currentCost + $v['stockQty'] * $v['costPerBaseUnit'])
                               / ($effectiveStock + $v['stockQty']);
                 } else {
-                    $newAvg = $v['unitPrice'];
+                    $newAvg = $v['costPerBaseUnit'];
                 }
                 $v['product']->update(['cost_price' => round($newAvg, 2)]);
                 $runningStock[$v['product']->id] = $effectiveStock + $v['stockQty'];
