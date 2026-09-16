@@ -93,47 +93,19 @@ class OrderService
             // activity feed can show one "sale" event instead of one row per line item.
             $batchId = (string) Str::uuid();
 
-            // Fetch the customer details from the database or fail with a 404 response if the customer doesn't exist.
-            $customer = Customer::findOrFail($data['customer_id']);
+            $customer = Customer::where('tenant_id', $user->tenant_id)
+                ->findOrFail($data['customer_id']);
+
             $productIds = collect($data['items'])->pluck('product_id')->unique();
-            $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+            $products = Product::where('tenant_id', $user->tenant_id)
+                ->whereIn('id', $productIds)
+                ->get()
+                ->keyBy('id');
 
+            abort_if($products->count() !== $productIds->count(), 404, 'Product not found.');
 
-            $aggregated = [];
-foreach ($data['items'] as $item) {
-    $key = $item['product_id'].'_'.($item['warehouse_id'] ?? 'none');
-    $product = $products[$item['product_id']];
-    $unitType = $item['unit_type'] ?? 'base';
-
-    $stockQty = $unitType === 'secondary' && $product->conversion_factor
-        ? $item['quantity'] * $product->conversion_factor
-        : $item['quantity'];
-
-    if (!isset($aggregated[$key])) {
-        $aggregated[$key] = [
-            'product_id'   => $item['product_id'],
-            'warehouse_id' => $item['warehouse_id'] ?? null,
-            'stockQty'     => $stockQty,
-        ];
-    } else {
-        $aggregated[$key]['stockQty'] += $stockQty;
-    }
-}
-
-foreach ($aggregated as $itemData) {
-    if ($itemData['warehouse_id']) {
-        $this->inventory->checkStock(
-            $itemData['product_id'],
-            $itemData['warehouse_id'],
-            $itemData['stockQty']
-        );
-    }
-}
-            // --- END OF STOCK CHECKING BLOCK ---
-
-            // --- ITEM VALIDATION AND PRICE CALCULATION BLOCK ---
-            // Loop through each item in the order to validate the product exists, check the stock quantity,
-            // and calculate the correct price based on the customer's specific pricing tier (A, B, C, D, E, or default).
+            // --- ITEM PREPARATION & PRICE CALCULATION ---
+            // Normalize every line once: base-unit stock quantity + tier price.
             $validatedItems = [];
             foreach ($data['items'] as $itemData) {
                 $product = $products[$itemData['product_id']];
@@ -171,6 +143,33 @@ foreach ($aggregated as $itemData) {
                     'unitType' => $unitType,
                     'unitPrice' => $unitPrice,
                 ];
+            }
+
+            // Stock is checked per product+warehouse, not per line: two lines for the
+            // same product each pass on their own but can overdraw the shelf together.
+            $aggregated = [];
+            foreach ($validatedItems as $item) {
+                if (!$item['warehouseId']) {
+                    continue;
+                }
+
+                $key = $item['product']->id.'_'.$item['warehouseId'];
+
+                $aggregated[$key] ??= [
+                    'product_id' => $item['product']->id,
+                    'warehouse_id' => $item['warehouseId'],
+                    'stockQty' => 0,
+                ];
+
+                $aggregated[$key]['stockQty'] += $item['stockQty'];
+            }
+
+            foreach ($aggregated as $entry) {
+                $this->inventory->checkStock(
+                    $entry['product_id'],
+                    $entry['warehouse_id'],
+                    $entry['stockQty']
+                );
             }
 
             // --- ORDER CREATION BLOCK ---
@@ -337,8 +336,7 @@ if (!empty($data['pay_immediately'])) {
     }
 }
 
-            // Return the newly created order structure along with all associated items.
-            return $order->load('items');
+            return $order;
         });
     }
 
