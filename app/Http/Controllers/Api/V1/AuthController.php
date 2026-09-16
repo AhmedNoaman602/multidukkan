@@ -15,10 +15,11 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 class AuthController extends Controller
 {
+
     public function register(RegisterRequest $request){
 
      $result = DB::transaction(function () use ($request) {
-        $defaultUnits = ['حبة', 'متر', 'كيلو', 'علبة', 'لفة', 'طن', 'لتر', 'كرتونة', 'رول'];
+        $defaultUnits = ['حتة', 'متر','لفة', 'رول'];
         
         $tenant = Tenant::create([
             'name' => $request->business_name,
@@ -65,10 +66,12 @@ foreach ($defaultUnits as $unit) {
             'walk_in_customer_id' => Customer::where('tenant_id', $result->tenant_id)
             ->where('is_walk_in', true)
             ->value('id'),
-            'has_store' => false,  // just registered, no stores yet      
+            'has_store' => false,       
         ]
     ], 201);
     }
+
+
 
     public function login(LoginRequest $request){
 
@@ -125,9 +128,9 @@ if (!$user || !Hash::check($request->password, $user->password)) {
         'store_id'      => $user->store_id,
         'business_name' => $user->tenant->name,
         'walk_in_customer_id' => Customer::where('tenant_id', $user->tenant_id)
-    ->where('is_walk_in', true)
-    ->value('id'),
-        'has_store' => $user->tenant->stores()->exists(),
+             ->where('is_walk_in', true)
+             ->value('id'),
+                'has_store' => $user->tenant->stores()->exists(),
     ]);
 }
 }
