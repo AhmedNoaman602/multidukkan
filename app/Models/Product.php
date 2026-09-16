@@ -66,4 +66,21 @@ protected static function booted(): void
                 ->withPivot('cost_price', 'last_purchase_price', 'last_purchased_at', 'is_preferred', 'notes')
                 ->withTimestamps();
 }
+
+public function syncSuppliers(array $supplierIds): void
+{
+    $ids = array_values(array_unique(array_map('intval', $supplierIds)));
+
+    $payload = [];
+    foreach ($ids as $id) {
+        $payload[$id] = ['tenant_id' => $this->tenant_id];
+    }
+
+    $this->suppliers()->syncWithoutDetaching($payload);
+
+    $stale = $this->suppliers()->pluck('suppliers.id')->diff($ids);
+    if ($stale->isNotEmpty()) {
+        $this->suppliers()->detach($stale->all());
+    }
+}
 }

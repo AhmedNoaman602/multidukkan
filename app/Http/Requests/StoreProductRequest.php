@@ -7,6 +7,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use App\Rules\BelongsToTenant;
 use App\Models\Warehouse;
+use App\Models\Supplier;
 
 class StoreProductRequest extends FormRequest
 {
@@ -29,13 +30,14 @@ class StoreProductRequest extends FormRequest
         return [
             'name'      => 'required|string|max:255',
             'sku' => [
-    'required',
-    'string',
-    Rule::unique('products', 'sku')
-        ->where('tenant_id', auth()->user()->tenant_id)
-        ->ignore($this->route('product')),
-],
-            'supplier_id' => 'nullable|exists:suppliers,id',
+                 'required',
+                 'string',
+                 Rule::unique('products', 'sku')
+                     ->where('tenant_id', auth()->user()->tenant_id)
+                     ->ignore($this->route('product')),
+            ],
+            'supplier_ids'   => ['sometimes', 'array'],
+            'supplier_ids.*' => ['integer', new BelongsToTenant(Supplier::class, $tenantId)],
             'price'     => 'required|numeric|min:0|max:99999999.99|decimal:0,2',
             'price_a'     => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
             'price_b'     => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',

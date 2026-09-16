@@ -43,8 +43,9 @@ class ProductService
                 'unit'               => $data['unit'] ?? 'pcs',
                 'secondary_unit'     => $data['secondary_unit'] ?? null,
                 'conversion_factor'  => $data['conversion_factor'] ?? null,
-                'supplier_id'        => $data['supplier_id'] ?? null,
             ]);
+
+            $product->syncSuppliers($data['supplier_ids'] ?? []);
 
             foreach ($data['stocks'] ?? [] as $stock) {
                 if (empty($stock['warehouse_id'])) continue;

@@ -96,10 +96,13 @@ class ProductController extends Controller
             'price_e' => $request->price_e,
             'cost_price' => $request->cost_price,
             'unit'    => $request->unit ?? $product->unit,
-            'supplier_id' => $request->supplier_id,
             'secondary_unit' => $request->secondary_unit,
             'conversion_factor' => $request->conversion_factor,
         ]);
+
+        if ($request->has('supplier_ids')) {
+            $product->syncSuppliers($request->validated()['supplier_ids'] ?? []);
+        }
 
         $user = auth()->user();
 

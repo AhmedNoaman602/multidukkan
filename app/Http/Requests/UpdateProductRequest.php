@@ -6,6 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use App\Rules\BelongsToTenant;
 use App\Models\Warehouse;
+use App\Models\Supplier;
 
 class UpdateProductRequest extends FormRequest
 {
@@ -32,6 +33,8 @@ class UpdateProductRequest extends FormRequest
             'price_e'            => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             'secondary_unit'     => ['nullable', 'string'],
             'conversion_factor'  => ['nullable', 'integer', 'min:1'],
+            'supplier_ids'       => ['sometimes', 'array'],
+            'supplier_ids.*'     => ['integer', new BelongsToTenant(Supplier::class, $tenantId)],
             'stocks'             => ['nullable', 'array'],
             'stocks.*.warehouse_id' => [
                 'required_with:stocks',
