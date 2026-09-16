@@ -16,17 +16,43 @@ This directory is the **operating system of the project**: the long-lived decisi
 
 ```mermaid
 graph TD
+    DEV[DEVELOPER_GUIDE - start here] --> DOMR[DOMAIN_RULES]
+    DEV --> DB[DATABASE_GUIDE]
+    DEV --> FEG[FRONTEND_GUIDE]
+    DEV --> AD[ARCHITECTURE_DECISIONS]
+    DEV --> CN[CODEBASE_NOTES]
+    LP[LEARNING_PATH] --> DEV
+    AD --> ADR[01 ADRs]
+    DOMR --> RULES[07 Business Rules]
+    DOMR --> DOM[06 Domain Docs]
     AI[09 AI Collaboration Guide] --> ARCH[01 Backend Architecture]
-    AI --> RULES[07 Business Rules]
-    ARCH --> ADR[01 ADRs]
-    RULES --> DOM[06 Domain Docs]
+    AI --> RULES
+    ARCH --> ADR
+    RULES --> DOM
     DOM --> OVER[00 Overview]
     STD[04 Engineering Standards] --> ARCH
     ROAD[10 Roadmap] --> OVER
-    FE[02/03/05 Frontend Docs - stubs] -.->|live in multidukkan-frontend| DOM
+    FE[02/03/05 Frontend Docs - stubs] -.->|live in multidukkan-frontend| FEG
 ```
 
 ## Directory index
+
+### Tier 0 — orientation: read these when you are lost
+
+Wide, cross-cutting guides that map the whole system. The Tier 1 docs below go *deeper* on individual
+topics; these tell you which one to open. Written 2026-08-30 by reverse-engineering the code, with
+every claim labelled Confirmed / Inferred / Unclear / Potential issue.
+
+| Document | Purpose | Read it when |
+|---|---|---|
+| [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) | **Start here.** What the system is, the layers, the domain map, every business flow traced end to end, aggregation vs validation, timezones, audit logs, security, "where do I change X", testing | You are lost, or you are new |
+| [DOMAIN_RULES.md](DOMAIN_RULES.md) | The invariants: tenant isolation, ledger and inventory append-only, stored vs calculated, FIFO, supplier↔product, and the full deletion / data-lifecycle rules | Before changing anything that could break a guarantee |
+| [DATABASE_GUIDE.md](DATABASE_GUIDE.md) | Every table: purpose, columns, FK behaviour, indexes, mutable vs append-only, ERD | You are writing a migration or a query |
+| [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md) | React architecture, React Query patterns, API response shapes, i18n, client-side timezone handling | You are tracing a bug from the UI, or changing an API contract |
+| [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) | The 8 ADRs summarised with trade-offs, **plus 11 decisions that have no ADR** | You are tempted to change something structural |
+| [CODEBASE_NOTES.md](CODEBASE_NOTES.md) | Ranked findings: confusing areas, duplicated logic, suspicious code, and a table of things that look wrong but are deliberate | Before "fixing" something, and when picking up cleanup work |
+| [LEARNING_PATH.md](LEARNING_PATH.md) | An 11-step route through the codebase in dependency order, with exercises | You want to understand the system rather than just navigate it |
+| [MANUAL_QA.md](MANUAL_QA.md) | 12 end-to-end flows with the exact DB state each should produce, plus a bug log | Before a release, or when you want to verify a feature works rather than read about it |
 
 ### Tier 1 — written, grounded, load-bearing
 
@@ -59,7 +85,7 @@ graph TD
 |---|---|---|
 | [02-design-system/README.md](02-design-system/README.md) | Stub | Design system belongs in `multidukkan-frontend`; stub defines what goes there |
 | [03-ux-patterns/README.md](03-ux-patterns/README.md) | Stub | Same — UX patterns live with the React code |
-| [05-frontend/README.md](05-frontend/README.md) | Stub | Frontend guide belongs in `multidukkan-frontend` |
+| [05-frontend/README.md](05-frontend/README.md) | Stub | Superseded for orientation purposes by [FRONTEND_GUIDE.md](FRONTEND_GUIDE.md) (Tier 0), which documents the React app from a backend developer's point of view. Deep frontend conventions still live in `multidukkan-frontend/CLAUDE.md`. |
 | [08-module-blueprints/README.md](08-module-blueprints/README.md) | Template only | Blueprints are written when a module is *about to be built*, not speculatively |
 
 ## Maintenance model
@@ -72,6 +98,7 @@ graph TD
 ---
 
 **Related documents**: everything above.
-**Future improvements**: add `06-domain/stock-transfers.md` when Phase 3 transfers land; generate an OpenAPI spec and link it from `api-conventions.md`.
-**Open questions**: should frontend docs live here (monorepo-style) or in `multidukkan-frontend`? Current answer: frontend repo, with stubs here pointing at them.
-**Last review checklist**: [ ] index matches actual files, [ ] no doc describes removed behavior, [ ] AI guide reflects latest incidents. Last reviewed: 2026-07-08.
+**Future improvements**: add `06-domain/stock-transfers.md` when Phase 3 transfers land; generate an OpenAPI spec and link it from `api-conventions.md`; promote the timezone model and the defence-in-depth tenant model to ADRs (see [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) Part B).
+**Open questions**: should frontend docs live here (monorepo-style) or in `multidukkan-frontend`? Current answer: deep conventions in the frontend repo, a backend-developer-facing orientation guide here ([FRONTEND_GUIDE.md](FRONTEND_GUIDE.md)).
+**Known doc/code divergences**: four documented in [CODEBASE_NOTES.md](CODEBASE_NOTES.md) #25 — two stale lines in the AI collaboration guide, and two ADRs (005, 007) that describe an implementation that was never fully built. Fix the first two; supersede the ADRs.
+**Last review checklist**: [ ] index matches actual files, [ ] no doc describes removed behavior, [ ] AI guide reflects latest incidents. Last reviewed: 2026-08-30 (Tier 0 added).
