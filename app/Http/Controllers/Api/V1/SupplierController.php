@@ -41,7 +41,9 @@ class SupplierController extends Controller
 
     $totalOwed = max(0, round(array_sum($balances), 2));
 
-    $suppliers = $query->paginate(20);
+    $perPage = $request->per_page === 'all' ? max(count($supplierIds), 1) : 20;
+
+    $suppliers = $query->paginate($perPage);
 
     $suppliers->getCollection()->transform(function ($supplier) use ($balances) {
         $supplier->balance = $balances[$supplier->id] ?? 0;
