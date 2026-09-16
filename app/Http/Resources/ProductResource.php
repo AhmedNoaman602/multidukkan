@@ -14,12 +14,14 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
 {
+    $showsCost = $request->user()?->can('view-cost-data') ?? false;
+
     return [
         'id'                => $this->id,
         'tenant_id'         => $this->tenant_id,
         'name'              => $this->name,
         'sku'               => $this->sku,
-        'cost_price'        => $this->cost_price,
+        'cost_price'        => $this->when($showsCost, fn () => $this->cost_price),
         'opening_quantity'  => $this->opening_quantity,
         'price'             => $this->price,
         'price_a'           => $this->price_a,
@@ -27,26 +29,26 @@ class ProductResource extends JsonResource
         'price_c'           => $this->price_c,
         'price_d'           => $this->price_d,
         'price_e'           => $this->price_e,
-        'profit_margin'   => $this->cost_price !== null 
-    ? round($this->price - $this->cost_price, 2) 
-    : null,
+        'profit_margin'   => $this->when($showsCost, fn () => $this->cost_price !== null
+    ? round($this->price - $this->cost_price, 2)
+    : null),
 
-    'profit_margin_a' => $this->cost_price !== null 
-    ? round(($this->price_a ?? $this->price) - $this->cost_price, 2) 
-    : null,
+    'profit_margin_a' => $this->when($showsCost, fn () => $this->cost_price !== null
+    ? round(($this->price_a ?? $this->price) - $this->cost_price, 2)
+    : null),
 
-    'profit_margin_b' => $this->cost_price !== null 
-    ? round(($this->price_b ?? $this->price) - $this->cost_price, 2) 
-    : null,
-    'profit_margin_c' => $this->cost_price !== null 
-    ? round(($this->price_c ?? $this->price) - $this->cost_price, 2) 
-    : null,
-    'profit_margin_d' => $this->cost_price !== null 
-    ? round(($this->price_d ?? $this->price) - $this->cost_price, 2) 
-    : null,
-    'profit_margin_e' => $this->cost_price !== null 
-    ? round(($this->price_e ?? $this->price) - $this->cost_price, 2) 
-    : null,
+    'profit_margin_b' => $this->when($showsCost, fn () => $this->cost_price !== null
+    ? round(($this->price_b ?? $this->price) - $this->cost_price, 2)
+    : null),
+    'profit_margin_c' => $this->when($showsCost, fn () => $this->cost_price !== null
+    ? round(($this->price_c ?? $this->price) - $this->cost_price, 2)
+    : null),
+    'profit_margin_d' => $this->when($showsCost, fn () => $this->cost_price !== null
+    ? round(($this->price_d ?? $this->price) - $this->cost_price, 2)
+    : null),
+    'profit_margin_e' => $this->when($showsCost, fn () => $this->cost_price !== null
+    ? round(($this->price_e ?? $this->price) - $this->cost_price, 2)
+    : null),
 
         'unit'              => $this->unit,
         'secondary_unit'    => $this->secondary_unit,

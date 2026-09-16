@@ -38,6 +38,7 @@ class OrderResource extends JsonResource
     $total     = (float) $this->total;
     $totalPaid = $this->settledAmount();
     $displayPaid = min($totalPaid, $total);
+    $showsCost = $request->user()?->can('view-cost-data') ?? false;
 
     return [
         'id'         => $this->id,
@@ -86,7 +87,7 @@ class OrderResource extends JsonResource
                         ? ($item->product?->secondary_unit ?? $item->unit_type)
                         : ($item->product?->unit ?? 'base'),
             'total'        => $item->unit_price * $item->quantity,
-            'cost_price'     => $item->product?->cost_price ?? null,
+            ...($showsCost ? ['cost_price' => $item->product?->cost_price ?? null] : []),
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),

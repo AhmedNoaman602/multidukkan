@@ -16,6 +16,7 @@ If you are an AI session and a change you're planning contradicts an `Accepted` 
 | [ADR-006](ADR-006-ledger-mutability-boundaries.md) | Ledger append-only, with two narrow edit exceptions | Accepted — amends the original "append-only, no exceptions" rule |
 | [ADR-007](ADR-007-nullable-warehouse-on-line-items.md) | `warehouse_id` nullable on line items | Accepted |
 | [ADR-008](ADR-008-weighted-average-costing.md) | Weighted-average cost on `products.cost_price` | Accepted |
+| [ADR-009](ADR-009-capability-gates.md) | Named capability Gates for cross-cutting role rules | Accepted — closes ADR-002's open question |
 
 ## Template
 

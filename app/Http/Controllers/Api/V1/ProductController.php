@@ -162,6 +162,8 @@ class ProductController extends Controller
 
 public function suppliers(Product $product)
 {
+    $this->authorize('view-cost-data');
+
     if ($product->tenant_id !== auth()->user()->tenant_id) {
         return response()->json(['message' => __('messages.unauthorized')], 403);
     }

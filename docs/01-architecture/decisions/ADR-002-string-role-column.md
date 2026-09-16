@@ -20,4 +20,4 @@ Three roles exist and are stable: `tenant_admin`, `store_manager`, `store_staff`
 - If a future customer needs custom per-user permissions, that is the trigger to revisit — write a superseding ADR then, not before.
 
 ---
-**Related**: [Backend Architecture](../backend-architecture.md), [Roadmap](../../10-roadmap/roadmap.md) (Phase 3). **Open questions**: Policies vs middleware for role checks — decide during Phase 3. **Last reviewed**: 2026-07-08.
+**Related**: [Backend Architecture](../backend-architecture.md), [Roadmap](../../10-roadmap/roadmap.md) (Phase 3). **Open questions**: none — Policies vs middleware was answered by [ADR-009](ADR-009-capability-gates.md): model-scoped questions in Policies, cross-cutting capabilities in named Gates. **Last reviewed**: 2026-09-15.

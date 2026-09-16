@@ -128,7 +128,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::delete('suppliers/{supplier}/products/{product}', [SupplierProductController::class, 'detach']);
     // Route::get('/suppliers/{supplier}/stock', [SupplierController::class, 'products']);
 
-    Route::get('/reports/daily', [ReportController::class, 'daily']);
+    Route::get('/reports/daily', [ReportController::class, 'daily'])->middleware('can:view-reports');
 
     Route::get('/search', [SearchController::class, 'search']);
 

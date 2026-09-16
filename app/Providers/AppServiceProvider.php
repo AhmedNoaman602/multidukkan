@@ -19,6 +19,7 @@ use App\Models\Supplier;
 use App\Models\PurchaseOrder;
 use App\Models\SupplierPayment;
 use App\Models\Expense;
+use App\Models\User;
 use App\Policies\OrderPolicy;
 use App\Policies\PaymentPolicy;
 use App\Policies\ProductPolicy;
@@ -63,6 +64,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(SupplierPayment::class, SupplierPaymentPolicy::class);
         Gate::policy(Expense::class, ExpensePolicy::class);
+    
+        Gate::define('view-cost-data', fn (User $user) => $user->isTenantAdmin() || $user->isStoreManager());
+        Gate::define('view-reports', fn (User $user) => $user->isTenantAdmin());
+
         Store::observe(StoreObserver::class);
         Customer::observe(CustomerObserver::class);
         Order::observe(OrderObserver::class);
