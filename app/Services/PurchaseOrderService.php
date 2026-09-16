@@ -7,6 +7,7 @@ use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Models\User;
 use App\Support\LocalDateRange;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -206,7 +207,7 @@ class PurchaseOrderService
         });
     }
 
-    public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, \App\Models\User $user): void
+    public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, User $user): void
     {
         DB::transaction(function () use ($purchaseOrder, $user) {
             $chargeAmount = (float) $purchaseOrder->total;
