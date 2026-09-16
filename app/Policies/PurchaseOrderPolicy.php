@@ -13,7 +13,7 @@ class PurchaseOrderPolicy
      */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->can('view-cost-data');
     }
 
     /**
@@ -21,7 +21,7 @@ class PurchaseOrderPolicy
      */
     public function view(User $user, PurchaseOrder $purchaseOrder): bool
     {
-        return $user->tenant_id === $purchaseOrder->tenant_id;
+        return $user->can('view-cost-data');
     }
 
     /**

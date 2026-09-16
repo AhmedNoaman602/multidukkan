@@ -13,7 +13,7 @@ class SupplierPolicy
      */
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->can('view-cost-data');
     }
 
     /**
@@ -21,7 +21,7 @@ class SupplierPolicy
      */
     public function view(User $user, Supplier $supplier): bool
     {
-        return $user->tenant_id === $supplier->tenant_id;
+        return $user->can('view-cost-data');
     }
 
     /**
