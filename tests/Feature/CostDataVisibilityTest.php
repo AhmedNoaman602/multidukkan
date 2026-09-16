@@ -7,7 +7,6 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Store;
-use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -134,18 +133,19 @@ class CostDataVisibilityTest extends TestCase
         $this->assertSame(90.0, (float) $row['profit_margin_e']);
     }
 
-    public function test_store_manager_product_list_returns_all_seven_cost_fields(): void
+    public function test_store_manager_product_list_omits_all_seven_cost_fields(): void
     {
         $row = $this->actingAs($this->manager)
             ->getJson('/api/products')
             ->assertStatus(200)
             ->json('data.0');
 
-        $this->assertArrayHasKey('cost_price', $row);
+        $this->assertArrayNotHasKey('cost_price', $row);
 
         foreach (self::MARGIN_KEYS as $key) {
-            $this->assertArrayHasKey($key, $row);
+            $this->assertArrayNotHasKey($key, $row);
         }
+        $this->assertArrayHasKey('price' , $row);
     }
 
     // ─────────────────────────────────────────
@@ -165,7 +165,7 @@ class CostDataVisibilityTest extends TestCase
         $this->assertArrayHasKey('unit_price', $item);
     }
 
-    public function test_store_manager_order_items_include_cost_price(): void
+    public function test_store_manager_order_items_omit_cost_price(): void
     {
         $order = $this->orderWithItem();
 
@@ -174,8 +174,8 @@ class CostDataVisibilityTest extends TestCase
             ->assertStatus(200)
             ->json('items.0');
 
-        $this->assertArrayHasKey('cost_price', $item);
-        $this->assertSame(60, (int) $item['cost_price']);
+       $this->assertArrayNotHasKey('cost_price', $item);
+       $this->assertArrayHasKey('unit_price', $item);
     }
 
     // ─────────────────────────────────────────
@@ -214,19 +214,12 @@ class CostDataVisibilityTest extends TestCase
             ->assertStatus(403);
     }
 
-    public function test_store_manager_can_read_product_suppliers(): void
-    {
-        $supplier = Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
-        $this->product->syncSuppliers([$supplier->id]);
-
-        $row = $this->actingAs($this->manager)
-            ->getJson("/api/products/{$this->product->id}/suppliers")
-            ->assertStatus(200)
-            ->json('data.0');
-
-        $this->assertArrayHasKey('cost_price', $row);
-        $this->assertArrayHasKey('last_purchase_price', $row);
-    }
+   public function test_store_manager_cannot_read_product_suppliers(): void
+{
+    $this->actingAs($this->manager)
+        ->getJson("/api/products/{$this->product->id}/suppliers")
+        ->assertStatus(403);
+}
 
     public function test_tenant_admin_can_read_product_suppliers(): void
     {

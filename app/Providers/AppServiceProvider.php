@@ -65,7 +65,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SupplierPayment::class, SupplierPaymentPolicy::class);
         Gate::policy(Expense::class, ExpensePolicy::class);
     
-        Gate::define('view-cost-data', fn (User $user) => $user->isTenantAdmin() || $user->isStoreManager());
+        Gate::define('view-cost-data', fn (User $user) => $user->isTenantAdmin());
         Gate::define('view-reports', fn (User $user) => $user->isTenantAdmin());
 
         Store::observe(StoreObserver::class);
