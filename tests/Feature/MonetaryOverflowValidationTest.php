@@ -18,8 +18,7 @@ use Tests\TestCase;
  * DECIMAL column's precision/scale so an out-of-range value returns a clean
  * 422 instead of overflowing the column and producing a 500.
  *
- * DECIMAL(10,2) -> max 99,999,999.99
- * DECIMAL(12,2) -> max 9,999,999,999.99  (orders.total, via manual_total)
+ * Every money column is DECIMAL(10,2) -> max 99,999,999.99
  */
 class MonetaryOverflowValidationTest extends TestCase
 {
@@ -121,25 +120,32 @@ class MonetaryOverflowValidationTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────
-    // DECIMAL(12,2) — orders.total via manual_total (larger cap)
+    // manual_total — writes to orders.total and ledger_entries.amount
     // ─────────────────────────────────────────────────────────
 
-    public function test_manual_total_accepts_a_value_above_the_10_2_cap_but_within_12_2(): void
+    public function test_manual_total_accepts_the_maximum_the_ledger_can_hold(): void
     {
-        // 1,000,000,000.00 overflows decimal(10,2) but fits decimal(12,2).
-        // Proves we did NOT blindly apply the 99,999,999.99 cap here.
-        $response = $this->createOrder(['manual_total' => 1000000000.00])
+        $response = $this->createOrder(['manual_total' => 99999999.99])
             ->assertStatus(201);
 
         $this->assertDatabaseHas('orders', [
             'id'    => $response->json('id'),
-            'total' => 1000000000.00,
+            'total' => 99999999.99,
         ]);
     }
 
-    public function test_manual_total_exceeding_the_12_2_maximum_returns_422(): void
+    public function test_manual_total_above_the_ledger_cap_returns_422(): void
     {
-        $this->createOrder(['manual_total' => 10000000000.00]) // 11 integer digits — overflows decimal(12,2)
+        $this->createOrder(['manual_total' => 1000000000.00])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('manual_total');
+
+        $this->assertDatabaseMissing('orders', ['total' => 1000000000.00]);
+    }
+
+    public function test_manual_total_far_above_the_ledger_cap_returns_422(): void
+    {
+        $this->createOrder(['manual_total' => 10000000000.00])
             ->assertStatus(422)
             ->assertJsonValidationErrors('manual_total');
 
