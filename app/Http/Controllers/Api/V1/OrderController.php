@@ -31,24 +31,16 @@ class OrderController extends Controller
 
     // Dropdowns and the filter below all key off order_date — the business date on the
     // order, which is what "show me August" means to the shop.
-    //
-    // The year/month pairs are derived in PHP rather than with MONTH()/YEAR() so the
-    // query stays portable (SQLite, used by the test suite, has neither function). The
-    // set is bounded by distinct trading days, so this stays small.
-    $orderDates = Order::where('tenant_id', $user->tenant_id)
+    $months = Order::where('tenant_id', $user->tenant_id)
         ->whereNotNull('order_date')
-        ->distinct()
-        ->orderByDesc('order_date')
-        ->pluck('order_date')
-        ->map(fn ($d) => substr((string) $d, 0, 10));
-
-    $months = $orderDates
-        ->map(fn ($d) => ['year' => (int) substr($d, 0, 4), 'month' => (int) substr($d, 5, 2)])
-        ->unique(fn ($m) => $m['year'] . '-' . $m['month'])
+        ->selectRaw('DISTINCT substr(order_date, 1, 7) as ym')
+        ->orderByDesc('ym')
+        ->pluck('ym')
+        ->map(fn ($ym) => ['year' => (int) substr($ym, 0, 4), 'month' => (int) substr($ym, 5, 2)])
         ->values();
 
-    $years = $orderDates
-        ->map(fn ($d) => (int) substr($d, 0, 4))
+    $years = $months
+        ->map(fn ($m) => $m['year'])
         ->unique()
         ->values();
 
