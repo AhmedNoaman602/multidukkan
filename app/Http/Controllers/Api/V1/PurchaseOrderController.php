@@ -24,11 +24,14 @@ class PurchaseOrderController extends Controller
 
     $user = auth()->user();
 
+    // Derived in PHP rather than with YEAR() so the query stays portable — see the
+    // same treatment in OrderController::index.
     $years = PurchaseOrder::where('tenant_id', $user->tenant_id)
-        ->selectRaw('YEAR(created_at) as year')
-        ->distinct()
-        ->orderBy('year', 'desc')
-        ->pluck('year');
+        ->orderByDesc('created_at')
+        ->pluck('created_at')
+        ->map(fn ($d) => (int) substr((string) $d, 0, 4))
+        ->unique()
+        ->values();
 
         $query = PurchaseOrder::where('tenant_id', $user->tenant_id)
         ->when($request->search, function ($q) use ($request) {
