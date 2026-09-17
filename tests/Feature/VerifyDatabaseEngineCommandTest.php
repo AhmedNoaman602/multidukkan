@@ -9,6 +9,11 @@ class VerifyDatabaseEngineCommandTest extends TestCase
 {
     public function test_it_skips_the_check_on_non_mysql_connections(): void
     {
+        $connection = \Mockery::mock();
+        $connection->shouldReceive('getDriverName')->andReturn('sqlite');
+
+        DB::shouldReceive('connection')->andReturn($connection);
+
         $this->artisan('db:verify-engine')
             ->expectsOutputToContain("Skipping engine check — connection driver is 'sqlite', not MySQL/MariaDB.")
             ->assertExitCode(0);
