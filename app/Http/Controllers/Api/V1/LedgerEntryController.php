@@ -103,7 +103,8 @@ public function summary(Customer $customer)
 {
     $this->authorize('view', $customer);
 
-    $tenantId   = auth()->user()->tenant_id;
+    $user       = auth()->user();
+    $tenantId   = $user->tenant_id;
     $balance    = $this->ledger->getBalance($tenantId, $customer->id);
     $history    = $this->ledger->getHistory($tenantId, $customer->id);
 
@@ -144,7 +145,7 @@ $unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $o->total)->cou
             'unpaid_orders' => $unpaidOrders,
             'total_ordered'   => round($totalOrdered, 2),
         ],
-        'orders' => $orders->map(function ($o) {
+        'orders' => $orders->map(function ($o) use ($user) {
     $total = $o->total;
     $paid            = $o->settledAmount();
     $amountRemaining = max(0, round($total - $paid, 2));
@@ -156,6 +157,7 @@ $unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $o->total)->cou
         'paid'             => round(min($paid, $total), 2),
         'amount_remaining' => $amountRemaining,
         'status'           => $amountRemaining > 0 ? 'unpaid' : 'paid',
+        'can_view'         => $user->can('view', $o),
         'order_date'       => $o->order_date,
         'refundable'       => $o->cashReceived(),
     ];

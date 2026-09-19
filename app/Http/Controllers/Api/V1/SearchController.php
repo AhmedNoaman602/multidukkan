@@ -15,7 +15,9 @@ class SearchController extends Controller
     public function search(Request $request)
     {
         $query    = $request->q;
-        $tenantId = auth()->user()->tenant_id;
+        $user     = auth()->user();
+        $tenantId = $user->tenant_id;
+        $canViewCostData = $user->can('view-cost-data');
 
         if (!$query || strlen($query) < 2) {
             return response()->json([
@@ -46,6 +48,7 @@ class SearchController extends Controller
             ->get(['id', 'name', 'sku', 'price']);
 
         $orders = Order::where('tenant_id', $tenantId)
+            ->when($user->store_id, fn($q) => $q->where('store_id', $user->store_id))
             ->where(fn($q) => $q
                 ->where('invoice_number', 'like', "%{$query}%")
                 ->orWhere('customer_name_snapshot', 'like', "%{$query}%")
@@ -53,22 +56,26 @@ class SearchController extends Controller
             ->limit(3)
             ->get(['id', 'invoice_number', 'customer_name_snapshot', 'total']);
 
-        $suppliers = Supplier::where('tenant_id', $tenantId)
-            ->where(fn($q) => $q
-                ->where('name', 'like', "%{$query}%")
-                ->orWhere('phone', 'like', "%{$query}%")
-                ->orWhere('code', 'like', "%{$query}%")
-            )
-            ->limit(3)
-            ->get(['id', 'name', 'phone', 'code']);
+        $suppliers = $canViewCostData
+            ? Supplier::where('tenant_id', $tenantId)
+                ->where(fn($q) => $q
+                    ->where('name', 'like', "%{$query}%")
+                    ->orWhere('phone', 'like', "%{$query}%")
+                    ->orWhere('code', 'like', "%{$query}%")
+                )
+                ->limit(3)
+                ->get(['id', 'name', 'phone', 'code'])
+            : collect();
 
-        $purchaseOrders = PurchaseOrder::where('tenant_id', $tenantId)
-            ->where(fn($q) => $q
-                ->where('invoice_number', 'like', "%{$query}%")
-                ->orWhere('supplier_name_snapshot', 'like', "%{$query}%")
-            )
-            ->limit(3)
-            ->get(['id', 'invoice_number', 'supplier_name_snapshot', 'total']);
+        $purchaseOrders = $canViewCostData
+            ? PurchaseOrder::where('tenant_id', $tenantId)
+                ->where(fn($q) => $q
+                    ->where('invoice_number', 'like', "%{$query}%")
+                    ->orWhere('supplier_name_snapshot', 'like', "%{$query}%")
+                )
+                ->limit(3)
+                ->get(['id', 'invoice_number', 'supplier_name_snapshot', 'total'])
+            : collect();
 
         return response()->json([
             'customers'       => $customers,
