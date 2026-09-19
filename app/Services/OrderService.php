@@ -241,16 +241,19 @@ foreach ($validatedItems as $v) {
              $creditAvailable = max(0, -$balanceBefore);
 
             // Calculate the discount and determine the final charge amount for the order (total amount minus the discount).
-            $discount = max(0, min($data['discount'] ?? 0, $totalAmount));
+            $discount = $this->resolveDiscount($data, $totalAmount);
             $calculatedTotal = round($totalAmount - $discount, 2);
 
             $chargeAmount = isset($data['manual_total']) && $data['manual_total'] !== null
     ? round((float) $data['manual_total'], 2)
     : $calculatedTotal;
 
-            // Update the order with its final total cost.
+            // Update the order with its final total cost. The discount column carries the
+            // resolved monetary amount — the subtotal is only known once items are priced,
+            // so the create above could not clamp it or convert a percentage.
             $order->update([
-                'total' => $chargeAmount,
+                'discount' => $discount,
+                'total'    => $chargeAmount,
             ]);
 
             // Post a charge entry to the customer's ledger for this order.
@@ -406,6 +409,22 @@ if (!empty($data['pay_immediately'])) {
      * Overrides applied via manual_total at creation are not preserved past this point —
      * see docs/07-business-rules/financial-calculations.md.
      */
+    /**
+     * A percentage discount is an input method, not a stored property — the client sends
+     * the type and the entered value, the server turns it into the monetary amount that
+     * gets stored. Clamped to [0, subtotal] exactly as an absolute discount always was.
+     */
+    private function resolveDiscount(array $data, float $subtotal): float
+    {
+        $value = (float) ($data['discount'] ?? 0);
+
+        if (($data['discount_type'] ?? 'amount') === 'percent') {
+            $value = round($subtotal * $value / 100, 2);
+        }
+
+        return max(0, min($value, $subtotal));
+    }
+
     private function recalculateTotal(Order $order): float
     {
         $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
@@ -480,7 +499,12 @@ public function updateOrder(Order $order, array $data): Order
     // the old number. Notes/order_date carry no money implications, so they're unaffected.
     if (isset($data['discount'])) {
         $this->ensureOrderIsEditable($order);
+
+        $subtotal = (float) $order->items()->sum(DB::raw('unit_price * quantity'));
+        $data['discount'] = $this->resolveDiscount($data, $subtotal);
     }
+
+    unset($data['discount_type']);
 
     $order->update($data);
 

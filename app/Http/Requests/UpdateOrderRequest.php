@@ -32,7 +32,11 @@ class UpdateOrderRequest extends FormRequest
                 'date',
                 'before_or_equal:' . LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString(),
             ],
-            'discount'   => ['sometimes', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
+            'discount_type' => ['nullable', 'in:amount,percent'],
+            'discount'   => [
+                'sometimes', 'numeric', 'min:0', 'decimal:0,2',
+                $this->input('discount_type') === 'percent' ? 'max:100' : 'max:99999999.99',
+            ],
         ];
     }
 }

@@ -34,7 +34,11 @@ class StoreOrderRequest extends FormRequest
             'items.*.quantity'     => 'required|integer|min:1',
             'items.*.unit_type' => 'nullable|in:base,secondary',
             'items.*.unit_price' => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
-            'discount' => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
+            'discount_type' => ['nullable', 'in:amount,percent'],
+            'discount' => [
+                'nullable', 'numeric', 'min:0', 'decimal:0,2',
+                $this->input('discount_type') === 'percent' ? 'max:100' : 'max:99999999.99',
+            ],
             'manual_total' => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
             'pay_immediately' => 'nullable|boolean',
             'payment_method'   => 'nullable|string|in:cash,bank_transfer,instapay,vodafone_cash,orange_cash,check',
