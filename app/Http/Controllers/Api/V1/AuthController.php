@@ -116,6 +116,19 @@ if (!$user || !Hash::check($request->password, $user->password)) {
 
     }
 
+    public function logoutAll(Request $request)
+    {
+        $user = $request->user();
+
+        $revoked = $user->tokens()->count();
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => __('messages.logged_out_all_devices'),
+            'revoked' => $revoked,
+        ]);
+    }
+
    public function me(Request $request)
 {
     $user = $request->user();
