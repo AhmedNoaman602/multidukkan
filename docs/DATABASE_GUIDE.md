@@ -452,6 +452,30 @@ are no transactions, and every atomicity guarantee in these docs would be fictio
 
 ---
 
+## Production server requirements
+
+These are properties of the **MySQL server**, not of the application. Laravel sets them per
+connection for its own sessions; anything else reaching the database — `mysql` CLI imports,
+phpMyAdmin, backup restores, migrations run by another tool — does not inherit them.
+
+| Requirement | Why | Where it is set today |
+|---|---|---|
+| `sql_mode` includes `STRICT_TRANS_TABLES` | Without it MySQL **silently truncates instead of erroring**: a negative write to the `UNSIGNED` `inventory.quantity`/`threshold` clamps to 0 rather than failing (the oversell fail-safe), an over-range `DECIMAL(10,2)` money value truncates instead of raising the 422 that `MonetaryOverflowValidationTest` exists to prove, and an invalid `ledger_entries.type` or `payments.method` becomes `''` instead of being rejected. | `config/database.php` → `'strict' => true` (session only). **`@@GLOBAL.sql_mode` is not guaranteed** — verify on the server. |
+| Storage engine InnoDB | No transactions otherwise; every atomicity guarantee in these docs becomes fiction. | `config/database.php` → `'engine' => 'InnoDB'` for tables Laravel creates. Verify with `php artisan db:verify-engine`. |
+
+Verify both on a provisioned server:
+
+```
+php artisan db:verify-engine
+php artisan db:verify-sql-mode
+```
+
+Both are read-only diagnostics — they report and exit, and never alter server configuration.
+Setting the server default is a deliberate infrastructure change (`my.cnf` / RDS parameter group)
+and is intentionally **not** automated from this repository.
+
+---
+
 **Related documents**: [DOMAIN_RULES.md](DOMAIN_RULES.md) §7 for deletion rules,
 [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for the flows that write these tables,
 [CODEBASE_NOTES.md](CODEBASE_NOTES.md) for the ranked issue list.
