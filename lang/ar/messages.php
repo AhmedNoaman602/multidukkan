@@ -13,6 +13,7 @@ return [
     'cannot_delete_self' => 'لا يمكنك حذف نفسك',
     'invalid_credentials' => 'بيانات الدخول غير صحيحة',
     'logged_out' => 'تم تسجيل الخروج بنجاح',
+    'logged_out_all_devices' => 'تم تسجيل الخروج من جميع الأجهزة',
     'user_deleted' => 'تم حذف المستخدم بنجاح',
 
     'batch_not_found' => 'المجموعة غير موجودة',
@@ -101,4 +102,13 @@ return [
     'description_required_for_misc_expense' => 'وصف المصروف مطلوب عند اختيار فئة "أخرى"',
     'field_not_tenant_owned' => 'قيمة :attribute المختارة لا تنتمي لهذه المنشأة',
     'customer_order_mismatch' => 'العميل لا يطابق الطلب',
+    'order_not_in_store' => 'هذا الطلب لا ينتمي لهذا المتجر',
+    'payment_not_in_store' => 'هذه الدفعة لا تنتمي لهذا المتجر',
+    'payment_not_customers' => 'هذه الدفعة لا تنتمي لهذا العميل',
+    'credit_payment_not_refundable' => 'لا يمكن استرجاع دفعات الرصيد نقدًا. يرجى إلغاء الطلب بدلاً من ذلك',
+    'order_not_tenants' => 'هذا الطلب لا ينتمي لهذه المنشأة',
+    'order_fully_refunded' => 'تم استرجاع هذا الطلب بالكامل مسبقًا',
+    'refund_exceeds_payment' => 'لا يمكن أن يتجاوز المبلغ :max جنيه لهذه الدفعة',
+    'refund_exceeds_order' => 'لا يمكن أن يتجاوز المبلغ :max جنيه لهذا الطلب',
+    'refund_target_required' => 'يرجى اختيار طلب أو دفعة محددة للاسترجاع منها',
 ];

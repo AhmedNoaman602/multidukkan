@@ -233,6 +233,372 @@ class RoleTest extends TestCase
     }
 
     // ─────────────────────────────────────────
+    // ORDER DELETION — store scoped for managers
+    // ─────────────────────────────────────────
+
+    private function createOrderForStore(Store $store, User $actor): int
+    {
+        return $this->actingAs($actor)
+            ->postJson('/api/orders', [
+                'store_id'    => $store->id,
+                'customer_id' => $this->customer->id,
+                'order_date'  => now()->toDateString(),
+                'items'       => [
+                    [
+                        'product_id'   => $this->product->id,
+                        'quantity'     => 1,
+                        'warehouse_id' => $this->warehouse->id,
+                    ],
+                ],
+            ])->assertStatus(201)->json('id');
+    }
+
+    public function test_manager_can_delete_own_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->store, $this->manager);
+
+        $this->actingAs($this->manager)
+            ->deleteJson("/api/orders/{$orderId}")
+            ->assertStatus(200);
+
+        $this->assertSoftDeleted('orders', ['id' => $orderId]);
+    }
+
+    public function test_manager_cannot_delete_other_store_order(): void
+    {
+        $otherStore = Store::create([
+            'tenant_id' => $this->tenant->id,
+            'name'      => 'Other Store',
+            'address'   => 'Other Address',
+            'phone'     => '01000000002',
+        ]);
+
+        $orderId = $this->createOrderForStore($otherStore, $this->admin);
+
+        $this->actingAs($this->manager)
+            ->deleteJson("/api/orders/{$orderId}")
+            ->assertStatus(403);
+
+        $this->assertDatabaseHas('orders', ['id' => $orderId, 'deleted_at' => null]);
+    }
+
+    public function test_admin_can_delete_any_store_order(): void
+    {
+        $otherStore = Store::create([
+            'tenant_id' => $this->tenant->id,
+            'name'      => 'Admin Other Store',
+            'address'   => 'Other Address',
+            'phone'     => '01000000003',
+        ]);
+
+        $orderId = $this->createOrderForStore($otherStore, $this->admin);
+
+        $this->actingAs($this->admin)
+            ->deleteJson("/api/orders/{$orderId}")
+            ->assertStatus(200);
+
+        $this->assertSoftDeleted('orders', ['id' => $orderId]);
+    }
+
+    public function test_staff_cannot_delete_own_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->store, $this->staff);
+
+        $this->actingAs($this->staff)
+            ->deleteJson("/api/orders/{$orderId}")
+            ->assertStatus(403);
+
+        $this->assertDatabaseHas('orders', ['id' => $orderId, 'deleted_at' => null]);
+    }
+
+    // ─────────────────────────────────────────
+    // ORDER VIEW / UPDATE — store scoped
+    // ─────────────────────────────────────────
+
+    private function otherStore(string $phone): Store
+    {
+        return Store::create([
+            'tenant_id' => $this->tenant->id,
+            'name'      => 'Other Store ' . $phone,
+            'address'   => 'Other Address',
+            'phone'     => $phone,
+        ]);
+    }
+
+    public function test_manager_can_view_own_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->store, $this->manager);
+
+        $this->actingAs($this->manager)
+            ->getJson("/api/orders/{$orderId}")
+            ->assertStatus(200);
+    }
+
+    public function test_manager_cannot_view_other_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000010'), $this->admin);
+
+        $this->actingAs($this->manager)
+            ->getJson("/api/orders/{$orderId}")
+            ->assertStatus(403);
+    }
+
+    public function test_staff_cannot_view_other_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000011'), $this->admin);
+
+        $this->actingAs($this->staff)
+            ->getJson("/api/orders/{$orderId}")
+            ->assertStatus(403);
+    }
+
+    public function test_admin_can_view_any_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000012'), $this->admin);
+
+        $this->actingAs($this->admin)
+            ->getJson("/api/orders/{$orderId}")
+            ->assertStatus(200);
+    }
+
+    public function test_staff_can_update_own_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->store, $this->staff);
+
+        $this->actingAs($this->staff)
+            ->patchJson("/api/orders/{$orderId}", ['notes' => 'Same store edit'])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('orders', ['id' => $orderId, 'notes' => 'Same store edit']);
+    }
+
+    public function test_staff_cannot_update_other_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000013'), $this->admin);
+
+        $this->actingAs($this->staff)
+            ->patchJson("/api/orders/{$orderId}", ['notes' => 'Cross store edit'])
+            ->assertStatus(403);
+
+        $this->assertDatabaseMissing('orders', ['id' => $orderId, 'notes' => 'Cross store edit']);
+    }
+
+    public function test_manager_cannot_update_other_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000014'), $this->admin);
+
+        $this->actingAs($this->manager)
+            ->patchJson("/api/orders/{$orderId}", ['notes' => 'Cross store edit'])
+            ->assertStatus(403);
+
+        $this->assertDatabaseMissing('orders', ['id' => $orderId, 'notes' => 'Cross store edit']);
+    }
+
+    public function test_manager_cannot_add_item_to_other_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000015'), $this->admin);
+
+        $this->actingAs($this->manager)
+            ->postJson("/api/orders/{$orderId}/items", [
+                'product_id'   => $this->product->id,
+                'quantity'     => 1,
+                'warehouse_id' => $this->warehouse->id,
+            ])
+            ->assertStatus(403);
+    }
+
+    public function test_admin_can_update_any_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000016'), $this->admin);
+
+        $this->actingAs($this->admin)
+            ->patchJson("/api/orders/{$orderId}", ['notes' => 'Admin edit'])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('orders', ['id' => $orderId, 'notes' => 'Admin edit']);
+    }
+
+    // ─────────────────────────────────────────
+    // PAYMENTS — order must belong to the user's store
+    // ─────────────────────────────────────────
+
+    private function payOrder(int $orderId, User $actor, float $amount = 100)
+    {
+        return $this->actingAs($actor)->postJson('/api/payments', [
+            'order_id'    => $orderId,
+            'customer_id' => $this->customer->id,
+            'amount'      => $amount,
+            'method'      => 'cash',
+        ]);
+    }
+
+    public function test_staff_can_pay_own_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->store, $this->staff);
+
+        $this->payOrder($orderId, $this->staff)->assertStatus(201);
+
+        $this->assertDatabaseHas('payments', ['order_id' => $orderId, 'amount' => 100]);
+    }
+
+    public function test_staff_cannot_pay_other_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000020'), $this->admin);
+
+        $this->payOrder($orderId, $this->staff)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('order_id');
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $orderId]);
+    }
+
+    public function test_manager_cannot_pay_other_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000021'), $this->admin);
+
+        $this->payOrder($orderId, $this->manager)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('order_id');
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $orderId]);
+    }
+
+    public function test_admin_can_pay_any_store_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->otherStore('01000000022'), $this->admin);
+
+        $this->payOrder($orderId, $this->admin)->assertStatus(201);
+
+        $this->assertDatabaseHas('payments', ['order_id' => $orderId, 'amount' => 100]);
+    }
+
+    public function test_payment_rejects_order_from_another_tenant(): void
+    {
+        $otherTenant   = Tenant::create(['name' => 'Other Tenant']);
+        $otherStore    = Store::create([
+            'tenant_id' => $otherTenant->id,
+            'name'      => 'Foreign Store',
+            'address'   => 'Foreign Address',
+            'phone'     => '01000000023',
+        ]);
+        $otherAdmin    = User::create([
+            'tenant_id' => $otherTenant->id,
+            'name'      => 'Foreign Admin',
+            'email'     => 'foreign@test.com',
+            'password'  => bcrypt('password'),
+            'role'      => 'tenant_admin',
+            'store_id'  => null,
+        ]);
+        $otherCustomer = Customer::create([
+            'tenant_id' => $otherTenant->id,
+            'name'      => 'Foreign Customer',
+            'phone'     => '01000000024',
+        ]);
+        $otherProduct  = Product::create([
+            'tenant_id' => $otherTenant->id,
+            'name'      => 'Foreign Product',
+            'sku'       => 'SKU-F1',
+            'price'     => 100,
+            'unit'      => 'pcs',
+        ]);
+        $otherWarehouse = Warehouse::create([
+            'tenant_id' => $otherTenant->id,
+            'store_id'  => $otherStore->id,
+            'name'      => 'Foreign Warehouse',
+        ]);
+        Inventory::create([
+            'tenant_id'    => $otherTenant->id,
+            'warehouse_id' => $otherWarehouse->id,
+            'product_id'   => $otherProduct->id,
+            'quantity'     => 100,
+            'threshold'    => 1,
+        ]);
+
+        $foreignOrderId = $this->actingAs($otherAdmin)->postJson('/api/orders', [
+            'store_id'    => $otherStore->id,
+            'customer_id' => $otherCustomer->id,
+            'order_date'  => now()->toDateString(),
+            'items'       => [[
+                'product_id'   => $otherProduct->id,
+                'quantity'     => 1,
+                'warehouse_id' => $otherWarehouse->id,
+            ]],
+        ])->assertStatus(201)->json('id');
+
+        $this->payOrder($foreignOrderId, $this->admin)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('order_id');
+
+        $this->assertDatabaseMissing('payments', ['order_id' => $foreignOrderId]);
+    }
+
+    public function test_payment_rejects_soft_deleted_order(): void
+    {
+        $orderId = $this->createOrderForStore($this->store, $this->admin);
+
+        $this->actingAs($this->admin)
+            ->deleteJson("/api/orders/{$orderId}")
+            ->assertStatus(200);
+
+        $this->payOrder($orderId, $this->admin)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('order_id');
+    }
+
+    // ─────────────────────────────────────────
+    // REFUNDS — order must belong to the user's store
+    // ─────────────────────────────────────────
+
+    private function paidOrderForStore(Store $store, User $payer): int
+    {
+        $orderId = $this->createOrderForStore($store, $this->admin);
+        $this->payOrder($orderId, $payer)->assertStatus(201);
+
+        return $orderId;
+    }
+
+    private function refund(int $orderId, User $actor)
+    {
+        return $this->actingAs($actor)->postJson("/api/customers/{$this->customer->id}/refund", [
+            'amount'   => 50,
+            'method'   => 'cash',
+            'order_id' => $orderId,
+        ]);
+    }
+
+    public function test_staff_can_refund_own_store_order(): void
+    {
+        $orderId = $this->paidOrderForStore($this->store, $this->staff);
+
+        $this->refund($orderId, $this->staff)->assertStatus(200);
+    }
+
+    public function test_staff_cannot_refund_other_store_order(): void
+    {
+        $orderId = $this->paidOrderForStore($this->otherStore('01000000030'), $this->admin);
+
+        $this->refund($orderId, $this->staff)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('order_id');
+    }
+
+    public function test_manager_cannot_refund_other_store_order(): void
+    {
+        $orderId = $this->paidOrderForStore($this->otherStore('01000000031'), $this->admin);
+
+        $this->refund($orderId, $this->manager)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('order_id');
+    }
+
+    public function test_admin_can_refund_any_store_order(): void
+    {
+        $orderId = $this->paidOrderForStore($this->otherStore('01000000032'), $this->admin);
+
+        $this->refund($orderId, $this->admin)->assertStatus(200);
+    }
+
+    // ─────────────────────────────────────────
 // STORE STAFF
 // ─────────────────────────────────────────
 

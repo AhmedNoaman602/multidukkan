@@ -16,12 +16,21 @@ class StorePaymentRequest extends FormRequest
 
     public function rules(): array
     {
-        $tenantId = Auth::user()->tenant_id;
+        $user     = Auth::user();
+        $tenantId = $user->tenant_id;
+
+        $orderExists = Rule::exists('orders', 'id')
+            ->whereNull('deleted_at')
+            ->where('tenant_id', $tenantId);
+
+        if ($user->store_id !== null) {
+            $orderExists->where('store_id', $user->store_id);
+        }
 
         return [
             'order_id'    => [
                 'required',
-                Rule::exists('orders', 'id')->whereNull('deleted_at'),
+                $orderExists,
                 new OrderBelongsToCustomer($this->input('customer_id'))
             ],
             'customer_id' => [

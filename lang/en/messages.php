@@ -13,6 +13,7 @@ return [
     'cannot_delete_self' => 'You cannot delete yourself',
     'invalid_credentials' => 'Invalid credentials',
     'logged_out' => 'Logged out successfully',
+    'logged_out_all_devices' => 'Logged out from all devices',
     'user_deleted' => 'User deleted successfully',
 
     'batch_not_found' => 'Batch not found',
@@ -101,4 +102,13 @@ return [
     'description_required_for_misc_expense' => 'A description is required for MISCELLANEOUS expenses',
     'field_not_tenant_owned' => 'The selected :attribute does not belong to this tenant',
     'customer_order_mismatch' => 'Customer does not match the order',
+    'order_not_in_store' => 'This order does not belong to this store',
+    'payment_not_in_store' => 'This payment does not belong to this store',
+    'payment_not_customers' => 'Payment does not belong to this customer',
+    'credit_payment_not_refundable' => 'Credit payments cannot be refunded as cash. Cancel the order instead',
+    'order_not_tenants' => 'Order does not belong to this tenant',
+    'order_fully_refunded' => 'This order has already been fully refunded',
+    'refund_exceeds_payment' => 'Cannot exceed :max EGP for this payment',
+    'refund_exceeds_order' => 'Cannot exceed :max EGP for this order',
+    'refund_target_required' => 'Please select a specific order or payment to refund from',
 ];
