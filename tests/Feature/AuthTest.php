@@ -107,6 +107,95 @@ class AuthTest extends TestCase
     }
 
     // ─────────────────────────────────────────
+    // LOGOUT ALL DEVICES
+    // ─────────────────────────────────────────
+
+    public function test_logout_all_requires_authentication(): void
+    {
+        $this->postJson('/api/logout-all')
+            ->assertStatus(401);
+    }
+
+    public function test_logout_all_deletes_every_token_the_user_has(): void
+    {
+        $phone = $this->user->createToken('phone')->plainTextToken;
+        $this->user->createToken('shop_computer');
+        $this->user->createToken('tablet');
+
+        $this->assertDatabaseCount('personal_access_tokens', 3);
+
+        $this->withToken($phone)
+            ->postJson('/api/logout-all')
+            ->assertStatus(200);
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_logout_all_also_deletes_the_token_that_made_the_request(): void
+    {
+        $token = $this->user->createToken('phone')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/logout-all')
+            ->assertStatus(200);
+
+        // The guard caches the resolved user for the lifetime of the test app,
+        // so it has to be forgotten before the second request re-reads the token.
+        $this->app['auth']->forgetGuards();
+
+        // The same token must no longer authenticate anything.
+        $this->withToken($token)
+            ->getJson('/api/me')
+            ->assertStatus(401);
+
+        $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'phone']);
+    }
+
+    public function test_logout_all_leaves_another_users_tokens_alone(): void
+    {
+        $other = User::create([
+            'tenant_id' => $this->user->tenant_id,
+            'name'      => 'Other User',
+            'email'     => 'other@test.com',
+            'password'  => bcrypt('password123'),
+            'role'      => 'store_staff',
+        ]);
+
+        $otherToken = $other->createToken('other_phone')->plainTextToken;
+        $mine       = $this->user->createToken('my_phone')->plainTextToken;
+
+        $this->withToken($mine)
+            ->postJson('/api/logout-all')
+            ->assertStatus(200);
+
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'tokenable_id' => $other->id,
+            'name'         => 'other_phone',
+        ]);
+
+        // And that token still works.
+        $this->withToken($otherToken)
+            ->getJson('/api/me')
+            ->assertStatus(200);
+    }
+
+    public function test_logout_all_reports_how_many_sessions_were_revoked(): void
+    {
+        $token = $this->user->createToken('phone')->plainTextToken;
+        $this->user->createToken('shop_computer');
+
+        $this->withToken($token)
+            ->withHeaders(['X-Locale' => 'en'])
+            ->postJson('/api/logout-all')
+            ->assertStatus(200)
+            ->assertJson([
+                'message' => 'Logged out from all devices',
+                'revoked' => 2,
+            ]);
+    }
+
+    // ─────────────────────────────────────────
     // ME
     // ─────────────────────────────────────────
 
