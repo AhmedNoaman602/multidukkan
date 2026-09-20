@@ -158,31 +158,29 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-Then edit `.env` — **`.env.example` currently defaults to SQLite, which this project does not support.** Set:
+`.env.example` targets MySQL, so the only values you normally need to change are the database name and credentials:
 
 ```
-DB_CONNECTION=mysql
 DB_DATABASE=multidukkan
 DB_USERNAME=root
 DB_PASSWORD=
 ```
 
-Create the database, then:
+Create that database, then:
 
 ```bash
-php artisan migrate
-php artisan db:seed --class=DemoSeeder
+php artisan migrate --seed
 php artisan serve
 ```
 
-Seed with `DemoSeeder` specifically. It builds a tenant with stores, warehouses, products, stock, customers, a supplier, and orders created through the real services — and, unlike the default `DatabaseSeeder`, it creates users you can actually log in with:
+Seeding runs `DemoSeeder`, which builds a tenant with stores, warehouses, products, stock, customers, a supplier, and orders created through the real services rather than raw inserts — so the ledger, stock and invoice logic all run. It creates two users you can log in with:
 
 | Email | Password | Role |
 |---|---|---|
 | `noaman@multidukkan.com` | `password123` | `tenant_admin` |
 | `ahmed@multidukkan.com` | `password123` | `store_manager` |
 
-These are local development credentials committed to this repository. Never run `DemoSeeder` against anything but a local database.
+These are local development fixtures, defined in plain text in `database/seeders/DemoSeeder.php`, and are not used by any deployed system. The seeder refuses to run when `APP_ENV=production`.
 
 ### Verifying the database is configured correctly
 

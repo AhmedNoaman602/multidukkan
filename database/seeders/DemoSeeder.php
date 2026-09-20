@@ -21,6 +21,10 @@ class DemoSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->environment('production')) {
+            throw new \RuntimeException('DemoSeeder creates users with a known password and must not run in production.');
+        }
+
         $tenant = Tenant::create([
             'name' => 'Noaman Tools',
         ]);
