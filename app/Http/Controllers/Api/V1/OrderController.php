@@ -123,7 +123,7 @@ class OrderController extends Controller
     $validated = $request->validated();
 
 try {
-        $order = $this->order->updateOrder($order, $validated);
+        $order = $this->order->updateOrder($order, $validated, auth()->user());
         return new OrderResource($order);
 
     } catch (ValidationException $e) {

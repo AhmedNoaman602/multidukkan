@@ -25,6 +25,8 @@ class DiscountTest extends TestCase
     private Customer $customer;
     private Product $product;
     private User $admin;
+    private User $manager;
+    private User $staff;
     private Warehouse $warehouse;
 
     protected function setUp(): void
@@ -38,6 +40,18 @@ class DiscountTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'store_id'  => null,
             'role'      => 'tenant_admin',
+        ]);
+
+        $this->manager = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id'  => $this->store->id,
+            'role'      => 'store_manager',
+        ]);
+
+        $this->staff = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id'  => $this->store->id,
+            'role'      => 'store_staff',
         ]);
 
         $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
@@ -61,9 +75,9 @@ class DiscountTest extends TestCase
     }
 
     /** @param array<string,mixed> $discount */
-    private function createOrder(array $discount = [], int $quantity = 4)
+    private function createOrder(array $discount = [], int $quantity = 4, ?User $actor = null)
     {
-        return $this->actingAs($this->admin)->postJson('/api/orders', array_merge([
+        return $this->actingAs($actor ?? $this->admin)->postJson('/api/orders', array_merge([
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
             'order_date'  => now()->toDateString(),
@@ -210,5 +224,98 @@ class DiscountTest extends TestCase
             ->assertStatus(200);
 
         $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 1000.00, 'total' => 0.00]);
+    }
+
+    // ─────────────────────────────────────────
+    // Role limits — staff capped at 10% of the subtotal
+    // ─────────────────────────────────────────
+
+    // subtotal 1000, so the staff ceiling is 100.00
+
+    public function test_staff_may_discount_up_to_their_limit(): void
+    {
+        $id = $this->createOrder(['discount' => 100], 4, $this->staff)
+            ->assertStatus(201)->json('id');
+
+        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 100.00, 'total' => 900.00]);
+    }
+
+    public function test_staff_may_use_a_percentage_up_to_their_limit(): void
+    {
+        $id = $this->createOrder(['discount' => 10, 'discount_type' => 'percent'], 4, $this->staff)
+            ->assertStatus(201)->json('id');
+
+        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 100.00, 'total' => 900.00]);
+    }
+
+    public function test_staff_cannot_exceed_their_limit_with_a_fixed_amount(): void
+    {
+        $this->createOrder(['discount' => 150], 4, $this->staff)
+            ->assertStatus(422)
+            ->assertJsonStructure(['message']);
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_staff_cannot_exceed_their_limit_with_a_percentage(): void
+    {
+        $this->createOrder(['discount' => 25, 'discount_type' => 'percent'], 4, $this->staff)
+            ->assertStatus(422)
+            ->assertJsonStructure(['message']);
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_manager_is_not_capped(): void
+    {
+        $id = $this->createOrder(['discount' => 80, 'discount_type' => 'percent'], 4, $this->manager)
+            ->assertStatus(201)->json('id');
+
+        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 800.00, 'total' => 200.00]);
+    }
+
+    public function test_admin_is_not_capped(): void
+    {
+        $id = $this->createOrder(['discount' => 100, 'discount_type' => 'percent'], 4, $this->admin)
+            ->assertStatus(201)->json('id');
+
+        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 1000.00, 'total' => 0.00]);
+    }
+
+    public function test_staff_limit_also_applies_when_editing_an_order(): void
+    {
+        $id = $this->createOrder(['discount' => 0], 4, $this->staff)
+            ->assertStatus(201)->json('id');
+
+        $this->actingAs($this->staff)
+            ->patchJson("/api/orders/{$id}", ['discount' => 400])
+            ->assertStatus(422)
+            ->assertJsonStructure(['message']);
+
+        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0.00, 'total' => 1000.00]);
+    }
+
+    public function test_staff_may_edit_a_discount_within_their_limit(): void
+    {
+        $id = $this->createOrder(['discount' => 0], 4, $this->staff)
+            ->assertStatus(201)->json('id');
+
+        $this->actingAs($this->staff)
+            ->patchJson("/api/orders/{$id}", ['discount' => 5, 'discount_type' => 'percent'])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 50.00, 'total' => 950.00]);
+    }
+
+    public function test_manager_may_edit_beyond_the_staff_limit(): void
+    {
+        $id = $this->createOrder(['discount' => 0], 4, $this->manager)
+            ->assertStatus(201)->json('id');
+
+        $this->actingAs($this->manager)
+            ->patchJson("/api/orders/{$id}", ['discount' => 600])
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 600.00, 'total' => 400.00]);
     }
 }

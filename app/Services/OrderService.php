@@ -7,6 +7,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
+use App\Models\User;
 use App\Support\LocalDateRange;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -53,6 +54,8 @@ class OrderService
     }
 
     private const MAX_INVOICE_RETRIES = 3;
+
+    private const STAFF_MAX_DISCOUNT_PERCENT = 10;
 
     public function createOrder(array $data): Order
     {
@@ -241,7 +244,7 @@ foreach ($validatedItems as $v) {
              $creditAvailable = max(0, -$balanceBefore);
 
             // Calculate the discount and determine the final charge amount for the order (total amount minus the discount).
-            $discount = $this->resolveDiscount($data, $totalAmount);
+            $discount = $this->resolveDiscount($data, $totalAmount, $user);
             $calculatedTotal = round($totalAmount - $discount, 2);
 
             $chargeAmount = isset($data['manual_total']) && $data['manual_total'] !== null
@@ -414,7 +417,7 @@ if (!empty($data['pay_immediately'])) {
      * the type and the entered value, the server turns it into the monetary amount that
      * gets stored. Clamped to [0, subtotal] exactly as an absolute discount always was.
      */
-    private function resolveDiscount(array $data, float $subtotal): float
+    private function resolveDiscount(array $data, float $subtotal, User $user): float
     {
         $value = (float) ($data['discount'] ?? 0);
 
@@ -422,7 +425,22 @@ if (!empty($data['pay_immediately'])) {
             $value = round($subtotal * $value / 100, 2);
         }
 
-        return max(0, min($value, $subtotal));
+        $value = max(0, min($value, $subtotal));
+
+        if ($user->isStoreStaff() && $subtotal > 0) {
+            $ceiling = round($subtotal * self::STAFF_MAX_DISCOUNT_PERCENT / 100, 2);
+
+            if ($value > $ceiling) {
+                throw ValidationException::withMessages([
+                    'order' => __('messages.discount_exceeds_role_limit', [
+                        'percent' => self::STAFF_MAX_DISCOUNT_PERCENT,
+                        'max'     => $ceiling,
+                    ]),
+                ]);
+            }
+        }
+
+        return $value;
     }
 
     private function recalculateTotal(Order $order): float
@@ -493,7 +511,7 @@ if (!empty($data['pay_immediately'])) {
 }
 
     // OrderService@updateOrder
-public function updateOrder(Order $order, array $data): Order
+public function updateOrder(Order $order, array $data, User $user): Order
 {
     // Discount directly changes the total — block it once the customer has paid against
     // the old number. Notes/order_date carry no money implications, so they're unaffected.
@@ -501,7 +519,7 @@ public function updateOrder(Order $order, array $data): Order
         $this->ensureOrderIsEditable($order);
 
         $subtotal = (float) $order->items()->sum(DB::raw('unit_price * quantity'));
-        $data['discount'] = $this->resolveDiscount($data, $subtotal);
+        $data['discount'] = $this->resolveDiscount($data, $subtotal, $user);
     }
 
     unset($data['discount_type']);

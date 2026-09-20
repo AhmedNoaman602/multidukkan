@@ -14,6 +14,7 @@ return [
     'invalid_credentials' => 'Invalid credentials',
     'logged_out' => 'Logged out successfully',
     'logged_out_all_devices' => 'Logged out from all devices',
+    'discount_exceeds_role_limit' => 'Your discount limit is :percent% of the order total (:max EGP)',
     'user_deleted' => 'User deleted successfully',
 
     'batch_not_found' => 'Batch not found',

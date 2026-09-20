@@ -14,6 +14,7 @@ return [
     'invalid_credentials' => 'بيانات الدخول غير صحيحة',
     'logged_out' => 'تم تسجيل الخروج بنجاح',
     'logged_out_all_devices' => 'تم تسجيل الخروج من جميع الأجهزة',
+    'discount_exceeds_role_limit' => 'الخصم المسموح به لا يتجاوز :percent% من إجمالي الطلب (:max جنيه)',
     'user_deleted' => 'تم حذف المستخدم بنجاح',
 
     'batch_not_found' => 'المجموعة غير موجودة',
