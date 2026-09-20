@@ -34,7 +34,7 @@ These are three different "customers." Conflating the first and third is the sin
 
 - One product, one Laravel API, one React SPA (see [public-websites doc §1](./public-websites.md)).
 - Multi-tenancy is **row-level**: every business-owned table has `tenant_id`; a `tenants` table holds `id` + `name` + timestamps only (`0001_01_01_000000_create_tenants_table.php`). No billing, no plan, no status, no domain on it.
-- Isolation is enforced per-controller (policies check `tenant_id`, controllers re-check, FormRequests use `BelongsToTenant`). There is **no global scope** yet (flagged HIGH-02 in `docs/security/SECURITY-AUDIT.md`).
+- Isolation is layered: the `ScopedToTenant` global scope on 15 models, plus policies checking `tenant_id`, controllers re-checking, and FormRequests using `BelongsToTenant`. The global scope was added in commit `7a329b9` in response to finding H-01 in `docs/security/SECURITY-AUDIT.md`; it no-ops without an authenticated user, which is why the per-controller layers remain.
 - A tenant + `tenant_admin` user + a walk-in customer are provisioned in `AuthController::register`, inside a `DB::transaction`. No billing is involved.
 - Auth is Sanctum bearer tokens (`ADR-001`), roles are a string column (`ADR-002`).
 
@@ -113,7 +113,7 @@ Anti-overengineering: start with a **static plan→entitlements map in config/co
 
 - The billing/account layer is **new privileged surface**. Subscription state, provider webhooks, and entitlement checks must be tenant-isolated and tamper-resistant (a tenant must never set its own plan/entitlements via the API).
 - Webhooks from the payment provider are **unauthenticated by session** — they must be verified by signature and are the *only* writer of paid subscription state (see pricing doc §webhooks).
-- Fix the platform's dependence on the app's known gaps first: the missing **global tenant scope** (SECURITY-AUDIT H-02) becomes more dangerous once billing rides on `account_id`/`tenant_id`. Address entitlement checks with the same rigor as tenant checks.
+- The **global tenant scope** gap (SECURITY-AUDIT H-01) has since been closed by `ScopedToTenant`, but its two blind spots — no protection without an authenticated user, and `User` not using the trait — get more dangerous once billing rides on `account_id`/`tenant_id`, because webhook and job code runs unauthenticated by definition. Address entitlement checks with the same rigor as tenant checks.
 - Marketing sites must not share the app's session/CORS surface (see public-websites §7).
 
 ---
@@ -129,7 +129,7 @@ Anti-overengineering: start with a **static plan→entitlements map in config/co
 
 ---
 
-**Related documents:** [`./pricing-and-billing.md`](./pricing-and-billing.md) (the billing detail this doc frames), [`./public-websites.md`](./public-websites.md) (domains/marketing), [`../06-domain/README.md`](../06-domain/README.md) (tenant model + ERD), [`../01-architecture/decisions/ADR-001-sanctum-token-auth.md`](../01-architecture/decisions/ADR-001-sanctum-token-auth.md), [`../10-roadmap/roadmap.md`](../10-roadmap/roadmap.md) (billing "jumps the queue" item), `docs/security/SECURITY-AUDIT.md` (H-02 global scope).
+**Related documents:** [`./pricing-and-billing.md`](./pricing-and-billing.md) (the billing detail this doc frames), [`./public-websites.md`](./public-websites.md) (domains/marketing), [`../06-domain/README.md`](../06-domain/README.md) (tenant model + ERD), [`../01-architecture/decisions/ADR-001-sanctum-token-auth.md`](../01-architecture/decisions/ADR-001-sanctum-token-auth.md), [`../10-roadmap/roadmap.md`](../10-roadmap/roadmap.md) (billing "jumps the queue" item), `docs/security/SECURITY-AUDIT.md` (H-01 global scope).
 
 **Future improvements:** promote the `account`/entitlement mechanism to Tier 1 once built; write an ADR for the API-host decision (shared vs per-product) when product #2 is on the horizon.
 

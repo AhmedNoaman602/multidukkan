@@ -5,7 +5,7 @@ These are the conventions the codebase already follows plus the gaps that keep c
 ## The non-negotiables (violations are bugs, not style issues)
 
 1. **`$request->validated()` only — never `$request->all()`.** `all()` lets unvalidated fields flow into `Model::create` on `$fillable` models. This is how mass-assignment bugs happen.
-2. **Every query on a business table scopes by `tenant_id`.** There is no global scope doing it for you. When accepting foreign IDs in input, validate with `App\Rules\BelongsToTenant`; when loading them in services, re-verify (pattern: the tenant-guard block in `PurchaseOrderService::createPurchaseOrder`).
+2. **Every query on a business table scopes by `tenant_id`.** The `ScopedToTenant` global scope does this for the 15 models that use it, but it no-ops when there is no authenticated user (console, jobs, seeders) and `User` does not use it — so scope explicitly rather than relying on it. When accepting foreign IDs in input, validate with `App\Rules\BelongsToTenant`; when loading them in services, re-verify (pattern: the tenant-guard block in `PurchaseOrderService::createPurchaseOrder`).
 3. **No financial math outside `LedgerService`** ([ADR-003](../01-architecture/decisions/ADR-003-ledger-single-source-of-truth.md)).
 4. **`DB::transaction` around any multi-table money/stock operation** (see [backend-architecture.md](../01-architecture/backend-architecture.md#transactional-integrity-rule)).
 5. **API Resources for all responses.** Never `return $model` / `return $collection` raw — raw models leak columns added by future migrations (this is how `tenant_id` and internal flags end up in public payloads).

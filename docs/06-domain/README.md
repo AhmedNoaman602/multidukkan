@@ -32,7 +32,7 @@ erDiagram
 
 ## Tenancy
 
-`tenant_id` on every business table, explicitly scoped in every query (no global scope — see [backend-architecture.md](../01-architecture/backend-architecture.md#multi-tenancy-model)). A `Tenant` has many `Store`s; users belong to the tenant and optionally to one store (`store_id` null = `tenant_admin`).
+`tenant_id` on every business table, filtered by the `ScopedToTenant` global scope on 15 models and scoped explicitly on top of it — the scope no-ops without an authenticated user, so it is a safety net rather than the only layer (see [backend-architecture.md](../01-architecture/backend-architecture.md#multi-tenancy-model)). A `Tenant` has many `Store`s; users belong to the tenant and optionally to one store (`store_id` null = `tenant_admin`).
 
 ## Entity index
 

@@ -1,7 +1,7 @@
 # MultiDukkan — Database Guide
 
-Read straight from `database/migrations/` (55 files) and `app/Models/` on 2026-08-30. MySQL/InnoDB in
-production, SQLite in-memory in tests.
+Read straight from `database/migrations/` (55 files) and `app/Models/` on 2026-08-30. MySQL/InnoDB
+everywhere, including the test suite (`phpunit.xml` → `multidukkan_test`).
 
 Labels: ✅ Confirmed · 🔍 Inferred · ❓ Unclear · ⚠️ Potential issue.
 
@@ -435,17 +435,21 @@ ledger × customer_id / created_at, products × name, customers × name / phone)
 
 ¹ except the two ADR-006 correction paths · ² no edit endpoint exists, but nothing enforces it
 
-### SQLite vs MySQL
+### Leftover SQLite portability code
 
-Tests run on SQLite in-memory. Three places accommodate the difference:
+Tests used to run on SQLite in-memory; they now run on MySQL (`phpunit.xml` pins
+`DB_CONNECTION=mysql`, `DB_DATABASE=multidukkan_test`). Three driver accommodations from that era
+are still in the code. They are harmless, but **their non-MySQL branches are no longer exercised by
+any test**, so treat them as untested code rather than working fallbacks:
 
 - `2026_06_19_094822` and the two ledger-enum migrations wrap `ALTER TABLE … MODIFY` in
-  `if (driver === 'mysql')` — SQLite has no ENUM, so those columns end up as plain text in tests.
+  `if (driver === 'mysql')` — SQLite has no ENUM, so on any other driver those columns stay plain text.
 - `2026_05_31_215017` uses `CURRENT_DATE` on SQLite and `(DATE(created_at))` on MySQL for
   `order_date`'s default.
 - `OrderController::index` derives year/month pairs in PHP rather than with `YEAR()`/`MONTH()`,
   with a comment saying it's for SQLite portability. ⚠️ `PurchaseOrderController::index` uses
-  `selectRaw('YEAR(created_at) as year')` and does **not** have that protection.
+  `selectRaw('YEAR(created_at) as year')` and does **not** have that protection — now moot for the
+  test suite, but still a difference between the two controllers.
 
 `php artisan db:verify-engine` exists to assert every MySQL table is InnoDB — without InnoDB there
 are no transactions, and every atomicity guarantee in these docs would be fiction.

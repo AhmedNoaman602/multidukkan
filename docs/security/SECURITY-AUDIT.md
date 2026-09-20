@@ -30,7 +30,7 @@ The single Critical item, Laravel Telescope shipping enabled in production (it c
 | Sev | ID | Title |
 |-----|----|-------|
 | 🔴 Critical | C-01 | Telescope registered/enabled in production — logs credentials, exposes `/telescope` — ✅ Resolved |
-| 🟠 High | H-01 | No model-level global tenant scope — isolation depends on never forgetting a manual check |
+| 🟠 High | H-01 | No model-level global tenant scope — isolation depends on never forgetting a manual check — ✅ Resolved (with caveats) |
 | 🟡 Medium | M-01 | Refund / payment double-spend race (no `lockForUpdate` between validation and write) |
 | 🟡 Medium | M-02 | Direct inventory-quantity writes bypass the append-only `inventory_transactions` log |
 | 🟡 Medium | M-03 | No rate limiting on authenticated endpoints — AI endpoints enable cost/DoS abuse |
@@ -126,6 +126,8 @@ No cross-tenant read/write path is currently reachable. The residual risk is **H
 ### H-01 — Tenant isolation has no model-level global scope
 *(previously tracked as H-02)*
 
+**Status: ✅ Resolved 2026-08-25 (with caveats)** — see Resolution below. The finding text that follows describes the codebase as audited on 2026-07-19 and is left unchanged.
+
 - **Severity:** 🟠 High — fix before first paying customer.
 - **Files:** all models in `app/Models/` (no global `tenant_id` scope); every controller manually filters/re-checks (see [trace above](#tenant-isolation--adversarial-trace)).
 - **Weakness:** Route-model binding resolves by PK across the whole table; isolation depends on each action remembering a policy and/or inline `tenant_id` check. Coverage is **complete today** (verified), but the first endpoint that binds a model and forgets the check is an instant cross-tenant IDOR. The heavy `authorize()` + inline duplication is itself a symptom of there being no single enforcement layer.
@@ -133,6 +135,14 @@ No cross-tenant read/write path is currently reachable. The residual risk is **H
 - **Exploitation scenario (latent):** A future `GET /widgets/{widget}` returns the model without a tenant re-check → Tenant A reads Tenant B by incrementing the ID.
 - **Recommended fix:** Add a `BelongsToTenant` trait that applies a global Eloquent scope filtering `tenant_id = auth()->user()->tenant_id` and stamps `tenant_id` on create; apply to all tenant-owned models. Keep policies for role logic; the inline `!== tenant_id` checks can then be removed. Also directly scope `StorePaymentRequest.order_id` to the tenant (belt-and-braces), and delete the dead `supplier_id` product rule/assignment.
 - **Verification:** For every `{model}` route, authenticate as Tenant A and request a Tenant B ID → expect 404/403. Add an automated cross-tenant matrix test so regressions fail CI.
+- **Resolution (2026-08-25, commit `7a329b9`):** Implemented as recommended, via the `ScopedToTenant` trait (`app/Models/Concerns/ScopedToTenant.php`) rather than the proposed `BelongsToTenant` name, since that name was already taken by the validation rule. The trait adds a global Eloquent scope that appends `where tenant_id = <current>` to every query, and a `creating` hook that stamps `tenant_id` on insert when it is not already set. It is applied to **15 models**: `AuditLog`, `Customer`, `Expense`, `Inventory`, `InventoryTransaction`, `LedgerEntry`, `Order`, `Payment`, `Product`, `PurchaseOrder`, `Store`, `Supplier`, `SupplierPayment`, `Unit`, `Warehouse`. The exploitation scenario above — route-model binding resolving a foreign tenant's row by PK — is closed for queries on those models: `TenantScopeTest` covers the scope, `find()`, joins, deliberate scope-lifting, and `creating` stamping.
+
+  **The original concern is not eliminated in every execution context, and the finding should not be read as fully closed:**
+  1. **The scope resolves the tenant from `auth()->user()?->tenant_id` and returns early when that is `null`** — so it applies no filter at all in unauthenticated contexts: console commands, queued jobs, seeders, and anything else running outside an HTTP request with a logged-in user. Code in those contexts must still scope `tenant_id` explicitly.
+  2. **`User` does not use the trait.** Every user query is still scoped by hand in `UserController`.
+  3. **The inline `!== tenant_id` checks the recommendation offered to remove were deliberately kept**, so isolation is now defence in depth (global scope + policy + `BelongsToTenant` input rule + service re-verification) rather than a single enforcement layer.
+
+  Consequently the underlying risk — a future endpoint whose query escapes the scope's reach — is reduced but not abolished. The engineering standards, backend architecture doc, and AI collaboration guide were updated on 2026-09-20 to state the scope's existence *and* these two blind spots, so the "scope explicitly anyway" rule still stands with an accurate premise.
 
 ---
 
@@ -176,6 +186,7 @@ No cross-tenant read/write path is currently reachable. The residual risk is **H
 - **Recommended fix:** Set `'engine' => 'InnoDB'` on the MySQL connection; add a deploy check asserting critical tables report `ENGINE=InnoDB`.
 - **Verification:** `SHOW TABLE STATUS` → all business tables InnoDB; a mid-transaction FK violation rolls back fully.
 - **Test-fidelity note:** `.env.example` uses `DB_CONNECTION=sqlite` and tests run on SQLite, which won't reproduce MySQL engine/strict/FK behavior — consider a MySQL CI job for money/stock tests.
+- **Test-fidelity update (2026-09-20):** The note above is no longer representative of the repository. The test suite was moved to MySQL on 2026-09-17 — `phpunit.xml` pins `DB_CONNECTION=mysql` and `DB_DATABASE=multidukkan_test`, so all 390 feature tests now exercise real InnoDB engine behaviour, `STRICT_TRANS_TABLES`, and FK enforcement rather than SQLite approximations. `.env.example` was also changed to default to `DB_CONNECTION=mysql` with the connection settings uncommented, so a fresh clone no longer silently lands on SQLite. **Still outstanding:** there is no CI job — the suite runs locally only, so nothing enforces that it was run. The follow-up referenced in the Status bullet below is therefore only half closed: the MySQL *fidelity* gap is fixed, the *automation* gap is not.
 - **Status:** Fixed — `config/database.php` now sets `'engine' => 'InnoDB'` on both the `mysql` and `mariadb` connections. `php artisan db:verify-engine` (`app/Console/Commands/VerifyDatabaseEngine.php`) queries `information_schema.TABLES` and fails (non-zero exit) if any table isn't InnoDB; it must run as a deploy step after `migrate` and before traffic is cut over. No CI job exists in this repo yet (no `.github/workflows`) — the MySQL-backed CI job in the test-fidelity note above remains a follow-up, not covered by this fix.
 
 ### M-05 — Supplier-payment reversal is not idempotent

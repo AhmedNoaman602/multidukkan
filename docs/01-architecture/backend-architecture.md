@@ -58,11 +58,11 @@ Any operation that touches **two or more of** {orders, payments, ledger_entries,
 
 ## Multi-tenancy model
 
-- Every business table carries `tenant_id`. There is no global scope — **scoping is explicit in every query**. This is deliberate (explicit > magic) but it means every new query is a potential leak; the `BelongsToTenant` rule guards inputs, and services re-verify (see the tenant guard block at the top of `PurchaseOrderService::createPurchaseOrder`).
+- Every business table carries `tenant_id`. The `ScopedToTenant` trait (`app/Models/Concerns/`) applies a global scope on 15 models: it adds `where tenant_id` to reads and stamps `tenant_id` on creates. It resolves the tenant from `auth()->user()`, so it **no-ops when nobody is authenticated** (console commands, queued jobs, seeders), and `User` does not use it. Isolation is therefore defence in depth, not one mechanism: **scope explicitly anyway**, guard inputs with the `BelongsToTenant` rule, and re-verify in services (see the tenant guard block at the top of `PurchaseOrderService::createPurchaseOrder`).
 - `users.store_id` nullable: `null` = tenant_admin; otherwise the user belongs to one store.
 - Performance indexes on `tenant_id` were added in migration `2026_06_18_085246_add_tenant_performance_indexes_to_tables.php`.
 
-**Future scalability**: if tenant count grows, consider a global `TenantScope` on a `BelongsToTenantModel` base class. Do NOT do this today — a half-applied global scope is worse than consistent explicit scoping.
+**Future scalability**: the global scope landed in commit `7a329b9`, replacing per-controller manual checks. The remaining gaps are deliberate and documented: `User` is scoped by hand in `UserController`, and the scope cannot help unauthenticated contexts. Do not remove the explicit checks it duplicates — a half-applied global scope is worse than consistent explicit scoping.
 
 ## Soft-delete map
 

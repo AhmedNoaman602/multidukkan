@@ -269,7 +269,7 @@ This is the one entry in Part B I'd call **unfinished** rather than a considered
 
 ### B9. 📌 Feature tests only, no unit tests
 
-**What was chosen**: ~298 tests, all in `tests/Feature/`. `tests/Unit/` exists and is empty.
+**What was chosen**: 390 tests, all in `tests/Feature/`, run against MySQL. `tests/Unit/` exists and is empty.
 **Why** 🔍: this system's bugs live in the *interaction* between layers — a service that writes stock
 but not the ledger, a policy that passes but a query that doesn't scope. Feature tests catch that
 class; unit tests with mocked services would not.

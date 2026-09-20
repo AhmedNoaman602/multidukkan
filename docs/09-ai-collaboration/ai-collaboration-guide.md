@@ -15,7 +15,7 @@
 2. **Never write `orders.total` directly** after creation — only via `LedgerService::adjustOrderCharge`. Never store an order *status*. ([ADR-004](../01-architecture/decisions/ADR-004-stored-order-total.md))
 3. **Never `update()`/`delete()` a `LedgerEntry`** outside the two sanctioned methods (`adjustPayment`, `adjustOrderCharge`). Corrections append (`REVERSAL`, `REFUND`, `CREDIT_APPLY`). ([ADR-006](../01-architecture/decisions/ADR-006-ledger-mutability-boundaries.md))
 4. **Never mutate `inventory.quantity`** outside `InventoryService`; every mutation logs an `inventory_transactions` row. Base units only.
-5. **Every query on a business table scopes `tenant_id` explicitly.** There is no global scope saving you. Foreign IDs in input → `BelongsToTenant` rule; loads in services → re-verify and fail loudly.
+5. **Scope `tenant_id` explicitly anyway.** The `ScopedToTenant` global scope (15 models) filters reads and stamps writes, but it resolves the tenant from `auth()->user()` and **no-ops when nobody is authenticated** — console commands, queued jobs and seeders get no protection from it. `User` does not use the trait at all. Treat the scope as a safety net, not the plan: foreign IDs in input → `BelongsToTenant` rule; loads in services → re-verify and fail loudly.
 6. **`DB::transaction` around anything touching ≥2 of** {orders, payments, ledger_entries, inventory}.
 7. **Controllers thin, services fat**: validation in FormRequests (`$request->validated()` only), business logic in `app/Services/`, output through API Resources, type-hinted service signatures.
 8. **Snapshots are sacred**: invoices render from `product_name`/`unit_price`/`customer_name_snapshot` on the line items — never re-join live product/customer data for historical display.

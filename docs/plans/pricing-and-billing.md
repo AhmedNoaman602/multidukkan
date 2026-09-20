@@ -141,7 +141,7 @@ Backend: `SubscriptionService` (state machine), `EntitlementService` (resolve pl
 ## Security considerations
 
 - **Webhook endpoint** = high-value surface: public but signature-verified, idempotent, rate-limited, never trusts body-claimed amounts/status without provider verification; all events logged to `billing_events`. Treat with ledger-level rigor.
-- **Entitlements/subscription are privileged state** — only webhooks/server logic write paid status; tenants can never self-grant a plan/entitlement. Enforce with policies + the (recommended) global tenant scope (SECURITY-AUDIT H-02).
+- **Entitlements/subscription are privileged state** — only webhooks/server logic write paid status; tenants can never self-grant a plan/entitlement. Enforce with policies + the `ScopedToTenant` global scope (SECURITY-AUDIT H-01, since addressed) — noting the scope no-ops in unauthenticated contexts, which is exactly where webhook handlers run.
 - **No card data ever** — provider hosted fields/tokenization only; PCI scope stays minimal.
 - **Isolation:** every billing query scoped by `account_id`; add tests. Don't let billing become a cross-tenant hole.
 - **Concurrency:** use `lockForUpdate` on subscription rows in charge/renewal/webhook paths (the project already learned this from the refund/reversal races — SECURITY-AUDIT M-01/M-05).
@@ -162,7 +162,7 @@ Backend: `SubscriptionService` (state machine), `EntitlementService` (resolve pl
 
 ---
 
-**Related documents:** [`../architecture/pricing-and-billing.md`](../architecture/pricing-and-billing.md) (the design + open decisions §11), [`../architecture/saas-platform.md`](../architecture/saas-platform.md) (account seam, entitlement mechanism), [`../06-domain/ledger.md`](../06-domain/ledger.md) + [`../01-architecture/decisions/ADR-003-ledger-single-source-of-truth.md`](../01-architecture/decisions/ADR-003-ledger-single-source-of-truth.md) (the ledger this must never touch), `docs/security/SECURITY-AUDIT.md` (M-01/M-04/M-05/H-01/H-02), [`../04-engineering-standards/testing-strategy.md`](../04-engineering-standards/testing-strategy.md).
+**Related documents:** [`../architecture/pricing-and-billing.md`](../architecture/pricing-and-billing.md) (the design + open decisions §11), [`../architecture/saas-platform.md`](../architecture/saas-platform.md) (account seam, entitlement mechanism), [`../06-domain/ledger.md`](../06-domain/ledger.md) + [`../01-architecture/decisions/ADR-003-ledger-single-source-of-truth.md`](../01-architecture/decisions/ADR-003-ledger-single-source-of-truth.md) (the ledger this must never touch), `docs/security/SECURITY-AUDIT.md` (M-01/M-04/M-05/H-01), [`../04-engineering-standards/testing-strategy.md`](../04-engineering-standards/testing-strategy.md).
 
 **Future improvements:** promote to Tier 1 as built; provider ADR; international/Merchant-of-Record phase; metering if a plan ever needs it.
 

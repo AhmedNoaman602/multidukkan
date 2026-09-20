@@ -238,7 +238,7 @@ Run this before **every pull request merge** and before accepting **every AI-gen
 ## 14. Security
 
 - [ ] 🔴 **Every new/changed query on a business table scopes `tenant_id` explicitly.**
-  *Why*: there is no global scope; every unscoped query is a cross-tenant data leak.
+  *Why*: the `ScopedToTenant` global scope covers 15 models but no-ops without an authenticated user and skips `User` entirely — an unscoped query outside its reach is a cross-tenant data leak.
   *Mistake*: `Order::findOrFail($id)` without a tenant clause (note: `OrderService::createOrder`'s customer lookup is a known grandfathered gap — don't copy it).
   *Verify*: for each query in the diff, where is the `tenant_id` constraint?
 

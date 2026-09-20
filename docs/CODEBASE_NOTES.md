@@ -458,16 +458,15 @@ subtotal.
 
 ### 25. Docs contradict the code
 
-Four places where following the documentation would mislead you:
+Three places where following the documentation would mislead you:
 
 | Doc | Claim | Reality |
 |---|---|---|
-| `09-ai-collaboration/ai-collaboration-guide.md:18` | "There is no global scope saving you" | `ScopedToTenant` exists (commit `7a329b9`) |
-| Same file, divergence table | "PO stock receipts logged as `RETURN` type" | `PurchaseOrderService` passes `TYPE_PURCHASE_IN`/`TYPE_PURCHASE_OUT` explicitly |
+| `09-ai-collaboration/ai-collaboration-guide.md`, divergence table | "PO stock receipts logged as `RETURN` type" | `PurchaseOrderService` passes `TYPE_PURCHASE_IN`/`TYPE_PURCHASE_OUT` explicitly |
 | `ADR-005` | `purchase_order_items` snapshots `product_name` | No such column, no such fillable key |
 | `ADR-007` | `purchase_order_items.warehouse_id` is nullable | It is `NOT NULL` in the migration |
 
-The first two are stale — the code moved on. The last two are ADRs describing an implementation that
+The first is stale — the code moved on. The last two are ADRs describing an implementation that
 was never fully built; since ADRs are immutable, they need superseding entries rather than edits.
 
 ---

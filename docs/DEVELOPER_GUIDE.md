@@ -64,7 +64,7 @@ important rule in the whole system.
 
 MultiDukkan is a **multi-tenant SaaS backend** for small Egyptian retail businesses. It is a Laravel
 REST API (JSON only, no Blade views) consumed by a separate React SPA. Auth is Laravel Sanctum
-personal access tokens. The database is MySQL in production and SQLite in-memory in tests.
+personal access tokens. The database is MySQL everywhere, including the test suite.
 
 One **tenant** = one business. A tenant owns **stores**, each store owns **warehouses**, and stock
 lives in a warehouse. Users belong to a tenant and (optionally) to one store; a user with
@@ -268,7 +268,7 @@ multidukkan/                          ← Laravel API (this repo)
 ├── database/migrations/              55 migrations. Schema history, in order.
 ├── lang/{ar,en}/                     Arabic is the default UI + API message language.
 ├── routes/api.php                    The entire public API surface.
-└── tests/Feature/                    26 feature test files, ~298 tests. No unit tests.
+└── tests/Feature/                    33 feature test files, 390 tests. No unit tests.
 ```
 
 ### How the parts talk to each other
@@ -1010,16 +1010,13 @@ static::creating(fn ($m) => $m->tenant_id ??= currentTenantId());
 the scope no-ops** — which is why it does not break seeders, migrations, or console commands, and why
 it is *not* a substitute for the explicit checks. ✅
 
-**Applied to**: Order, Product, Customer, Supplier, Payment, LedgerEntry, Inventory,
-InventoryTransaction, Warehouse, Store, PurchaseOrder, Expense, AuditLog.
-**Not applied to**: `User` ⚠️, `OrderItem`, `PurchaseOrderItem`, `SupplierPayment`, `Unit`, `Tenant`.
+**Applied to** (15 models): Order, Product, Customer, Supplier, SupplierPayment, Payment,
+LedgerEntry, Inventory, InventoryTransaction, Warehouse, Store, PurchaseOrder, Expense, Unit,
+AuditLog.
+**Not applied to**: `User` ⚠️, `OrderItem`, `PurchaseOrderItem`, `Tenant`.
 `OrderItem`/`PurchaseOrderItem` have no `tenant_id` column at all — they inherit isolation from their
-parent. `User` and `SupplierPayment` do have one and rely on manual scoping.
-
-**⚠️ Important**: [`docs/09-ai-collaboration/ai-collaboration-guide.md`](09-ai-collaboration/ai-collaboration-guide.md)
-line 18 still says *"There is no global scope saving you."* That statement is **out of date** — the
-global scope exists. The rest of that rule (scope explicitly anyway) is still good practice, but the
-premise is wrong. Someone should fix that line.
+parent. `User` has one but does not use the trait: every user query is scoped by hand in
+`UserController`.
 
 ---
 
@@ -1384,10 +1381,12 @@ is the default on both sides — don't "translate to English", that's a document
 
 ### Shape
 
-- **26 feature test files, ~298 test methods, in `tests/Feature/` only.**
+- **33 feature test files, 390 test methods, in `tests/Feature/` only.**
 - **Zero unit tests.** `tests/Unit/` exists and is empty. Everything is exercised through the HTTP
   layer or by calling services with a real DB.
-- SQLite in-memory (`phpunit.xml`), `RefreshDatabase` on every test.
+- MySQL (`phpunit.xml` pins `DB_CONNECTION=mysql` and `DB_DATABASE=multidukkan_test`),
+  `RefreshDatabase` on every test. The suite runs against the same engine as production, so
+  FK constraints, transactions and `STRICT_TRANS_TABLES` are exercised for real.
 
 🔍 The implied philosophy: this is a system whose bugs live in the *interaction* between layers
 (a service writing stock but not the ledger), not inside individual functions. Feature tests catch
@@ -1437,8 +1436,9 @@ tests and less precise failure messages.
 | `ScopedToTenant` or any model | `TenantScopeTest` first, then everything |
 | `LocalDateRange` or anything with a date | `TimezoneTest`, `ReportTest`, `PaymentTest` |
 
-Run everything: `php artisan test`. It's fast (SQLite in-memory) — there is no good reason to run a
-subset except during a tight edit loop.
+Run everything: `php artisan test`. The full suite takes under a minute against MySQL — long enough
+that a subset is worth it during a tight edit loop, short enough that there is no excuse for not
+running it before you call a change done.
 
 ### House rules for writing tests here
 

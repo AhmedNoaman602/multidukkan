@@ -51,8 +51,9 @@ static::addGlobalScope('tenant', … where('tenant_id', auth()->user()?->tenant_
 static::creating(fn ($m) => $m->tenant_id ??= auth()->user()?->tenant_id);
 ```
 
-**Applied to**: Order, Product, Customer, Supplier, Payment, LedgerEntry, Inventory,
-InventoryTransaction, Warehouse, Store, PurchaseOrder, Expense, AuditLog.
+**Applied to** (15 models): Order, Product, Customer, Supplier, SupplierPayment, Payment,
+LedgerEntry, Inventory, InventoryTransaction, Warehouse, Store, PurchaseOrder, Expense, Unit,
+AuditLog.
 
 **Critical caveat**: `currentTenantId()` returns `auth()->user()?->tenant_id`. **With no
 authenticated user, the scope silently does nothing.** That is why seeders, migrations and console
@@ -61,10 +62,8 @@ commands still work — and why the global scope is a safety net, never the plan
 ⚠️ **`User` does not use this trait.** `UserController` scopes manually. Any new code touching users
 must add `where('tenant_id', ...)` itself.
 
-⚠️ **The AI collaboration guide is out of date on this point.** Line 18 of
-[`09-ai-collaboration/ai-collaboration-guide.md`](09-ai-collaboration/ai-collaboration-guide.md)
-says *"There is no global scope saving you."* There is now (commit `7a329b9`). The advice that
-follows — scope explicitly anyway — remains correct; the premise does not.
+The [AI collaboration guide](09-ai-collaboration/ai-collaboration-guide.md) rule 5 states this the
+same way: the scope exists (commit `7a329b9`), and you scope explicitly anyway.
 
 #### Layer 3 — the `BelongsToTenant` validation rule ✅
 
