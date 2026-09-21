@@ -11,6 +11,7 @@ use App\Http\Resources\ProductResource;
 use App\Services\ProductService;
 use App\Services\InventoryService;
 use App\Http\Resources\ProductSupplierResource;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -144,20 +145,13 @@ class ProductController extends Controller
         return response()->json(['message' => __('messages.unauthorized')], 403);
     }
 
-    // Block deletion if product has stock
-    $hasStock = $product->inventories()
-        ->where('quantity', '>', 0)
-        ->exists();
+    try {
+        DB::transaction(fn () => $product->delete());
 
-    if ($hasStock) {
-        return response()->json([
-            'message' => __('messages.product_has_inventory')
-        ], 422);
+        return response()->json(['message' => __('messages.product_deleted')]);
+    } catch (ValidationException $e) {
+        return response()->json(['message' => $e->errors()['product'][0]], 422);
     }
-
-    $product->delete();
-
-    return response()->json(['message' => __('messages.product_deleted')]);
 }
 
 public function suppliers(Product $product)

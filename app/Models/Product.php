@@ -37,13 +37,6 @@ class Product extends Model
         'price' => 'decimal:2',
         ];
     
-protected static function booted(): void
-{
-    static::deleting(function (Product $product) {
-        $product->inventories()->delete();
-    });
-}
-
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);

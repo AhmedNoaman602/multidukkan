@@ -86,6 +86,106 @@ public function test_cannot_delete_product_with_order_history(): void
     $this->assertDatabaseHas('order_items', ['product_id' => $product->id]);
 }
 
+public function test_cannot_delete_product_with_stock(): void
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'role' => 'tenant_admin',
+        'store_id' => null,
+    ]);
+    $store = Store::factory()->create(['tenant_id' => $tenant->id]);
+    $warehouse = Warehouse::factory()->create(['tenant_id' => $tenant->id, 'store_id' => $store->id]);
+    $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+    $inventory = Inventory::factory()->create([
+        'tenant_id' => $tenant->id,
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 5,
+        'threshold' => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->withHeaders(['X-Locale' => 'en'])
+        ->deleteJson("/api/products/{$product->id}")
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Cannot delete a product with existing stock. Reduce stock to zero first');
+
+    $this->assertDatabaseHas('products', ['id' => $product->id]);
+    $this->assertDatabaseHas('inventory', ['id' => $inventory->id, 'quantity' => 5]);
+}
+
+public function test_blocked_product_delete_preserves_inventory_rows(): void
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'role' => 'tenant_admin',
+        'store_id' => null,
+    ]);
+    $store = Store::factory()->create(['tenant_id' => $tenant->id]);
+    $warehouse = Warehouse::factory()->create(['tenant_id' => $tenant->id, 'store_id' => $store->id]);
+    $customer = Customer::factory()->create(['tenant_id' => $tenant->id]);
+    $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+    $inventory = Inventory::factory()->create([
+        'tenant_id' => $tenant->id,
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 0,
+        'threshold' => 3,
+    ]);
+    $order = Order::factory()->create([
+        'tenant_id'   => $tenant->id,
+        'store_id'    => $store->id,
+        'customer_id' => $customer->id,
+        'total'       => 100,
+    ]);
+    OrderItem::factory()->create([
+        'order_id'   => $order->id,
+        'product_id' => $product->id,
+        'unit_price' => 100,
+        'quantity'   => 1,
+    ]);
+
+    $this->actingAs($user)
+        ->withHeaders(['X-Locale' => 'en'])
+        ->deleteJson("/api/products/{$product->id}")
+        ->assertStatus(422)
+        ->assertJsonPath('message', 'Cannot delete a product that appears in existing orders');
+
+    $this->assertDatabaseHas('products', ['id' => $product->id]);
+    $this->assertDatabaseHas('inventory', ['id' => $inventory->id, 'threshold' => 3]);
+}
+
+public function test_deleting_product_removes_its_inventory_rows(): void
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create([
+        'tenant_id' => $tenant->id,
+        'role' => 'tenant_admin',
+        'store_id' => null,
+    ]);
+    $store = Store::factory()->create(['tenant_id' => $tenant->id]);
+    $warehouse = Warehouse::factory()->create(['tenant_id' => $tenant->id, 'store_id' => $store->id]);
+    $product = Product::factory()->create(['tenant_id' => $tenant->id]);
+    Inventory::factory()->create([
+        'tenant_id' => $tenant->id,
+        'warehouse_id' => $warehouse->id,
+        'product_id' => $product->id,
+        'quantity' => 0,
+        'threshold' => 2,
+    ]);
+
+    $this->actingAs($user)
+        ->withHeaders(['X-Locale' => 'en'])
+        ->deleteJson("/api/products/{$product->id}")
+        ->assertOk()
+        ->assertJsonPath('message', 'Product deleted successfully');
+
+    $this->assertDatabaseMissing('products', ['id' => $product->id]);
+    $this->assertDatabaseMissing('inventory', ['product_id' => $product->id]);
+}
+
 public function test_increasing_stock_via_product_edit_logs_inventory_transaction(): void
 {
     $tenant = Tenant::factory()->create();

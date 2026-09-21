@@ -31,7 +31,6 @@ return [
     'warehouse_has_inventory' => 'لا يمكن حذف المخزن لوجود مخزون به',
     'warehouse_deleted' => 'تم حذف المخزن بنجاح',
 
-    'product_has_inventory' => 'لا يمكن حذف المنتج لوجود مخزون له. يرجى تصفير المخزون أولاً',
     'product_deleted' => 'تم حذف المنتج بنجاح',
 
     'supplier_deleted' => 'تم حذف المورد بنجاح',

@@ -31,7 +31,6 @@ return [
     'warehouse_has_inventory' => 'Cannot delete warehouse with existing inventory',
     'warehouse_deleted' => 'Warehouse deleted successfully',
 
-    'product_has_inventory' => 'Cannot delete product with existing inventory. Reduce stock to zero first',
     'product_deleted' => 'Product deleted successfully',
 
     'supplier_deleted' => 'Supplier deleted successfully',

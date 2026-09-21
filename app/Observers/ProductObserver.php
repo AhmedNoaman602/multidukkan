@@ -67,6 +67,8 @@ public function deleting(Product $product): void
             'product' => __('messages.product_has_stock'),
         ]);
     }
+
+    $product->inventories()->delete();
 }
     public function deleted(Product $product): void
     {
