@@ -114,11 +114,13 @@ class TenantScopeTest extends TestCase
     }
 
     /**
-     * Product defines its own booted() to cascade-delete inventory. The trait boots
-     * through bootScopedToTenant, so both must still run — a trait method named
-     * booted() would have been silently overridden by the model's.
+     * The inventory cascade lives in ProductObserver::deleting, after the deletability
+     * guards, and reaches the rows through the globally scoped inventories() relation.
+     * A scope that filtered out the tenant's own rows would leave them orphaned while
+     * the delete still reported success. Quantity is zero because a product holding
+     * stock is not deletable at all (messages.product_has_stock).
      */
-    public function test_the_trait_does_not_clobber_products_own_booted_hook(): void
+    public function test_deleting_a_product_cascades_its_inventory_rows_under_the_scope(): void
     {
         $this->actingAs($this->adminA);
 
@@ -131,10 +133,12 @@ class TenantScopeTest extends TestCase
             'tenant_id'    => $this->tenantA->id,
             'product_id'   => $product->id,
             'warehouse_id' => $warehouse->id,
+            'quantity'     => 0,
         ]);
 
         $product->delete();
 
+        $this->assertDatabaseMissing('products', ['id' => $product->id]);
         $this->assertDatabaseMissing('inventory', ['id' => $inventory->id]);
     }
 
