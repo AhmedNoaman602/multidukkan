@@ -99,6 +99,40 @@ class InventoryService
         );
     }
 
+    /**
+     * Remove the zero-quantity stock rows left behind when a product or warehouse is deleted.
+     * Replaces the old Product::booted() deleting hook, which ran unconditionally and would
+     * have silently satisfied a RESTRICT on inventory.product_id by emptying the table first.
+     * Callers must have already established that no stock history exists; the guard below is
+     * a second line of defence, not the primary one.
+     */
+    public function purgeEmptyStockRows(string $column, int $id): int
+    {
+        if (!in_array($column, ['product_id', 'warehouse_id'], true)) {
+            throw new \InvalidArgumentException("Unsupported inventory column [{$column}].");
+        }
+
+        $rows = Inventory::where($column, $id)->get();
+
+        foreach ($rows as $row) {
+            if ($row->quantity != 0) {
+                throw new \RuntimeException(
+                    "Refusing to purge inventory row {$row->id}: quantity is {$row->quantity}, not zero."
+                );
+            }
+        }
+
+        $hasHistory = InventoryTransaction::where($column, $id)->exists();
+
+        if ($hasHistory) {
+            throw new \RuntimeException(
+                "Refusing to purge inventory rows for {$column}={$id}: stock history exists."
+            );
+        }
+
+        return Inventory::where($column, $id)->delete();
+    }
+
    public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base', ?int $userId = null, ?string $notes = null, ?string $batchId = null): void{
    DB::transaction(function() use ($productId, $warehouseId, $quantity, $direction, $unitType, $userId, $notes, $batchId){
 

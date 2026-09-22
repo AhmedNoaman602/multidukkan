@@ -3,6 +3,9 @@
 namespace App\Models;
 use App\Models\Concerns\ScopedToTenant;
 use App\Models\Inventory;
+use App\Models\InventoryTransaction;
+use App\Models\OrderItem;
+use App\Models\PurchaseOrderItem;
 use App\Models\Tenant;
 use App\Models\Store;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,5 +34,17 @@ class Warehouse extends Model
     public function inventories()
     {
         return $this->hasMany(Inventory::class);
+    }
+    public function inventoryTransactions()
+    {
+        return $this->hasMany(InventoryTransaction::class);
+    }
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+    public function purchaseOrderItems()
+    {
+        return $this->hasMany(PurchaseOrderItem::class);
     }
 }

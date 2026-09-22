@@ -28,4 +28,16 @@ class Store extends Model
     {
         return $this->hasMany(Warehouse::class);
     }
+    public function ledgerEntries()
+    {
+        return $this->hasMany(LedgerEntry::class);
+    }
+    public function expenses()
+    {
+        return $this->hasMany(Expense::class);
+    }
+    public function users()
+    {
+        return $this->hasMany(User::class);
+    }
 }
