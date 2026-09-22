@@ -28,6 +28,9 @@ return [
     'order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_item_mismatch' => 'Item does not belong to this order',
 
+    'warehouse_has_stock_history' => 'Cannot delete a warehouse with stock movement history',
+    'warehouse_in_purchase_orders' => 'Cannot delete a warehouse that appears in existing purchase orders',
+    'warehouse_in_orders' => 'Cannot delete a warehouse that appears in existing orders',
     'warehouse_has_inventory' => 'Cannot delete warehouse with existing inventory',
     'warehouse_deleted' => 'Warehouse deleted successfully',
 

@@ -28,6 +28,9 @@ return [
     'order_cancelled' => 'تم إلغاء الطلب وعكس القيد المحاسبي بنجاح',
     'order_item_mismatch' => 'هذا العنصر لا ينتمي لهذا الطلب',
 
+    'warehouse_has_stock_history' => 'لا يمكن حذف مخزن لديه سجل حركة مخزون',
+    'warehouse_in_purchase_orders' => 'لا يمكن حذف مخزن يظهر في طلبات شراء سابقة',
+    'warehouse_in_orders' => 'لا يمكن حذف مخزن يظهر في طلبات سابقة',
     'warehouse_has_inventory' => 'لا يمكن حذف المخزن لوجود مخزون به',
     'warehouse_deleted' => 'تم حذف المخزن بنجاح',
 

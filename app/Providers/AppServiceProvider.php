@@ -38,6 +38,7 @@ use App\Observers\ProductObserver;
 use App\Observers\SupplierObserver;
 use App\Observers\PurchaseOrderObserver;
 use App\Observers\ExpenseObserver;
+use App\Observers\WarehouseObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -75,6 +76,7 @@ class AppServiceProvider extends ServiceProvider
         Supplier::observe(SupplierObserver::class);
         PurchaseOrder::observe(PurchaseOrderObserver::class);
         Expense::observe(ExpenseObserver::class);
+        Warehouse::observe(WarehouseObserver::class);
 
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());

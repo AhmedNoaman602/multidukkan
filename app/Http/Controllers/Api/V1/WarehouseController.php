@@ -7,8 +7,13 @@ use Illuminate\Http\Request;
 use App\Models\Warehouse;
 use App\Http\Requests\StoreWarehouseRequest;
 use App\Http\Resources\WarehouseResource;
+use App\Services\WarehouseService;
+use Illuminate\Validation\ValidationException;
+
 class WarehouseController extends Controller
 {
+    public function __construct(protected WarehouseService $warehouseService) {}
+
     public function index()
     {
         $this->authorize('viewAny', Warehouse::class);
@@ -81,17 +86,12 @@ class WarehouseController extends Controller
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
-        $hasInventory = $warehouse->inventories()
-            ->where('quantity', '>', 0)
-            ->exists();
-
-        if ($hasInventory) {
-            return response()->json([
-                'message' => __('messages.warehouse_has_inventory'),
-            ], 422);
+        try {
+            $this->warehouseService->deleteWarehouse($warehouse);
+        } catch (ValidationException $e) {
+            return response()->json(['message' => $e->errors()['warehouse'][0]], 422);
         }
 
-        $warehouse->delete();
         return response()->json([
             'message' => __('messages.warehouse_deleted'),
         ]);
