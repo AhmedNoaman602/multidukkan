@@ -68,6 +68,12 @@ public function deleting(Customer $customer): void
             'customer' => __('messages.customer_has_balance'),
         ]);
     }
+
+    if ($customer->ledgerEntries()->exists()) {
+        throw ValidationException::withMessages([
+            'customer' => __('messages.customer_has_ledger_entries'),
+        ]);
+    }
 }
     /**
      * Handle the Customer "deleted" event.

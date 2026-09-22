@@ -55,6 +55,7 @@ return [
     'customer_has_orders' => 'لا يمكن حذف عميل لديه طلبات سابقة',
     'customer_has_payments' => 'لا يمكن حذف عميل لديه دفعات سابقة',
     'customer_has_balance' => 'لا يمكن حذف عميل عليه رصيد مستحق',
+    'customer_has_ledger_entries' => 'لا يمكن حذف عميل لديه سجل مالي',
     'order_has_payments' => 'لا يمكن حذف طلب عليه دفعات. يرجى إزالة الدفعات أولاً',
     'product_in_orders' => 'لا يمكن حذف منتج ظهر في طلبات سابقة',
     'product_in_purchase_orders' => 'لا يمكن حذف منتج ظهر في طلبات شراء سابقة',

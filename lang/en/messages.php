@@ -55,6 +55,7 @@ return [
     'customer_has_orders' => 'Cannot delete a customer who has existing orders',
     'customer_has_payments' => 'Cannot delete a customer who has existing payments',
     'customer_has_balance' => 'Cannot delete a customer with outstanding balance',
+    'customer_has_ledger_entries' => 'Cannot delete a customer with financial history',
     'order_has_payments' => 'Cannot delete an order with payments. Remove payments first',
     'product_in_orders' => 'Cannot delete a product that appears in existing orders',
     'product_in_purchase_orders' => 'Cannot delete a product that appears in existing purchase orders',
