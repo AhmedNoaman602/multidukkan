@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Product;
 use App\Models\AuditLog;
+use App\Services\InventoryService;
 use Illuminate\Validation\ValidationException;
 
 class ProductObserver
@@ -62,13 +63,19 @@ public function deleting(Product $product): void
         ]);
     }
 
+    if ($product->inventoryTransactions()->exists()) {
+        throw ValidationException::withMessages([
+            'product' => __('messages.product_has_stock_history'),
+        ]);
+    }
+
     if ($product->inventories()->where('quantity', '>', 0)->exists()) {
         throw ValidationException::withMessages([
             'product' => __('messages.product_has_stock'),
         ]);
     }
 
-    $product->inventories()->delete();
+    app(InventoryService::class)->purgeEmptyStockRows('product_id', $product->id);
 }
     public function deleted(Product $product): void
     {

@@ -59,6 +59,7 @@ return [
     'order_has_payments' => 'Cannot delete an order with payments. Remove payments first',
     'product_in_orders' => 'Cannot delete a product that appears in existing orders',
     'product_in_purchase_orders' => 'Cannot delete a product that appears in existing purchase orders',
+    'product_has_stock_history' => 'Cannot delete a product with stock movement history',
     'product_has_stock' => 'Cannot delete a product with existing stock. Reduce stock to zero first',
     'purchase_order_has_payments' => 'Cannot cancel a purchase order with payments. Remove payments first',
     'store_is_only_store' => 'Cannot delete the only store. At least one store is required',
