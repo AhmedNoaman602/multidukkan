@@ -15,6 +15,11 @@ class ProductService
      */
     public function __construct(){}
 
+    public function deleteProduct(Product $product): void
+    {
+        DB::transaction(fn () => $product->delete());
+    }
+
     public function createProduct(array $data , int $tenantId, int $userId) : Product {
 // User creates product with opening_qty = 25
 //         ↓

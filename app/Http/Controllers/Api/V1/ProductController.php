@@ -11,7 +11,6 @@ use App\Http\Resources\ProductResource;
 use App\Services\ProductService;
 use App\Services\InventoryService;
 use App\Http\Resources\ProductSupplierResource;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -146,12 +145,12 @@ class ProductController extends Controller
     }
 
     try {
-        DB::transaction(fn () => $product->delete());
-
-        return response()->json(['message' => __('messages.product_deleted')]);
+        $this->productService->deleteProduct($product);
     } catch (ValidationException $e) {
         return response()->json(['message' => $e->errors()['product'][0]], 422);
     }
+
+    return response()->json(['message' => __('messages.product_deleted')]);
 }
 
 public function suppliers(Product $product)
