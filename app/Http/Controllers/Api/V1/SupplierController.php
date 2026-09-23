@@ -112,7 +112,7 @@ class SupplierController extends Controller
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
         try{
-            $supplier->delete();
+            DB::transaction(fn () => $supplier->delete());
             return response()->json(['message' => __('messages.supplier_deleted')]);
         }catch(ValidationException $e){
             return response()->json(['message' => $e->errors()['supplier'][0]],422);    

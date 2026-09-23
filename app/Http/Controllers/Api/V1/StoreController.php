@@ -8,6 +8,7 @@ use App\Models\Store;
 use App\Http\Resources\StoreResource;
 use App\Http\Requests\StoreStoreRequest;
 use App\Http\Requests\UpdateStoreRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class StoreController extends Controller
@@ -80,7 +81,7 @@ class StoreController extends Controller
     }
 
     try {
-        $store->delete();
+        DB::transaction(fn () => $store->delete());
         return response()->json(['message' => __('messages.store_deleted')]);
     } catch (ValidationException $e) {
         return response()->json(['message' => $e->errors()['store'][0]], 422);

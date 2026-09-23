@@ -10,6 +10,7 @@ use App\Services\LedgerService;
 use App\Http\Requests\RefundCustomerRequest;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 class CustomerController extends Controller
 {
@@ -148,7 +149,7 @@ class CustomerController extends Controller
     }
 
     try {
-        $customer->delete();
+        DB::transaction(fn () => $customer->delete());
         return response()->json(['message' => __('messages.customer_deleted')]);
     } catch (ValidationException $e) {
         return response()->json(['message' => $e->errors()['customer'][0]],422);
