@@ -5,15 +5,11 @@ namespace App\Services;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Exceptions\HttpResponseException;
-use App\Models\Inventory;
 use App\Models\Warehouse;
 
 class ProductService
 {
-    /**
-     * Create a new class instance.
-     */
-    public function __construct(){}
+    public function __construct(protected InventoryService $inventory){}
 
     public function deleteProduct(Product $product): void
     {
@@ -54,13 +50,15 @@ class ProductService
 
             foreach ($data['stocks'] ?? [] as $stock) {
                 if (empty($stock['warehouse_id'])) continue;
-                Inventory::create([
-                    'tenant_id'    => $tenantId,
-                    'warehouse_id' => $stock['warehouse_id'],
-                    'product_id'   => $product->id,
-                    'quantity'     => $stock['quantity'] ?? 0,
-                    'threshold'    => $stock['threshold'] ?? 10,
-                ]);
+                $this->inventory->setStock(
+                    $product->id,
+                    (int) $stock['warehouse_id'],
+                    $tenantId,
+                    isset($stock['quantity']) ? (int) $stock['quantity'] : null,
+                    $stock['threshold'] ?? 10,
+                    $userId,
+                    __('messages.stock_note_product_created')
+                );
             }
              // Opening stock — one time only, backend owned
             if (!empty($data['opening_quantity']) && $data['opening_quantity'] > 0) {
@@ -75,19 +73,17 @@ class ProductService
                     );
                 }
 
-                $inventory = Inventory::firstOrCreate(
-                    [
-                        'product_id'   => $product->id,
-                        'warehouse_id' => $warehouseId,
-                    ],
-                    [
-                        'tenant_id' => $tenantId,
-                        'quantity'  => 0,
-                        'threshold' => 10,
-                    ]
-                );
+                $this->inventory->ensureStockRow($product->id, $warehouseId, $tenantId);
 
-                $inventory->increment('quantity', (int) $data['opening_quantity']);
+                $this->inventory->adjustStock(
+                    $product->id,
+                    $warehouseId,
+                    (int) $data['opening_quantity'],
+                    'in',
+                    'base',
+                    $userId,
+                    __('messages.stock_note_opening_balance')
+                );
             }
             return $product;
         });

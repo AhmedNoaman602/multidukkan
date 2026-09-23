@@ -52,6 +52,18 @@ public function deleting(Supplier $supplier): void
             'supplier' => __('messages.supplier_has_purchase_orders'),
         ]);
     }
+
+    if ($supplier->supplierPayments()->exists()) {
+        throw ValidationException::withMessages([
+            'supplier' => __('messages.supplier_has_payments'),
+        ]);
+    }
+
+    if ($supplier->ledgerEntries()->exists()) {
+        throw ValidationException::withMessages([
+            'supplier' => __('messages.supplier_has_ledger_entries'),
+        ]);
+    }
 }
 
     /**

@@ -71,13 +71,16 @@ public function index(Request $request)
         $this->authorize('create', Inventory::class);
         
         $user = auth()->user();
-        $inventory = Inventory::create([
-            'tenant_id' => $user->tenant_id,
-            'warehouse_id' => $request->warehouse_id,
-            'product_id' => $request->product_id,
-            'quantity' => $request->quantity,
-            'threshold'    => $request->threshold ?? 0,
-        ]);
+        $inventory = $this->inventoryService->setStock(
+            (int) $request->product_id,
+            (int) $request->warehouse_id,
+            $user->tenant_id,
+            (int) $request->quantity,
+            $request->threshold ?? 0,
+            $user->id,
+            __('messages.stock_note_initial_stock')
+        );
+
         return (new InventoryResource($inventory))
             ->response()
             ->setStatusCode(201);

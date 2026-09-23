@@ -8,7 +8,6 @@ use App\Models\Store;
 use App\Models\User;
 use App\Models\Product;
 use App\Models\Warehouse;
-use App\Models\Inventory;
 use App\Models\Customer;
 use App\Models\Supplier;
 use App\Services\OrderService;
@@ -102,15 +101,19 @@ foreach ($products as $p) {
 ]);
 }
 
+$inventoryService = app(\App\Services\InventoryService::class);
+
 foreach ($createdWarehouses as $warehouse) {
     foreach ($createdProducts as $product) {
-        Inventory::create([
-            'tenant_id'    => $tenant->id,
-            'warehouse_id' => $warehouse->id,
-            'product_id'   => $product->id,
-            'quantity'     => 100,
-            'threshold'    => 10,
-        ]);
+        $inventoryService->setStock(
+            $product->id,
+            $warehouse->id,
+            $tenant->id,
+            100,
+            10,
+            null,
+            'Demo seed opening stock'
+        );
     }
 }
 

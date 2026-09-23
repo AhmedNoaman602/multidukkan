@@ -226,7 +226,9 @@ class ExpenseTest extends TestCase
     {
         $expense = $this->makeExpense(['store_id' => $this->storeA->id, 'created_by' => $this->managerA->id, 'amount' => 100]);
 
-        // storeA has no warehouses/unpaid orders and is not the only store, so it can be deleted.
+        User::where('store_id', $this->storeA->id)->update(['store_id' => $this->storeB->id]);
+
+        // storeA has no warehouses/orders/ledger entries and is not the only store, so it can be deleted.
         $this->storeA->delete();
 
         // Expense survives; store_id is nulled (historical tenant-level row).

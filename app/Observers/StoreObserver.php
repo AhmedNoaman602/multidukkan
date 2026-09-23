@@ -60,9 +60,21 @@ class StoreObserver
         ]);
     }
 
-    if ($store->orders()->whereUnpaid()->exists()) {
+    if ($store->orders()->withTrashed()->exists()) {
         throw ValidationException::withMessages([
-            'store' => __('messages.store_has_unpaid_orders'),
+            'store' => __('messages.store_has_orders'),
+        ]);
+    }
+
+    if ($store->ledgerEntries()->exists()) {
+        throw ValidationException::withMessages([
+            'store' => __('messages.store_has_ledger_entries'),
+        ]);
+    }
+
+    if ($store->users()->exists()) {
+        throw ValidationException::withMessages([
+            'store' => __('messages.store_has_users'),
         ]);
     }
 }
