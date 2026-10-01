@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Customer;
+use App\Models\InventoryTransaction;
 use App\Models\LedgerEntry;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\Store;
 use App\Models\Tenant;
 use App\Models\User;
@@ -156,6 +158,43 @@ class StoreDeletionPolicyTest extends TestCase
             ->assertJsonPath('message', 'Cannot delete the only store. At least one store is required');
 
         $this->assertDatabaseHas('stores', ['id' => $onlyStore->id]);
+    }
+
+    public function test_store_with_only_an_empty_shelf_can_be_deleted_and_the_shelf_goes_with_it(): void
+    {
+        $shelf = Warehouse::factory()->shelf()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id' => $this->store->id,
+        ]);
+
+        $this->deleteStore()->assertStatus(200);
+
+        $this->assertDatabaseMissing('stores', ['id' => $this->store->id]);
+        $this->assertDatabaseMissing('warehouses', ['id' => $shelf->id]);
+    }
+
+    public function test_store_whose_shelf_has_stock_history_cannot_be_deleted(): void
+    {
+        $shelf = Warehouse::factory()->shelf()->create([
+            'tenant_id' => $this->tenant->id,
+            'store_id' => $this->store->id,
+        ]);
+        $product = Product::factory()->create(['tenant_id' => $this->tenant->id]);
+        InventoryTransaction::create([
+            'tenant_id' => $this->tenant->id,
+            'warehouse_id' => $shelf->id,
+            'product_id' => $product->id,
+            'quantity' => 5,
+            'type' => InventoryTransaction::TYPE_ADJUSTMENT_IN,
+        ]);
+
+        $this->deleteStore()
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Cannot delete a store whose shelf has stock or stock history');
+
+        $this->assertDatabaseHas('stores', ['id' => $this->store->id]);
+        $this->assertDatabaseHas('warehouses', ['id' => $shelf->id]);
+        $this->assertDatabaseCount('inventory_transactions', 1);
     }
 
     public function test_store_without_history_users_or_warehouses_can_be_deleted(): void

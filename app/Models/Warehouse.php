@@ -14,15 +14,25 @@ use Illuminate\Database\Eloquent\Model;
 class Warehouse extends Model
 {
     use HasFactory, ScopedToTenant;
+
+    const TYPE_SHELF   = 'shelf';
+    const TYPE_STORAGE = 'storage';
+
     protected $fillable = [
         'id',
         'tenant_id',
         'store_id',
         'name',
+        'type',
         'address',
         'phone',
         'email',
     ];
+    public function isShelf(): bool
+    {
+        return $this->type === self::TYPE_SHELF;
+    }
+
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);

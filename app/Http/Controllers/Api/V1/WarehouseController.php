@@ -43,7 +43,8 @@ class WarehouseController extends Controller
         'tenant_id' => $user->tenant_id,
         'store_id'  => $storeId,
         'name'      => $request->name,
-        'address'   => $request->address,  
+        'type'      => Warehouse::TYPE_STORAGE,
+        'address'   => $request->address,
         'phone'     => $request->phone,
         'email'     => $request->email,
     ]);

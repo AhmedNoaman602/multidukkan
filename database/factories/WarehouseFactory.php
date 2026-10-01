@@ -29,5 +29,8 @@ class WarehouseFactory extends Factory
         ];
     }
 
-    
+    public function shelf(): static
+    {
+        return $this->state(['type' => Warehouse::TYPE_SHELF]);
+    }
 }

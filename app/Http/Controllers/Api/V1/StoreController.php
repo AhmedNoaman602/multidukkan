@@ -8,11 +8,14 @@ use App\Models\Store;
 use App\Http\Resources\StoreResource;
 use App\Http\Requests\StoreStoreRequest;
 use App\Http\Requests\UpdateStoreRequest;
+use App\Services\StoreService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class StoreController extends Controller
 {
+    public function __construct(protected StoreService $storeService) {}
+
     public function index()
     {
         $this->authorize('viewAny', Store::class);
@@ -21,6 +24,7 @@ class StoreController extends Controller
 
         $stores = Store::where('tenant_id', $user->tenant_id)
             ->when($user->store_id, fn($q) => $q->where('id', $user->store_id))
+            ->with('shelf')
             ->get();
 
         return StoreResource::collection($stores);
@@ -32,14 +36,7 @@ class StoreController extends Controller
 
         $user = auth()->user();
 
-        $validated = $request->validated();
-
-        $store = Store::create([
-            'tenant_id' => $user->tenant_id,
-            'name'      => $validated['name'],
-            'address'   => $validated['address'] ?? null,
-            'phone'     => $validated['phone'] ?? null,
-        ]);
+        $store = $this->storeService->createStore($request->validated(), $user->tenant_id);
 
         return (new StoreResource($store))
             ->response()
@@ -54,7 +51,7 @@ class StoreController extends Controller
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
-        return new StoreResource($store);
+        return new StoreResource($store->load('shelf'));
     }
 
     public function update(UpdateStoreRequest $request, Store $store)
@@ -69,7 +66,7 @@ class StoreController extends Controller
 
         $store->update($validated);
 
-        return new StoreResource($store);
+        return new StoreResource($store->load('shelf'));
     }
 
     public function destroy(Store $store)

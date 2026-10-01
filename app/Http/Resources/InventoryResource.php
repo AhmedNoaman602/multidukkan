@@ -14,6 +14,7 @@ public function toArray(Request $request): array
         'tenant_id'      => $this->tenant_id,
         'warehouse_id'   => $this->warehouse_id,
         'warehouse_name' => $this->warehouse?->name ?? '—',
+        'warehouse_type' => $this->warehouse?->type,
         'product_id'     => $this->product_id,
         'product_name'   => $this->product?->name ?? '—',
         'product_unit'   => $this->product->unit ?? null,

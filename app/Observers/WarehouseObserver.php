@@ -42,6 +42,12 @@ class WarehouseObserver
 
     public function deleting(Warehouse $warehouse): void
     {
+        if ($warehouse->isShelf()) {
+            throw ValidationException::withMessages([
+                'warehouse' => __('messages.cannot_delete_shelf'),
+            ]);
+        }
+
         if ($warehouse->inventoryTransactions()->exists()) {
             throw ValidationException::withMessages([
                 'warehouse' => __('messages.warehouse_has_stock_history'),

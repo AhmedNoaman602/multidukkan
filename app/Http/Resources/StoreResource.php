@@ -20,6 +20,10 @@ class StoreResource extends JsonResource
             'tenant_id' => $this->tenant_id,
             'phone' => $this->phone,
             'address' => $this->address,
+            'shelf' => $this->whenLoaded('shelf', fn () => $this->shelf ? [
+                'id'   => $this->shelf->id,
+                'name' => $this->shelf->name,
+            ] : null),
             'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
         ];
     }

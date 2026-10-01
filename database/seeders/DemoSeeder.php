@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Tenant;
-use App\Models\Store;
 use App\Models\User;
 use App\Models\Product;
 use App\Models\Warehouse;
@@ -13,6 +12,7 @@ use App\Models\Supplier;
 use App\Services\OrderService;
 use App\Services\PaymentService;
 use App\Services\PurchaseOrderService;
+use App\Services\StoreService;
 use App\Services\SupplierPaymentService;
 use Illuminate\Support\Facades\Auth;
 
@@ -28,12 +28,11 @@ class DemoSeeder extends Seeder
             'name' => 'Noaman Tools',
         ]);
 
-        $store = Store::create([
-            'tenant_id' => $tenant->id,
-            'name'      => 'Main Store',
-            'address'   => 'Alexandria, Egypt',
-            'phone'     => '01000000000',
-        ]);
+        $store = app(StoreService::class)->createStore([
+            'name'    => 'Main Store',
+            'address' => 'Alexandria, Egypt',
+            'phone'   => '01000000000',
+        ], $tenant->id);
 
         Customer::create([
             'tenant_id'  => $tenant->id,
@@ -115,6 +114,18 @@ foreach ($createdWarehouses as $warehouse) {
             'Demo seed opening stock'
         );
     }
+}
+
+foreach ($createdProducts as $product) {
+    $inventoryService->setStock(
+        $product->id,
+        $store->shelf->id,
+        $tenant->id,
+        10,
+        5,
+        null,
+        'Demo seed opening stock'
+    );
 }
 
         $contractor = Customer::create([

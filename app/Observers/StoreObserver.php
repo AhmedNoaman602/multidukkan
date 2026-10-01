@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Store;
 use App\Models\AuditLog;
+use App\Models\Warehouse;
 use Illuminate\Validation\ValidationException;
 
 class StoreObserver
@@ -54,9 +55,24 @@ class StoreObserver
         ]);
     }
 
-    if ($store->warehouses()->exists()) {
+    if ($store->warehouses()->where('type', Warehouse::TYPE_STORAGE)->exists()) {
         throw ValidationException::withMessages([
             'store' => __('messages.store_has_warehouses'),
+        ]);
+    }
+
+    // The shelf belongs to the store and goes with it (warehouses.store_id cascades),
+    // but only while it has never held or moved stock.
+    $shelf = $store->shelf;
+
+    if ($shelf && (
+        $shelf->inventories()->where('quantity', '>', 0)->exists()
+        || $shelf->inventoryTransactions()->exists()
+        || $shelf->orderItems()->exists()
+        || $shelf->purchaseOrderItems()->withTrashed()->exists()
+    )) {
+        throw ValidationException::withMessages([
+            'store' => __('messages.store_shelf_in_use'),
         ]);
     }
 

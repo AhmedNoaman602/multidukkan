@@ -36,6 +36,8 @@ return [
     'warehouse_in_orders' => 'لا يمكن حذف مخزن يظهر في طلبات سابقة',
     'warehouse_has_inventory' => 'لا يمكن حذف المخزن لوجود مخزون به',
     'warehouse_deleted' => 'تم حذف المخزن بنجاح',
+    'default_shelf_name' => 'الرف',
+    'cannot_delete_shelf' => 'لا يمكن حذف رف المتجر',
 
     'product_deleted' => 'تم حذف المنتج بنجاح',
 
@@ -70,6 +72,7 @@ return [
     'purchase_order_has_payments' => 'لا يمكن إلغاء طلب شراء عليه دفعات. يرجى إزالة الدفعات أولاً',
     'store_is_only_store' => 'لا يمكن حذف المتجر الوحيد. يجب توفر متجر واحد على الأقل',
     'store_has_warehouses' => 'لا يمكن حذف متجر لديه مخازن. يرجى إزالة المخازن أولاً',
+    'store_shelf_in_use' => 'لا يمكن حذف متجر يحتوي رفه على مخزون أو سجل حركة مخزون',
     'store_has_orders' => 'لا يمكن حذف متجر لديه طلبات',
     'store_has_ledger_entries' => 'لا يمكن حذف متجر لديه سجل مالي',
     'store_has_users' => 'لا يمكن حذف متجر لا يزال لديه مستخدمون. يرجى نقلهم أولاً',

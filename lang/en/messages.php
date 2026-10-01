@@ -36,6 +36,8 @@ return [
     'warehouse_in_orders' => 'Cannot delete a warehouse that appears in existing orders',
     'warehouse_has_inventory' => 'Cannot delete warehouse with existing inventory',
     'warehouse_deleted' => 'Warehouse deleted successfully',
+    'default_shelf_name' => 'Shelf',
+    'cannot_delete_shelf' => "The store's shelf cannot be deleted",
 
     'product_deleted' => 'Product deleted successfully',
 
@@ -70,6 +72,7 @@ return [
     'purchase_order_has_payments' => 'Cannot cancel a purchase order with payments. Remove payments first',
     'store_is_only_store' => 'Cannot delete the only store. At least one store is required',
     'store_has_warehouses' => 'Cannot delete a store with existing warehouses. Remove warehouses first',
+    'store_shelf_in_use' => 'Cannot delete a store whose shelf has stock or stock history',
     'store_has_orders' => 'Cannot delete a store with existing orders',
     'store_has_ledger_entries' => 'Cannot delete a store with financial history',
     'store_has_users' => 'Cannot delete a store that still has users assigned. Reassign them first',

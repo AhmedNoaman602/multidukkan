@@ -28,6 +28,10 @@ class Store extends Model
     {
         return $this->hasMany(Warehouse::class);
     }
+    public function shelf()
+    {
+        return $this->hasOne(Warehouse::class)->where('type', Warehouse::TYPE_SHELF);
+    }
     public function ledgerEntries()
     {
         return $this->hasMany(LedgerEntry::class);
