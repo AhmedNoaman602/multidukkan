@@ -238,17 +238,16 @@ This is the invariant that matters most: **stock is always stored in base units.
 ⚠️ **Expect `manual_total` to be lost** — `recalculateTotal()` recomputes from
 `SUM(unit_price × quantity) − discount`. Confirmed and tested behaviour, not a bug.
 
-### 4d. Editing items 🔴 known bug
+### 4d. Editing items
 
 - [ ] On the **secondary-unit** order from 4b, change the quantity from 3 boxes to 4
 
 | | |
 |---|---|
 | Should deduct | **12** more base units |
-| Actually deducts | **1** |
 
-This is [CODEBASE_NOTES #1](CODEBASE_NOTES.md) — `adjustItem` doesn't convert by `unit_type`. Confirm
-it with your own eyes, then leave it; it's already logged.
+Regression check for [CODEBASE_NOTES #1](CODEBASE_NOTES.md) (fixed) — `adjustItem` used to deduct
+**1** here because it didn't convert by `unit_type`.
 
 ```sql
 SELECT quantity FROM inventory WHERE product_id = <id> AND warehouse_id = <id>;
@@ -570,7 +569,6 @@ Fill this in as you go. Don't fix anything until the flow is finished.
 
 | Known issue | Where |
 |---|---|
-| `adjustItem` ignores `unit_type` when moving stock | [CODEBASE_NOTES #1](CODEBASE_NOTES.md) |
 | Opening stock writes no `inventory_transactions` row | [CODEBASE_NOTES #6](CODEBASE_NOTES.md) |
 | Orders-list `unpaid_amount` ignores credit payments | [CODEBASE_NOTES #8](CODEBASE_NOTES.md) |
 | `cost_price` not rolled back on PO cancel | [ARCHITECTURE_DECISIONS A8](ARCHITECTURE_DECISIONS.md) |

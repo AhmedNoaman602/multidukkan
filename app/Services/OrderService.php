@@ -355,17 +355,21 @@ if (!empty($data['pay_immediately'])) {
         $newQty = $data['quantity'] ?? $oldQty;
         $delta = $newQty - $oldQty;
 
+        $stockDelta = $item->unit_type === 'secondary' && $item->product->conversion_factor
+            ? $delta * $item->product->conversion_factor
+            : $delta;
+
         // Step 1 — stock delta
-        if ($delta > 0) {
-             $this->inventory->checkStock($item->product_id, $item->warehouse_id, $delta);
+        if ($stockDelta > 0) {
+             $this->inventory->checkStock($item->product_id, $item->warehouse_id, $stockDelta);
             $this->inventory->deductStock(
                 $item->product_id, $item->warehouse_id,
-                $delta, $order->id, Order::class, auth()->id()
+                $stockDelta, $order->id, Order::class, auth()->id()
             );
-        } elseif ($delta < 0) {
+        } elseif ($stockDelta < 0) {
             $this->inventory->restoreStock(
                 $item->product_id, $item->warehouse_id,
-                abs($delta), $order->id, Order::class, auth()->id()
+                abs($stockDelta), $order->id, Order::class, auth()->id()
             );
         }
 

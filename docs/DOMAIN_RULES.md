@@ -222,7 +222,7 @@ That row in the divergence table should be updated.
 2. One `inventory` row per `(warehouse_id, product_id)` — UNIQUE constraint.
 3. **Stock is stored in base units, always.** Every caller converts by `conversion_factor` before
    calling `InventoryService`.
-   ⚠️ **Broken in `OrderService::adjustItem`** — see [CODEBASE_NOTES.md](CODEBASE_NOTES.md) #1.
+   `OrderService::adjustItem` converts its delta too (fixed — [CODEBASE_NOTES.md](CODEBASE_NOTES.md) #1).
 4. Every quantity change has a matching transaction row.
    ⚠️ **Broken in `ProductService::createProduct`** — opening stock writes `inventory` directly.
    See [CODEBASE_NOTES.md](CODEBASE_NOTES.md) #6.

@@ -15,7 +15,7 @@ recognise these when you hit them, and so nobody "fixes" something that is delib
 
 | # | Finding | Severity | File |
 |---|---|---|---|
-| 1 | `adjustItem` ignores `unit_type` when moving stock | 🔴 | `OrderService.php:344` |
+| 1 | ✅ Fixed — `adjustItem` ignored `unit_type` when moving stock | 🔴 | `OrderService.php:344` |
 | 2 | `adjustOrderCharge` writes two rows outside a transaction | 🔴 | `LedgerService.php:529` |
 | 3 | PO invoice numbering ignores soft-deleted POs | 🟠 | `PurchaseOrderService.php:31` |
 | 4 | No lock between `checkStock` and `deductStock` | 🟠 | `InventoryService.php:18` |
@@ -47,6 +47,9 @@ recognise these when you hit them, and so nobody "fixes" something that is delib
 ## 🔴 High
 
 ### 1. `OrderService::adjustItem` ignores `unit_type` when moving stock
+
+**Status**: ✅ Fixed — the delta is now converted to base units before any stock call. Covered by
+`OrderItemStockAdjustmentTest`.
 
 **File**: [`app/Services/OrderService.php:344`](../app/Services/OrderService.php)
 
@@ -497,8 +500,7 @@ was never fully built; since ADRs are immutable, they need superseding entries r
 Not a mandate — my reading of impact vs effort. Everything here is a small diff.
 
 **Do first (correctness, all small):**
-1. #1 — `adjustItem` unit conversion. Add a feature test for a secondary-unit item edit first; the
-   test is worth more than the fix.
+1. ~~#1 — `adjustItem` unit conversion.~~ ✅ Fixed, with `OrderItemStockAdjustmentTest`.
 2. #2 — wrap `adjustOrderCharge` in `DB::transaction`. One line.
 3. #11 — extract the balance type lists to constants. One refactor, removes a whole bug class.
 
