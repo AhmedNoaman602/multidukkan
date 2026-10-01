@@ -39,6 +39,7 @@ return [
     'default_shelf_name' => 'الرف',
     'cannot_delete_shelf' => 'لا يمكن حذف رف المتجر',
     'warehouse_not_in_store' => 'المخزن المختار لا يتبع هذا المتجر',
+    'transfer_same_location' => 'اختر وجهة مختلفة عن المصدر',
 
     'product_deleted' => 'تم حذف المنتج بنجاح',
 

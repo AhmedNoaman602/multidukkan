@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\CustomerController;
 use App\Http\Controllers\Api\V1\WarehouseController;
 use App\Http\Controllers\Api\V1\InventoryController;
+use App\Http\Controllers\Api\V1\StockTransferController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\UnitController;
 use App\Http\Controllers\Api\V1\PurchaseOrderController;
@@ -88,6 +89,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('/inventory', [InventoryController::class, 'store']);
     Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);
     Route::post('/inventory/{inventory}/adjust', [InventoryController::class, 'adjust']);
+
+    Route::get('/stock-transfers', [StockTransferController::class, 'index']);
+    Route::post('/stock-transfers', [StockTransferController::class, 'store']);
+    Route::get('/stock-transfers/{stockTransfer}', [StockTransferController::class, 'show']);
 
     Route::get('/audit-log', [AuditLogController::class, 'index']);
     Route::get('/audit-log/inventory-batches/{batchId}', [AuditLogController::class, 'inventoryBatch']);

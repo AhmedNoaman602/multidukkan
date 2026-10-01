@@ -39,6 +39,7 @@ return [
     'default_shelf_name' => 'Shelf',
     'cannot_delete_shelf' => "The store's shelf cannot be deleted",
     'warehouse_not_in_store' => 'The selected warehouse does not belong to this store',
+    'transfer_same_location' => 'Choose a destination different from the source',
 
     'product_deleted' => 'Product deleted successfully',
 
