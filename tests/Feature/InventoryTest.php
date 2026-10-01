@@ -279,6 +279,54 @@ public function test_cannot_create_order_with_warehouse_from_different_tenant():
     ])->assertStatus(422);
 }
 
+private function warehouseInAnotherStore(): Warehouse
+{
+    $storeB = Store::factory()->create(['tenant_id' => $this->tenant->id]);
+    $warehouseB = Warehouse::factory()->create([
+        'tenant_id' => $this->tenant->id,
+        'store_id'  => $storeB->id,
+    ]);
+    Inventory::factory()->create([
+        'tenant_id'    => $this->tenant->id,
+        'warehouse_id' => $warehouseB->id,
+        'product_id'   => $this->product->id,
+        'quantity'     => 50,
+    ]);
+
+    return $warehouseB;
+}
+
+public function test_cannot_create_order_with_warehouse_from_another_store(): void
+{
+    $warehouseB = $this->warehouseInAnotherStore();
+
+    $this->actingAs($this->user)->postJson('/api/orders', [
+        'store_id'    => $this->store->id,
+        'customer_id' => $this->customer->id,
+        'order_date'  => now()->toDateString(),
+        'items'       => [['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $warehouseB->id]],
+    ])->assertStatus(422);
+
+    $this->assertDatabaseCount('orders', 0);
+    $this->assertDatabaseHas('inventory', ['warehouse_id' => $warehouseB->id, 'product_id' => $this->product->id, 'quantity' => 50]);
+    $this->assertDatabaseCount('inventory_transactions', 0);
+}
+
+public function test_cannot_add_item_from_another_stores_warehouse(): void
+{
+    $warehouseB = $this->warehouseInAnotherStore();
+    $orderId = $this->createOrder()->assertStatus(201)->json('id');
+
+    $this->actingAs($this->user)->postJson("/api/orders/{$orderId}/items", [
+        'product_id'   => $this->product->id,
+        'warehouse_id' => $warehouseB->id,
+        'quantity'     => 1,
+    ])->assertStatus(422);
+
+    $this->assertDatabaseCount('order_items', 1);
+    $this->assertDatabaseHas('inventory', ['warehouse_id' => $warehouseB->id, 'product_id' => $this->product->id, 'quantity' => 50]);
+}
+
 public function test_order_with_warehouse_deducts_stock(): void
 {
     $this->createOrder(quantity: 10)

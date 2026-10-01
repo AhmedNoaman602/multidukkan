@@ -247,10 +247,28 @@ class RoleTest extends TestCase
                     [
                         'product_id'   => $this->product->id,
                         'quantity'     => 1,
-                        'warehouse_id' => $this->warehouse->id,
+                        'warehouse_id' => $this->warehouseFor($store)->id,
                     ],
                 ],
             ])->assertStatus(201)->json('id');
+    }
+
+    // Orders may only draw stock from their own store's warehouses.
+    private function warehouseFor(Store $store): Warehouse
+    {
+        if ($store->is($this->store)) {
+            return $this->warehouse;
+        }
+
+        $warehouse = Warehouse::firstOrCreate(
+            ['tenant_id' => $this->tenant->id, 'store_id' => $store->id, 'name' => 'Other Store Warehouse']
+        );
+        Inventory::firstOrCreate(
+            ['warehouse_id' => $warehouse->id, 'product_id' => $this->product->id],
+            ['tenant_id' => $this->tenant->id, 'quantity' => 100, 'threshold' => 10]
+        );
+
+        return $warehouse;
     }
 
     public function test_manager_can_delete_own_store_order(): void
@@ -396,13 +414,14 @@ class RoleTest extends TestCase
 
     public function test_manager_cannot_add_item_to_other_store_order(): void
     {
-        $orderId = $this->createOrderForStore($this->otherStore('01000000015'), $this->admin);
+        $otherStore = $this->otherStore('01000000015');
+        $orderId = $this->createOrderForStore($otherStore, $this->admin);
 
         $this->actingAs($this->manager)
             ->postJson("/api/orders/{$orderId}/items", [
                 'product_id'   => $this->product->id,
                 'quantity'     => 1,
-                'warehouse_id' => $this->warehouse->id,
+                'warehouse_id' => $this->warehouseFor($otherStore)->id,
             ])
             ->assertStatus(403);
     }

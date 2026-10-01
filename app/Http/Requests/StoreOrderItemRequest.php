@@ -7,6 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use App\Models\Product;
 use App\Models\Warehouse;
 use App\Rules\BelongsToTenant;
+use App\Rules\WarehouseInStore;
 
 class StoreOrderItemRequest extends FormRequest
 {
@@ -29,7 +30,7 @@ class StoreOrderItemRequest extends FormRequest
 
         return [
             'product_id'   => ['required', 'integer', new BelongsToTenant(Product::class, $tenantId)],
-            'warehouse_id' => ['required', 'integer', new BelongsToTenant(Warehouse::class, $tenantId)],
+            'warehouse_id' => ['required', 'integer', new BelongsToTenant(Warehouse::class, $tenantId), new WarehouseInStore($this->route('order')?->store_id)],
             'quantity'     => ['required', 'numeric', 'min:1'],
             'unit_type'    => ['nullable', 'in:base,secondary'],
             'unit_price'   => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
