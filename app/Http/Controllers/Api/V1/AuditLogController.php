@@ -8,6 +8,7 @@ use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
+use App\Models\StockTransfer;
 use App\Models\Store;
 use App\Models\Supplier;
 use App\Models\User;
@@ -54,8 +55,9 @@ class AuditLogController extends Controller
         // Grouped by batch_id so an order/PO's line-item stock movements show as one event
         // instead of one row per product — falls back to one group per row when batch_id is
         // null (e.g. a single-item adjustItem edit, or data written before this column existed).
+        // A transfer writes an OUT and an IN row for the same stock, so only the OUT side is summed.
         $inventoryQuery = DB::table('inventory_transactions')
-            ->selectRAW('COALESCE(batch_id, CAST(id AS CHAR)) as id, MAX(type) as type, null as amount, null as description, MAX(reference_type) as reference_type, MAX(reference_id) as reference_id, null as customer_id, "inventory" as source, SUM(quantity) as quantity, MIN(product_id) as product_id, MIN(warehouse_id) as warehouse_id, MAX(user_id) as user_id, null as supplier_id, null as changes, MAX(created_at) as created_at, MAX(batch_id) as batch_id, COUNT(DISTINCT product_id) as item_count')
+            ->selectRAW('COALESCE(batch_id, CAST(id AS CHAR)) as id, MAX(type) as type, null as amount, null as description, MAX(reference_type) as reference_type, MAX(reference_id) as reference_id, null as customer_id, "inventory" as source, SUM(CASE WHEN type = "TRANSFER_IN" THEN 0 ELSE quantity END) as quantity, MIN(product_id) as product_id, MIN(warehouse_id) as warehouse_id, MAX(user_id) as user_id, null as supplier_id, null as changes, MAX(created_at) as created_at, MAX(batch_id) as batch_id, COUNT(DISTINCT product_id) as item_count')
             ->where('tenant_id', $user->tenant_id);
 
         $applyDateRange($inventoryQuery);
@@ -117,9 +119,16 @@ class AuditLogController extends Controller
         $auditPurchaseOrderIds = $auditRows->where('reference_type', PurchaseOrder::class)->pluck('reference_id')->filter()->unique();
         $auditPurchaseOrderNames = PurchaseOrder::whereIn('id', $auditPurchaseOrderIds)->pluck('invoice_number', 'id');
 
+        $auditTransferIds = $auditRows->where('reference_type', StockTransfer::class)->pluck('reference_id')->filter()->unique();
+        $auditTransferNames = StockTransfer::whereIn('id', $auditTransferIds)
+            ->with('fromWarehouse:id,name', 'toWarehouse:id,name')
+            ->get()
+            ->mapWithKeys(fn ($t) => [$t->id => ($t->fromWarehouse?->name ?? '—') . ' → ' . ($t->toWarehouse?->name ?? '—')]);
+
         $data = $rows->map(function ($row) use (
             $customers, $suppliers, $products, $warehouses, $users,
-            $auditProductNames, $auditCustomerNames, $auditSupplierNames, $auditStoreNames, $auditOrderNames, $auditPurchaseOrderNames
+            $auditProductNames, $auditCustomerNames, $auditSupplierNames, $auditStoreNames, $auditOrderNames, $auditPurchaseOrderNames,
+            $auditTransferNames
         ) {
             $auditableType = null;
             $entityName = null;
@@ -133,9 +142,15 @@ class AuditLogController extends Controller
                     Store::class         => $auditStoreNames[$row->reference_id] ?? null,
                     Order::class         => $auditOrderNames[$row->reference_id] ?? null,
                     PurchaseOrder::class => $auditPurchaseOrderNames[$row->reference_id] ?? null,
+                    StockTransfer::class => $auditTransferNames[$row->reference_id] ?? null,
                     default              => null,
                 };
             }
+
+            // The OUT and IN rows of a transfer are one event, not two typed movements.
+            $type = $row->source === 'inventory' && $row->reference_type === StockTransfer::class
+                ? 'TRANSFER'
+                : $row->type;
 
             $itemCount = $row->item_count !== null ? (int) $row->item_count : null;
 
@@ -154,7 +169,7 @@ class AuditLogController extends Controller
             return [
                 'id'             => $row->id,
                 'source'         => $row->source,
-                'type'           => $row->type,
+                'type'           => $type,
                 'amount'         => $row->amount !== null ? (float) $row->amount : null,
                 'quantity'       => $row->quantity !== null ? (int) $row->quantity : null,
                 'description'    => $description,
@@ -204,6 +219,7 @@ class AuditLogController extends Controller
             ->map(fn ($t) => [
                 'product_name'   => $t->product?->name ?? __('messages.deleted_product'),
                 'warehouse_name' => $t->warehouse?->name ?? '—',
+                'type'           => $t->type,
                 'quantity'       => $t->quantity,
             ]);
 
