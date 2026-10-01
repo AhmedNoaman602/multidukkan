@@ -32,6 +32,7 @@ class PurchaseOrderResource extends JsonResource
         'items_count'    => $this->items->count(),
         'items'          => $this->items->map(fn($item) => [
             'product_name' => $item->product?->name ?? __('messages.deleted_product'),
+            'warehouse_name' => $item->warehouse?->name,
             'quantity'     => $item->quantity,
             'unit_type'    => $item->unit_type,
             'unit_label'   => $item->unit_name,

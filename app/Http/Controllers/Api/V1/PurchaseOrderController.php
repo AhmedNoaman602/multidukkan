@@ -50,7 +50,7 @@ class PurchaseOrderController extends Controller
     $unpaidAmount = max(0, round($totalSpent - $paidAmount, 2));
 
     $purchaseOrders = $query
-        ->with('supplier', 'items.product', 'supplierPayments')
+        ->with('supplier', 'items.product', 'items.warehouse', 'supplierPayments')
         ->orderBy('id', 'desc')
         ->paginate(10);
 
@@ -77,7 +77,7 @@ class PurchaseOrderController extends Controller
         $this->authorize('create', PurchaseOrder::class);
         
         $purchaseOrder = $this->purchaseOrderService->createPurchaseOrder($request->validated());
-        return (new PurchaseOrderResource($purchaseOrder->load('items.product', 'supplierPayments', 'supplier')))
+        return (new PurchaseOrderResource($purchaseOrder->load('items.product', 'items.warehouse', 'supplierPayments', 'supplier')))
             ->response()
             ->setStatusCode(201);
     } catch (\InvalidArgumentException $e) {
@@ -94,7 +94,7 @@ class PurchaseOrderController extends Controller
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
-        return new PurchaseOrderResource($purchaseOrder->load('supplier', 'items.product', 'supplierPayments'));
+        return new PurchaseOrderResource($purchaseOrder->load('supplier', 'items.product', 'items.warehouse', 'supplierPayments'));
     }
 
     public function update(UpdatePurchaseOrderRequest $request, PurchaseOrder $purchaseOrder)
