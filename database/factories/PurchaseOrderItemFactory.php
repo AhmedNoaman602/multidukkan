@@ -24,6 +24,9 @@ class PurchaseOrderItemFactory extends Factory
             'product_id'        => null,
             'warehouse_id'      => null,
             'quantity'          => $quantity,
+            'unit_type'         => 'base',
+            'conversion_factor' => 1,
+            'unit_name'         => 'pcs',
             'unit_price'        => $unitPrice,
             'total'             => $quantity * $unitPrice,
         ];

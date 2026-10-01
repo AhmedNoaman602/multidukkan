@@ -115,10 +115,9 @@ class OrderService
                 $warehouseId = $itemData['warehouse_id'] ?? null;
                 $unitType = $itemData['unit_type'] ?? 'base';
 
-                // Determine stock quantity to verify (converting from secondary unit to base unit if necessary).
-                $stockQuantity = $unitType === 'secondary' && $product->conversion_factor
-                    ? $itemData['quantity'] * $product->conversion_factor
-                    : $itemData['quantity'];
+                // Resolve the unit once; the item keeps this factor for every later edit or reversal.
+                $conversionFactor = $product->factorFor($unitType);
+                $stockQuantity = $itemData['quantity'] * $conversionFactor;
 
                 // Select the product price based on the customer's price tier configuration.
                 $price = match ($customer->price_tier) {
@@ -133,9 +132,7 @@ class OrderService
                 // Calculate the final unit price, adjusting it if using a secondary unit and conversion factor.
                 $unitPrice = isset($itemData['unit_price']) && $itemData['unit_price'] !== null
                 ? (float) $itemData['unit_price']
-                : ($unitType === 'secondary' && $product->conversion_factor
-                    ? $price * $product->conversion_factor
-                    : $price);
+                : $price * $conversionFactor;
 
                 // Temporarily store the validated data of the item to be processed after the order record is created.
                 $validatedItems[] = [
@@ -144,6 +141,8 @@ class OrderService
                     'stockQty' => $stockQuantity,
                     'quantity' => $itemData['quantity'],
                     'unitType' => $unitType,
+                    'conversionFactor' => $conversionFactor,
+                    'unitName' => $product->unitNameFor($unitType),
                     'unitPrice' => $unitPrice,
                 ];
             }
@@ -213,6 +212,8 @@ foreach ($validatedItems as $v) {
                     'product_name' => $v['product']->name,
                     'quantity' => $v['quantity'],
                     'unit_type' => $v['unitType'],
+                    'conversion_factor' => $v['conversionFactor'],
+                    'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
                     'warehouse_id' => $v['warehouseId'],
                 ]);
@@ -347,9 +348,7 @@ if (!empty($data['pay_immediately'])) {
         $newQty = $data['quantity'] ?? $oldQty;
         $delta = $newQty - $oldQty;
 
-        $stockDelta = $item->unit_type === 'secondary' && $item->product->conversion_factor
-            ? $delta * $item->product->conversion_factor
-            : $delta;
+        $stockDelta = $delta * $item->conversion_factor;
 
         if ($stockDelta > 0) {
              $this->inventory->checkStock($item->product_id, $item->warehouse_id, $stockDelta);
@@ -442,10 +441,9 @@ if (!empty($data['pay_immediately'])) {
         $unitType = $data['unit_type'] ?? 'base';
         $customer = $order->customer;
 
-        $stockQuantity = $unitType === 'secondary' && $product->conversion_factor
-        ? $data['quantity'] * $product->conversion_factor
-        : $data['quantity'];
-        
+        $conversionFactor = $product->factorFor($unitType);
+        $stockQuantity = $data['quantity'] * $conversionFactor;
+
         $this->inventory->checkStock($product->id, $warehouseId, $stockQuantity);
 
        $price = match ($customer->price_tier) {
@@ -457,9 +455,7 @@ if (!empty($data['pay_immediately'])) {
                     default => $product->price,
                 };
 
-        $unitPrice = $data['unit_price'] ?? ($unitType === 'secondary' && $product->conversion_factor
-    ? $price * $product->conversion_factor
-    : $price);
+        $unitPrice = $data['unit_price'] ?? $price * $conversionFactor;
 
 
 
@@ -467,6 +463,7 @@ if (!empty($data['pay_immediately'])) {
         ->where('product_id', $product->id)
         ->where('warehouse_id', $warehouseId)
         ->where('unit_type', $unitType)
+        ->where('conversion_factor', $conversionFactor)
         ->first();
 
     if ($existingItem) {
@@ -481,6 +478,8 @@ if (!empty($data['pay_immediately'])) {
             'quantity'     => $data['quantity'],
             'unit_price'   => $unitPrice,
             'unit_type'    => $unitType,
+            'conversion_factor' => $conversionFactor,
+            'unit_name'    => $product->unitNameFor($unitType),
         ]);
     }
           $this->inventory->deductStock($product->id, $warehouseId, $stockQuantity, $order->id, Order::class, auth()->id());
@@ -557,14 +556,10 @@ foreach ($creditPayments as $payment) {
         $batchId = (string) Str::uuid();
         foreach ($order->items as $item) {
             if ($item->warehouse_id) {
-                $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
-                    ? $item->quantity * $item->product->conversion_factor
-                    : $item->quantity;
-
                 $this->inventory->restoreStock(
                     $item->product_id,
                     $item->warehouse_id,
-                    $stockQuantity,
+                    $item->baseQuantity(),
                     $order->id,
                     Order::class,
                     $user->id,

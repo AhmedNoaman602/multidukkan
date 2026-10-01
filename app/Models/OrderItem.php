@@ -17,7 +17,19 @@ class OrderItem extends Model
         'unit_price',
         'warehouse_id',
         'unit_type',
+        'conversion_factor',
+        'unit_name',
     ];
+
+    protected $casts = [
+        'conversion_factor' => 'integer',
+    ];
+
+    public function baseQuantity(): int
+    {
+        return (int) $this->quantity * $this->conversion_factor;
+    }
+
     public function order()
     {
         return $this->belongsTo(Order::class);

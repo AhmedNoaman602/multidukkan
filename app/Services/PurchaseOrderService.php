@@ -91,14 +91,11 @@ class PurchaseOrderService
                 $warehouseId = $itemData['warehouse_id'] ?? null;
                 $unitType = $itemData['unit_type'] ?? 'base';
 
-                $stockQuantity = $unitType === 'secondary' && $product->conversion_factor
-                    ? $itemData['quantity'] * $product->conversion_factor
-                    : $itemData['quantity'];
+                $conversionFactor = $product->factorFor($unitType);
+                $stockQuantity = $itemData['quantity'] * $conversionFactor;
 
                 $unitPrice = $itemData['unit_price'];
-                $costPerBaseUnit = $unitType === 'secondary' && $product->conversion_factor
-                    ? $unitPrice / $product->conversion_factor
-                    : $unitPrice;
+                $costPerBaseUnit = $unitPrice / $conversionFactor;
 
                 $validatedItems[] = [
                     'product' => $product,
@@ -106,6 +103,8 @@ class PurchaseOrderService
                     'stockQty' => $stockQuantity,
                     'quantity' => $itemData['quantity'],
                     'unitType' => $unitType,
+                    'conversionFactor' => $conversionFactor,
+                    'unitName' => $product->unitNameFor($unitType),
                     'unitPrice' => $unitPrice,
                     'costPerBaseUnit' => $costPerBaseUnit,
                 ];
@@ -150,6 +149,8 @@ class PurchaseOrderService
                     'product_id' => $v['product']->id,
                     'quantity' => $v['quantity'],
                     'unit_type' => $v['unitType'],
+                    'conversion_factor' => $v['conversionFactor'],
+                    'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
                     'warehouse_id' => $v['warehouseId'],
                     'total' => $v['unitPrice'] * $v['quantity'],
@@ -215,11 +216,7 @@ class PurchaseOrderService
 
             foreach ($purchaseOrder->items as $item) {
                 if ($item->warehouse_id) {
-                    $stockQuantity = $item->unit_type === 'secondary' && $item->product->conversion_factor
-                        ? $item->quantity * $item->product->conversion_factor
-                        : $item->quantity;
-
-                    $this->inventory->deductStock($item->product_id, $item->warehouse_id, $stockQuantity, $purchaseOrder->id, PurchaseOrder::class, $user->id, $batchId, InventoryTransaction::TYPE_PURCHASE_OUT);
+                    $this->inventory->deductStock($item->product_id, $item->warehouse_id, $item->baseQuantity(), $purchaseOrder->id, PurchaseOrder::class, $user->id, $batchId, InventoryTransaction::TYPE_PURCHASE_OUT);
                 }
             }
             $this->ledger->reversePurchaseOrder([

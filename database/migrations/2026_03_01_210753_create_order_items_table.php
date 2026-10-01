@@ -17,6 +17,8 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained()->restrictOnDelete();
             $table->string('product_name');
             $table->integer('quantity');
+            $table->unsignedInteger('conversion_factor')->default(1);
+            $table->string('unit_name');
             $table->decimal('unit_price', 10, 2);
             $table->datetimes();
         });

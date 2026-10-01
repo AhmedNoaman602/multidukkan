@@ -37,6 +37,20 @@ class Product extends Model
         'price' => 'decimal:2',
         ];
     
+    public function factorFor(string $unitType): int
+    {
+        return $unitType === 'secondary' && $this->conversion_factor > 0
+            ? (int) $this->conversion_factor
+            : 1;
+    }
+
+    public function unitNameFor(string $unitType): string
+    {
+        return $unitType === 'secondary' && $this->conversion_factor > 0
+            ? ($this->secondary_unit ?? $this->unit)
+            : $this->unit;
+    }
+
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);

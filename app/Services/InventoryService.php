@@ -142,10 +142,7 @@ class InventoryService
             ->firstOrFail();
 
         if ($unitType === 'secondary') {
-            $product = Product::find($productId);
-            if ($product?->conversion_factor) {
-                $quantity = $quantity * $product->conversion_factor;
-            }
+            $quantity = $quantity * (Product::find($productId)?->factorFor($unitType) ?? 1);
         }
 
     if ($direction === 'out') {

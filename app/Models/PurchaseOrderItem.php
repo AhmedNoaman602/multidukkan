@@ -14,10 +14,21 @@ class PurchaseOrderItem extends Model
    'warehouse_id', 
    'quantity',
    'unit_type',
+   'conversion_factor',
+   'unit_name',
    'unit_price',
    'total'
    ];
-   
+
+   protected $casts = [
+    'conversion_factor' => 'integer',
+   ];
+
+   public function baseQuantity(): int
+   {
+    return (int) $this->quantity * $this->conversion_factor;
+   }
+
    public function purchaseOrder()
    {
     return $this->belongsTo(PurchaseOrder::class);

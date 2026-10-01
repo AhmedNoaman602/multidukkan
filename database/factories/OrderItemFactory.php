@@ -21,6 +21,9 @@ class OrderItemFactory extends Factory
             'product_name' => $this->faker->name,
             'product_id' => null,
             'quantity' => $this->faker->numberBetween(1, 100),
+            'unit_type' => 'base',
+            'conversion_factor' => 1,
+            'unit_name' => 'pcs',
             'unit_price' => $this->faker->numberBetween(1, 100),
         ];
     }

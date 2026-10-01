@@ -18,6 +18,8 @@ return new class extends Migration
             $table->foreignId('warehouse_id')->constrained()->cascadeOnDelete();
             $table->integer('quantity');
             $table->string('unit_type')->default('base');
+            $table->unsignedInteger('conversion_factor')->default(1);
+            $table->string('unit_name');
             $table->decimal('unit_price', 10, 2);
             $table->decimal('total', 10, 2);
             $table->softDeletesDatetime();

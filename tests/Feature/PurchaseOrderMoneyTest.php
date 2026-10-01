@@ -122,6 +122,8 @@ class PurchaseOrderMoneyTest extends TestCase
             'product_id'        => $carton->id,
             'quantity'          => 5,
             'unit_type'         => 'secondary',
+            'conversion_factor' => 12,
+            'unit_name'         => 'carton',
             'unit_price'        => 120,
             'total'             => 600,
         ]);

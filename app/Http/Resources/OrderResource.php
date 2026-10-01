@@ -72,11 +72,7 @@ class OrderResource extends JsonResource
 
         'store_name'     => $this->store?->name ?? '',
         'status'     => $this->resolveStatus($totalPaid, $total),
-        'items_count' => $this->items->sum(fn($item) =>
-            $item->unit_type === 'secondary' && $item->product?->conversion_factor
-                ? $item->quantity * $item->product->conversion_factor
-                : $item->quantity
-        ),
+        'items_count' => $this->items->sum(fn($item) => $item->baseQuantity()),
         'items'      => $this->items->map(fn($item) => [
             'id' => $item->id,
             'product_name' => $item->product_name,
@@ -84,9 +80,9 @@ class OrderResource extends JsonResource
             'quantity'     => $item->quantity,
             'unit_price'   => $item->unit_price,
             'unit_type'    => $item->unit_type,
-            'unit_label'   => $item->unit_type === 'secondary' 
-                        ? ($item->product?->secondary_unit ?? $item->unit_type)
-                        : ($item->product?->unit ?? 'base'),
+            'unit_label'   => $item->unit_name,
+            'conversion_factor' => $item->conversion_factor,
+            'base_quantity' => $item->baseQuantity(),
             'total'        => $item->unit_price * $item->quantity,
             ...($showsCost ? ['cost_price' => $item->product?->cost_price ?? null] : []),
         ]),
