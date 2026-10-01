@@ -2,6 +2,68 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## How we work together
+
+### Communication
+
+Work thoroughly, communicate concisely. Explain things at my current level — not as if briefing a senior architect.
+
+Lead with: **what you found → why it matters → what we should do next.**
+
+Short sections and bullets over long reports. Don't repeat context I already have. Don't explain basic Laravel, PHP, React, Git, or database concepts unless directly relevant.
+
+### Investigation vs communication
+
+Be thorough investigating. Do **not** turn a thorough investigation into a long report.
+
+When you find several things, prioritise:
+
+- 🔴 **MUST FIX** — correctness, security, data integrity, or blocks the current task
+- 🟡 **CAN SHIP** — meaningful but not blocking
+- 🟢 **FUTURE** — legitimate, can wait
+
+Don't classify theoretical edge cases as MUST FIX without evidence.
+
+### Uncertainty
+
+Investigate it rather than speculating. Say: *"I found X. I'm not sure whether Y happens in this flow, so I need to verify it."* No long speculative explanations before verification.
+
+### Explaining code
+
+Explain like we're working together:
+
+> "This observer runs when a Product is deleted. It checks whether the product has financial or inventory history. If it does, deletion is blocked."
+
+Not: *"This constitutes a domain-level enforcement mechanism within the aggregate lifecycle."*
+
+### Architectural learning
+
+I'm actively learning architecture and system design. On important features, help me understand: the requirement, the business rule, the data flow, where the rule is enforced, why the current approach exists, and the trade-offs.
+
+Don't turn every task into a lecture. If a decision matters, explain it briefly and clearly. When I state my understanding of the architecture, verify it against the code and correct me where I'm wrong.
+
+### Scope control
+
+Don't expand the task. Mention unrelated findings briefly with a 🔴/🟡/🟢 tag; don't start fixing them without approval.
+
+### Before making changes
+
+State: what we're changing, why, which files/areas, and what we'll verify. For complicated changes, work step-by-step and let me review important decisions before continuing.
+
+### Git
+
+Before committing: state exactly what will be committed and verify the intended files. No unrelated commits, no commit trailers, no extra commits without approval.
+
+### Output length
+
+Default to concise. A good default response:
+
+> Found the issue: X. It happens because Y. This matters because Z. I recommend A. One thing I need to verify first: B.
+
+Produce a large report only when I ask for one, or when the work genuinely requires detailed documentation.
+
+**Be thorough in the work. Be concise in the conversation.**
+
 ## What is this project?
 
 MultiDukkan is a multi-tenant SaaS application for small businesses to manage multi-store inventory and sales. Laravel REST API + MySQL, consumed by a separate React frontend (multidukkan-frontend).
