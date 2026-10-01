@@ -186,10 +186,6 @@ class OrderService
                 'discount' => $data['discount'] ?? 0,
                 'customer_name_snapshot' => $customer->name,
                 'invoice_number' => $this->generateInvoiceNumber($user->tenant_id),
-                // The business date the shop puts on the order — a calendar date, and the
-                // only field the user controls here. It is deliberately NOT written to
-                // created_at: that stays the true creation instant, so the order and the
-                // ledger entry written alongside it agree about when this happened.
                 'order_date' => $data['order_date'],
             ]);
 
@@ -274,12 +270,9 @@ foreach ($validatedItems as $v) {
                 'user_id' => $user->id,
             ]);
 
-            // If the customer has credit available, automatically apply it to settle or reduce the order balance.
             if ($creditAvailable > 0) {
-                // Determine how much credit can be applied (up to the full charge amount of the order).
                 $applyAmount = min($creditAvailable, $chargeAmount);
 
-                // Create a payment record to document the transaction using the customer's credit.
                 $payment = Payment::create([
                     'tenant_id' => $order->tenant_id,
                     'order_id' => $order->id,
@@ -290,7 +283,6 @@ foreach ($validatedItems as $v) {
                     'paid_at' => now(),
                 ]);
 
-                // Register the payment application on the ledger to reduce the order's outstanding balance.
                 $this->ledger->applyAmount([
                     'tenant_id' => $order->tenant_id,
                     'order_id' => $order->id,
@@ -302,7 +294,6 @@ foreach ($validatedItems as $v) {
                     'user_id' => $user->id,
                 ]);
 
-                // Record the consumption of the customer's credit balance in the ledger.
                 $this->ledger->consumeCredit([
                     'tenant_id' => $order->tenant_id,
                     'customer_id' => $order->customer_id,
@@ -315,9 +306,6 @@ foreach ($validatedItems as $v) {
                 ]);
             }
 
-            // --- PAY IMMEDIATELY BLOCK (QuickSale) ---
-// If pay_immediately is set, create a cash payment inside the same transaction.
-// This ensures order + payment are atomic — if payment fails, order rolls back too.
 if (!empty($data['pay_immediately'])) {
  $cashAmount = round($chargeAmount - ($applyAmount ?? 0), 2);
  
@@ -363,7 +351,6 @@ if (!empty($data['pay_immediately'])) {
             ? $delta * $item->product->conversion_factor
             : $delta;
 
-        // Step 1 — stock delta
         if ($stockDelta > 0) {
              $this->inventory->checkStock($item->product_id, $item->warehouse_id, $stockDelta);
             $this->inventory->deductStock(
@@ -377,26 +364,15 @@ if (!empty($data['pay_immediately'])) {
             );
         }
 
-        // Step 2 — update item
         $item->update([
             'quantity' => $newQty,
             'unit_price' => $data['unit_price'] ?? $item->unit_price,
         ]);
 
-        // Step 3 — recalculate order total, update ledger + order
         $this->resetToCalculatedTotal($order);
         });
     }
 
-    /**
-     * Tiered payment-lock rule for edits that change an order's total:
-     * - No payments        → freely editable.
-     * - Partially paid     → manager-or-above only (store_staff blocked).
-     * - Fully paid/settled → locked for everyone; additional items need a new order/invoice.
-     *
-     * Audit trail for every edit that gets through is handled automatically by
-     * OrderObserver::updated (fires on the Order::update() call inside adjustOrderCharge).
-     */
     private function ensureOrderIsEditable(Order $order): void
     {
         if ($order->isSettled()) {
@@ -415,11 +391,6 @@ if (!empty($data['pay_immediately'])) {
         }
     }
 
-    /**
-     * A percentage discount is an input method, not a stored property — the client sends
-     * the type and the entered value, the server turns it into the monetary amount that
-     * gets stored. Clamped to [0, subtotal] exactly as an absolute discount always was.
-     */
     private function resolveDiscount(array $data, float $subtotal, User $user): float
     {
         $value = (float) ($data['discount'] ?? 0);
@@ -499,12 +470,10 @@ if (!empty($data['pay_immediately'])) {
         ->first();
 
     if ($existingItem) {
-        // Just bump the quantity on the existing row
         $existingItem->update([
             'quantity' => $existingItem->quantity + $data['quantity'],
         ]);
     } else {
-        // Create a new row
         $order->items()->create([
             'product_id'   => $product->id,
             'product_name' => $product->name,
@@ -549,22 +518,12 @@ public function updateOrder(Order $order, array $data, User $user): Order
 
     return $order->load('items', 'payments', 'customer');
 }
-    /**
-     * Cancel an order — restores stock and reverses ledger charge.
-     *
-     * Flow:
-     * 1. Restore stock to warehouse for each item
-     * 2. Create REVERSAL ledger entry
-     * 3. Soft delete the order
-     *
-     * Called by: OrderController@destroy
-     */
+  
    public function cancelOrder(Order $order, \App\Models\User $user): void
 {
     DB::transaction(function () use ($order, $user) {
         $chargeAmount = $order->total;
 
-        // Block cancel if real money payments exist and aren't fully refunded
         $hasUnrefundedPayments = $order->payments()
             ->cashOnly()
             ->whereRaw('amount > COALESCE(refunded_amount, 0)')
@@ -576,14 +535,12 @@ public function updateOrder(Order $order, array $data, User $user): Order
             ]);
         }
 
-        // Calculate credit portion
         $creditPayments = $order->payments()
     ->creditOnly()
     ->get();
 
     $creditPaymentsTotal = $creditPayments->sum('amount');
 
-// Restore credit for each credit payment
 foreach ($creditPayments as $payment) {
     $this->ledger->restoreCredit([
         'tenant_id'      => $order->tenant_id,
@@ -597,7 +554,6 @@ foreach ($creditPayments as $payment) {
     ]);
 }
 
-        // Restore stock
         $batchId = (string) Str::uuid();
         foreach ($order->items as $item) {
             if ($item->warehouse_id) {
@@ -617,7 +573,6 @@ foreach ($creditPayments as $payment) {
             }
         }
 
-      // Only REVERSAL the cash portion
 $reversalAmount = $chargeAmount - $creditPaymentsTotal;
 if ($reversalAmount > 0) {
     $this->ledger->reverseOrder([
