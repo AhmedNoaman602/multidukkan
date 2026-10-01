@@ -37,6 +37,7 @@ class UpdateOrderRequest extends FormRequest
                 'sometimes', 'numeric', 'min:0', 'decimal:0,2',
                 $this->input('discount_type') === 'percent' ? 'max:100' : 'max:99999999.99',
             ],
+            'manual_total' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];
     }
 }

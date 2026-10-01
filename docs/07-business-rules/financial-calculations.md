@@ -17,14 +17,16 @@ Sign convention: **positive customer balance = customer owes the store**; negati
 | Number | Formula | Where |
 |---|---|---|
 | Items subtotal | `Σ(unit_price × quantity)` over order_items | `OrderService` / SQL `SUM(unit_price * quantity)` |
-| Effective discount | `max(0, min(discount, subtotal))` | `OrderService::createOrder` |
-| Charge amount (order total) | `manual_total` if provided, else `round(subtotal − discount, 2)` | `OrderService::createOrder`; later changes only via `adjustOrderCharge` |
+| Effective discount | `max(0, min(discount, subtotal))`; forced to `0` when `manual_total` is set | `OrderService::createOrder` / `updateOrder` |
+| Charge amount (order total) | `manual_total` if set, else `round(subtotal − discount, 2)` | `OrderService::createOrder` / `updateOrder`; later changes only via `adjustOrderCharge` |
 | Payment net value | `amount − COALESCE(refunded_amount, 0)` | everywhere payments are summed |
 | Settled amount | `Σ net value` of ALL payments (incl. credit) | `Order::settledAmount()` |
 | Is settled | `settledAmount ≥ total` | `Order::isSettled()` |
 | Cash received | `Σ net value` where `is_auto_reversible = false` | `Order::cashReceived()` |
 | Order owed | `max(0, orderTotal − alreadyPaid)` where orderTotal recomputed from items − discount | `PaymentService` (all three paths) |
 | Unpaid order filter | `total > Σ net payments` (SQL subquery) | `Order::scopeWhereUnpaid` |
+
+**`manual_total` and `discount` are mutually exclusive.** Setting `manual_total` (create or `PATCH /orders/{o}`) stores `discount = 0` and charges exactly `manual_total`. Setting a discount later, adding an item, or adjusting an item clears `manual_total` (`null`) and recomputes `subtotal − discount`.
 
 **Settled vs cash received are different questions.** An order fully paid by store credit is settled but produced zero cash. Dashboards/reports about cash flow use `cashReceived`; debt logic uses `settledAmount`.
 

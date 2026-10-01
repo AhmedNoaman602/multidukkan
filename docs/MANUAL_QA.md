@@ -225,18 +225,25 @@ This is the invariant that matters most: **stock is always stored in base units.
 
 ### 4c. `manual_total`
 
-- [ ] Create an order whose lines sum to 500, override the total to 450
+- [ ] In Quick Sale, add lines summing to 500, enter a discount, then type 450 in the total field
 
 | Check | Expected |
 |---|---|
+| Discount input | Disabled while a manual total is entered |
+| `orders.manual_total` | `450` |
+| `orders.discount` | `0` (manual total replaces the discount) |
 | `orders.total` | `450` |
 | `ORDER_CHARGE` amount | `450` |
+| Cash payment | `450` |
 | `OrderResource.subtotal` | `500` (sum of lines — they legitimately differ) |
 
-- [ ] Now **edit a line item** on that order
+- [ ] On an unpaid order's detail page, edit only the notes of an order with a manual total → total unchanged
+- [ ] Edit mode → set a manual total → discount becomes `0`, total = manual total
+- [ ] Edit mode → clear the manual total and enter a discount → `manual_total` becomes `null`, total = subtotal − discount
+- [ ] Now **edit a line item** on a manual-total order
 
-⚠️ **Expect `manual_total` to be lost** — `recalculateTotal()` recomputes from
-`SUM(unit_price × quantity) − discount`. Confirmed and tested behaviour, not a bug.
+⚠️ **Expect `manual_total` to be cleared** — `recalculateTotal()` recomputes from
+`SUM(unit_price × quantity) − discount`. Intended behaviour, not a bug.
 
 ### 4d. Editing items
 
@@ -572,7 +579,7 @@ Fill this in as you go. Don't fix anything until the flow is finished.
 | Opening stock writes no `inventory_transactions` row | [CODEBASE_NOTES #6](CODEBASE_NOTES.md) |
 | Orders-list `unpaid_amount` ignores credit payments | [CODEBASE_NOTES #8](CODEBASE_NOTES.md) |
 | `cost_price` not rolled back on PO cancel | [ARCHITECTURE_DECISIONS A8](ARCHITECTURE_DECISIONS.md) |
-| `manual_total` lost on a later item edit | Tested, intentional |
+| `manual_total` cleared on a later discount or item edit | Tested, intentional |
 | Product list N+1 on `inventories.warehouse` | [CODEBASE_NOTES #7](CODEBASE_NOTES.md) |
 
 ---

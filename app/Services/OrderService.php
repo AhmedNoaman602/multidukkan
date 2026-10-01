@@ -243,20 +243,24 @@ foreach ($validatedItems as $v) {
              $balanceBefore = $this->ledger->getBalance($order->tenant_id, $order->customer_id);
              $creditAvailable = max(0, -$balanceBefore);
 
-            // Calculate the discount and determine the final charge amount for the order (total amount minus the discount).
-            $discount = $this->resolveDiscount($data, $totalAmount, $user);
-            $calculatedTotal = round($totalAmount - $discount, 2);
+            // manual_total and discount are mutually exclusive: an override replaces the discount.
+            $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
 
-            $chargeAmount = isset($data['manual_total']) && $data['manual_total'] !== null
-    ? round((float) $data['manual_total'], 2)
-    : $calculatedTotal;
+            if ($manualTotal !== null) {
+                $discount = 0;
+                $chargeAmount = $manualTotal;
+            } else {
+                $discount = $this->resolveDiscount($data, $totalAmount, $user);
+                $chargeAmount = round($totalAmount - $discount, 2);
+            }
 
             // Update the order with its final total cost. The discount column carries the
             // resolved monetary amount — the subtotal is only known once items are priced,
             // so the create above could not clamp it or convert a percentage.
             $order->update([
-                'discount' => $discount,
-                'total'    => $chargeAmount,
+                'discount'     => $discount,
+                'manual_total' => $manualTotal,
+                'total'        => $chargeAmount,
             ]);
 
             // Post a charge entry to the customer's ledger for this order.
@@ -380,7 +384,7 @@ if (!empty($data['pay_immediately'])) {
         ]);
 
         // Step 3 — recalculate order total, update ledger + order
-        $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
+        $this->resetToCalculatedTotal($order);
         });
     }
 
@@ -411,11 +415,6 @@ if (!empty($data['pay_immediately'])) {
         }
     }
 
-    /**
-     * Recompute an order's total from its current items minus discount.
-     * Overrides applied via manual_total at creation are not preserved past this point —
-     * see docs/07-business-rules/financial-calculations.md.
-     */
     /**
      * A percentage discount is an input method, not a stored property — the client sends
      * the type and the entered value, the server turns it into the monetary amount that
@@ -453,6 +452,13 @@ if (!empty($data['pay_immediately'])) {
         $discount = (float) ($order->discount ?? 0);
 
         return max(0, round($subtotal - $discount, 2));
+    }
+
+    private function resetToCalculatedTotal(Order $order): void
+    {
+        $order->update(['manual_total' => null]);
+
+        $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
     }
 
     public function addItem(Order $order, array $data)
@@ -510,30 +516,36 @@ if (!empty($data['pay_immediately'])) {
     }
           $this->inventory->deductStock($product->id, $warehouseId, $stockQuantity, $order->id, Order::class, auth()->id());
 
-      $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
+      $this->resetToCalculatedTotal($order);
     });
 }
 
     // OrderService@updateOrder
 public function updateOrder(Order $order, array $data, User $user): Order
 {
-    // Discount directly changes the total — block it once the customer has paid against
-    // the old number. Notes/order_date carry no money implications, so they're unaffected.
-    if (isset($data['discount'])) {
-        $this->ensureOrderIsEditable($order);
+    DB::transaction(function () use ($order, $data, $user) {
+        $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
+        $hasDiscount = isset($data['discount']);
+        $fields = array_diff_key($data, array_flip(['discount', 'discount_type', 'manual_total']));
 
-        $subtotal = (float) $order->items()->sum(DB::raw('unit_price * quantity'));
-        $data['discount'] = $this->resolveDiscount($data, $subtotal, $user);
-    }
+        // Discount and manual_total change what the customer owes, so they go through the
+        // payment guard. Notes/order_date carry no money implications.
+        if ($manualTotal !== null) {
+            $this->ensureOrderIsEditable($order);
 
-    unset($data['discount_type']);
+            $order->update($fields + ['discount' => 0, 'manual_total' => $manualTotal]);
+            $this->ledger->adjustOrderCharge($order, $manualTotal);
+        } elseif ($hasDiscount) {
+            $this->ensureOrderIsEditable($order);
 
-    $order->update($data);
+            $subtotal = (float) $order->items()->sum(DB::raw('unit_price * quantity'));
 
-    // If discount changed → recalculate total + update ledger
-    if (isset($data['discount'])) {
-        $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
-    }
+            $order->update($fields + ['discount' => $this->resolveDiscount($data, $subtotal, $user)]);
+            $this->resetToCalculatedTotal($order);
+        } else {
+            $order->update($fields);
+        }
+    });
 
     return $order->load('items', 'payments', 'customer');
 }

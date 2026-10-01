@@ -155,7 +155,7 @@ Legend for the "Lifecycle" row: **Mutable** = rows are updated in normal operati
 | **PK** | `id` · **Tenant** `tenant_id` CASCADE |
 | **FKs** | `store_id` CASCADE, `customer_id` CASCADE, `created_by` → `users` **SET NULL** |
 | **Identity** | `invoice_number` — UNIQUE `(tenant_id, invoice_number)`, format `YYYY-NNN` |
-| **Money** | `total` **DECIMAL(12,2)** (wider than everything else, to accommodate `manual_total`), `discount` DECIMAL(10,2) |
+| **Money** | `total` DECIMAL(10,2), `discount` DECIMAL(10,2), `manual_total` DECIMAL(10,2) nullable (`null` = no override; mutually exclusive with `discount`) |
 | **Dates** | `order_date` DATE (business calendar date — **the label**), `created_at` DATETIME (true UTC instant) |
 | **Snapshot** | `customer_name_snapshot` |
 | **Indexes** | `(tenant_id, invoice_number)` UNIQUE, `(tenant_id, created_at)`, `(tenant_id, customer_id)` |
@@ -403,9 +403,8 @@ No custom columns, no tenant scoping — nothing here is business data.
 
 ### Decimal precision
 
-Every money column is `DECIMAL(10,2)` — max `99,999,999.99` — **except `orders.total`, which is
-`DECIMAL(12,2)`** to accommodate `manual_total`. This is why `StoreOrderRequest` validates
-`manual_total` at `max:9999999999.99` while everything else caps at `99999999.99`. Tested in
+Every money column is `DECIMAL(10,2)` — max `99,999,999.99` — including `orders.total` and
+`orders.manual_total`. `manual_total` is validated at `max:99999999.99` like everything else. Tested in
 `MonetaryOverflowValidationTest` — overflows must return 422, never a 500.
 
 ### Index coverage

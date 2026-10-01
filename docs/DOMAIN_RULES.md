@@ -239,6 +239,7 @@ drift.**
 | Value | Stored? | Where it lives / is computed | Why |
 |---|---|---|---|
 | `orders.total` | **Stored** | Written at creation; after that only `LedgerService::adjustOrderCharge` | ADR-004. Every list, report and unpaid query needs it; recomputing `SUM(unit_price × quantity)` everywhere fought the #1 requirement (speed). Also `manual_total` can't be derived at all. |
+| `orders.manual_total` | **Stored**, nullable | `OrderService::createOrder` / `updateOrder`; cleared by any discount or item edit | Records that the owner overrode the charge. Mutually exclusive with `discount` (which is `0` while it's set). |
 | Order **status** | **Derived** | `OrderResource::resolveStatus()` from `settledAmount() >= total` | A stored status is a cache of two other numbers and will disagree with them the first time a payment is refunded. |
 | Customer **balance** | **Derived** | `LedgerService::getBalance()` | ADR-003. |
 | Customer **credit** | **Derived** | `LedgerService::getCreditBalance()` | Same. |
@@ -258,10 +259,10 @@ drift.**
 - **Snapshots don't re-join**: an invoice renders `order_items.product_name`, never
   `$item->product->name`. Editing a product must not change last March's invoice.
 
-⚠️ **`manual_total` does not survive an item edit.** `recalculateTotal()` recomputes from
-`SUM(unit_price × quantity) − discount`, so the override is lost the moment anyone adjusts an item.
-Confirmed and tested (`test_manual_total_does_not_survive_a_later_item_edit`) — surprising, but
-intentional.
+⚠️ **`manual_total` and `discount` are mutually exclusive.** Setting `manual_total` (on create or
+`PATCH /orders/{o}`) zeroes the discount and charges exactly that amount. A later discount, added
+item, or adjusted item clears `manual_total` to `null` and recomputes `SUM(unit_price × quantity) −
+discount`. Tested in `ManualTotalTest` and `test_manual_total_does_not_survive_a_later_item_edit`.
 
 ---
 

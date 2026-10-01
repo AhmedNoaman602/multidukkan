@@ -19,6 +19,7 @@ class Order extends Model
         'created_by',
         'notes',
         'discount',
+        'manual_total',
         'total',
         'order_date'
     ];

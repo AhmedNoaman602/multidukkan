@@ -51,6 +51,7 @@ class OrderResource extends JsonResource
         'notes'      => $this->notes,
         'subtotal'       => round($subtotal, 2),  
         'discount'       => $discount,
+        'manual_total'   => $this->manual_total !== null ? (float) $this->manual_total : null,
         'total'      => $total,
         'paid' => $displayPaid,
         'customer_phone' => $this->customer?->phone ?? '',

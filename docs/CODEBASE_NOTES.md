@@ -487,7 +487,7 @@ was never fully built; since ADRs are immutable, they need superseding entries r
 | Two ledger schemas (`type`-based and `direction`-based) in one table | Generational; unification is a planned migration, not a drive-by. |
 | Arabic validation messages | The users are Arabic-speaking merchants. Do not translate. |
 | `manual_total`, price overrides, backdated `order_date` | Merchant escape hatches. Flexibility is the feature. Do not add validation that blocks them. |
-| `manual_total` not surviving an item edit | Confirmed and tested (`test_manual_total_does_not_survive_a_later_item_edit`). |
+| `manual_total` cleared by a later discount or item edit | Business rule: `manual_total` and `discount` are mutually exclusive. Tested in `ManualTotalTest`. |
 | Two different groupings (`$aggregated` and `$mergedItems`) over the same lines | Different keys for different jobs — see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) §6. |
 | `lockForUpdate()` on reads that look like plain sums in `PaymentService` | Required — a plain read would reuse the pinned REPEATABLE READ snapshot. The comments explain it. |
 | Microsecond timestamps on three tables | Feed ordering depends on them. |

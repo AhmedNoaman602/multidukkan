@@ -8,8 +8,9 @@ An order is a **sale event**: an immutable-ish snapshot of what was sold, to who
 |---|---|---|
 | `invoice_number` | `YYYY-NNN` per tenant/year | Generated in `OrderService::generateInvoiceNumber` (includes trashed orders in the max-lookup). Known 999/year collision defect — see [domain README](README.md#cross-cutting-schema-notes) |
 | `customer_name_snapshot` | Name at sale time | Survives customer edits/deletes |
-| `discount` | Order-level absolute discount | Clamped to `[0, items_total]` at creation |
-| `total` | **Stored** final charge | Written at creation; afterwards ONLY via `LedgerService::adjustOrderCharge` ([ADR-004](../01-architecture/decisions/ADR-004-stored-order-total.md)). May be a `manual_total` override — the owner can charge any amount regardless of computed items total |
+| `discount` | Order-level absolute discount | Clamped to `[0, items_total]`. Always `0` while `manual_total` is set |
+| `manual_total` | Owner's override of the charge, nullable | `null` = no override. Mutually exclusive with `discount`: setting it zeroes the discount; a later discount or any item edit clears it back to `null` |
+| `total` | **Stored** final charge | Written at creation; afterwards ONLY via `LedgerService::adjustOrderCharge` ([ADR-004](../01-architecture/decisions/ADR-004-stored-order-total.md)). Equals `manual_total` when one is set — the owner can charge any amount regardless of computed items total |
 | `order_date` | Optional backdating | Sets `created_at` directly (timestamps temporarily disabled). Reports and FIFO payment ordering use `created_at`, so backdated orders sort historically — intended |
 | `created_by` | User who made the sale | |
 | `deleted_at` | Soft delete = **cancelled** | Cancellation ≠ removal; see lifecycle doc |
@@ -27,9 +28,9 @@ An order is a **sale event**: an immutable-ish snapshot of what was sold, to who
 | Action | Endpoint | Money effect | Stock effect |
 |---|---|---|---|
 | Create | `POST /orders` | `ORDER_CHARGE`; auto credit-consume; optional `pay_immediately` cash payment | Check + deduct per warehoused line |
-| Update header | `PATCH /orders/{o}` | Discount change → recompute + `adjustOrderCharge` | none |
-| Adjust item | `PATCH /orders/{o}/items/{i}` | Recompute + `adjustOrderCharge` | Delta deduct/restore |
-| Add item | `POST /orders/{o}/items` | Recompute + `adjustOrderCharge` | Check + deduct |
+| Update header | `PATCH /orders/{o}` | `manual_total` → discount 0 + `adjustOrderCharge(manual_total)`; discount change → clear `manual_total`, recompute + `adjustOrderCharge` | none |
+| Adjust item | `PATCH /orders/{o}/items/{i}` | Clear `manual_total`, recompute + `adjustOrderCharge` | Delta deduct/restore |
+| Add item | `POST /orders/{o}/items` | Clear `manual_total`, recompute + `adjustOrderCharge` | Check + deduct |
 | Cancel | `DELETE /orders/{o}` | Blocked if unrefunded cash payments; restores credit; `REVERSAL` for cash portion | Restore all warehoused lines |
 
 ---

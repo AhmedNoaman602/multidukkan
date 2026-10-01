@@ -13,8 +13,8 @@ flowchart TD
     D -- yes --> E[Resolve price per line:<br/>manual unit_price > tier a-e > base price<br/>secondary lines: price × conversion_factor]
     E --> F[Create order: invoice YYYY-NNN,<br/>customer_name_snapshot, optional backdated order_date]
     F --> G[Merge identical lines - product+warehouse+unit_type<br/>create order_items, deduct stock per warehoused line]
-    G --> H[chargeAmount = manual_total ?? round subtotal − clamped discount]
-    H --> I[Store orders.total + ORDER_CHARGE ledger entry]
+    G --> H[manual_total set? chargeAmount = manual_total, discount = 0<br/>else chargeAmount = round subtotal − clamped discount]
+    H --> I[Store orders.total + manual_total + ORDER_CHARGE ledger entry]
     I --> J{Customer has credit?<br/>balanceBefore < 0}
     J -- yes --> K[Auto-apply min credit, charge:<br/>credit Payment is_auto_reversible=true<br/>+ PAYMENT + CREDIT_CONSUMED entries]
     J -- no --> L{pay_immediately?}
@@ -37,9 +37,12 @@ Status is always derived: **unpaid → partially paid → settled** is a spectru
 
 | Edit | Path | Stock | Ledger |
 |---|---|---|---|
-| Item quantity/price | `adjustItem` | Delta: deduct increase (with check) / restore decrease | Recompute items − discount → `adjustOrderCharge` |
+| Item quantity/price | `adjustItem` | Delta: deduct increase (with check) / restore decrease | Clear `manual_total`, recompute items − discount → `adjustOrderCharge` |
 | Add item | `addItem` (merges into an existing identical line if present) | Check + deduct | same |
 | Discount | `updateOrder` | none | same |
+| Manual total | `updateOrder` | none | Set `discount = 0`, `adjustOrderCharge(manual_total)` |
+
+Discount and manual total go through the same payment guard as item edits (fully paid → locked; partially paid → manager/admin only). A notes/`order_date`-only edit touches no money and skips the guard.
 | Payment amount/method | `LedgerService::adjustPayment` | none | Edits `PAYMENT` entry in place ([ADR-006](../01-architecture/decisions/ADR-006-ledger-mutability-boundaries.md)); blocked after any refund |
 
 ⚠️ `adjustItem` currently lacks a `DB::transaction` wrapper (unlike `addItem`) — a mid-flight failure can deduct stock without updating the ledger. Known gap; wrap it when next touched.

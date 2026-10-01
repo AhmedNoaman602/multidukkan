@@ -96,7 +96,7 @@ class OrderMoneyTest extends TestCase
 
         $orderId = $response->json('id');
 
-        $this->assertDatabaseHas('orders', ['id' => $orderId, 'total' => 500]);
+        $this->assertDatabaseHas('orders', ['id' => $orderId, 'total' => 500, 'manual_total' => 500, 'discount' => 0]);
         $this->assertDatabaseHas('ledger_entries', [
             'reference_type' => 'order',
             'reference_id'   => $orderId,
@@ -118,7 +118,7 @@ class OrderMoneyTest extends TestCase
             ->assertStatus(200);
 
         // 3 x 300 = 900, no discount — the manual override is gone, matches financial-calculations.md
-        $this->assertDatabaseHas('orders', ['id' => $order->id, 'total' => 900]);
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'total' => 900, 'manual_total' => null]);
     }
 
     // ─────────────────────────────────────────
