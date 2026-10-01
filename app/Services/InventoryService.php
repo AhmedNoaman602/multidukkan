@@ -4,6 +4,7 @@ namespace App\Services;
 use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
+use App\Models\StockTransfer;
 use App\Models\Warehouse;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
@@ -97,6 +98,61 @@ class InventoryService
                 'threshold' => $threshold ?? 10,
             ]
         );
+    }
+
+    /**
+     * Move base-unit stock between two locations: one TRANSFER_OUT and one TRANSFER_IN row,
+     * both referencing the transfer and sharing its batch_id. Both inventory rows are locked
+     * in id order, so concurrent transfers over the same pair queue instead of deadlocking.
+     */
+    public function transferStock(int $productId, int $fromWarehouseId, int $toWarehouseId, int $baseQuantity, StockTransfer $transfer, ?int $userId = null): void
+    {
+        DB::transaction(function () use ($productId, $fromWarehouseId, $toWarehouseId, $baseQuantity, $transfer, $userId) {
+            $this->ensureStockRow($productId, $toWarehouseId, $transfer->tenant_id, 0);
+
+            $ids = Inventory::where('product_id', $productId)
+                ->whereIn('warehouse_id', [$fromWarehouseId, $toWarehouseId])
+                ->pluck('id');
+
+            $rows = Inventory::whereIn('id', $ids)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('warehouse_id');
+
+            $source = $rows->get($fromWarehouseId);
+            $destination = $rows->get($toWarehouseId);
+
+            if (!$source || $source->quantity < $baseQuantity) {
+                throw new HttpResponseException(
+                    response()->json(['message' => __('messages.insufficient_stock', [
+                        'product'   => Product::find($productId)?->name ?? "Product ID {$productId}",
+                        'warehouse' => Warehouse::find($fromWarehouseId)?->name ?? "Warehouse ID {$fromWarehouseId}",
+                        'available' => $source?->quantity ?? 0,
+                    ])], 422)
+                );
+            }
+
+            $source->decrement('quantity', $baseQuantity);
+            $destination->increment('quantity', $baseQuantity);
+
+            foreach ([
+                [$fromWarehouseId, InventoryTransaction::TYPE_TRANSFER_OUT],
+                [$toWarehouseId, InventoryTransaction::TYPE_TRANSFER_IN],
+            ] as [$warehouseId, $type]) {
+                InventoryTransaction::create([
+                    'tenant_id'      => $transfer->tenant_id,
+                    'warehouse_id'   => $warehouseId,
+                    'product_id'     => $productId,
+                    'type'           => $type,
+                    'quantity'       => $baseQuantity,
+                    'reference_id'   => $transfer->id,
+                    'reference_type' => StockTransfer::class,
+                    'user_id'        => $userId,
+                    'batch_id'       => $transfer->batch_id,
+                ]);
+            }
+        });
     }
 
     /**
