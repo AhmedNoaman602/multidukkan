@@ -16,6 +16,7 @@ Physical stock truth: **`inventory.quantity` is the current state; `inventory_tr
 | `deductStock` | `TYPE_SALE` | Order lines with a warehouse; **also PO cancellation** (see quirk below) |
 | `restoreStock` | `TYPE_RETURN` | Order cancel / qty reduction; **also PO receiving** (quirk below) |
 | `adjustStock` | `TYPE_ADJUSTMENT_IN` / `_OUT` | Manual `POST /inventory/{i}/adjust`; handles secondary-unit conversion itself; blocks negative result |
+| `transferStock` | `TYPE_TRANSFER_OUT` + `TYPE_TRANSFER_IN` | Stock transfers between two locations of one store — see [stock-transfers.md](stock-transfers.md); locks both rows, blocks negative result |
 
 **Semantic quirk (accepted for now)**: purchase orders reuse `restoreStock`/`deductStock`, so PO receipts log as `RETURN` and PO cancellations log as `SALE`. The `reference_type = PurchaseOrder::class` disambiguates, but any report that reads transaction types as business meaning must join the reference. A `TYPE_PURCHASE`/`TYPE_PURCHASE_REVERSAL` pair would be more honest — candidate cleanup.
 
@@ -26,9 +27,9 @@ Physical stock truth: **`inventory.quantity` is the current state; `inventory_tr
 3. Stock can be zero but not negative via `adjustStock`/`checkStock` paths. **Race window**: `checkStock` then `deductStock` without row locking — two simultaneous sales of the last unit can oversell. Accepted at current volume; fix is `lockForUpdate()` inside the order transaction when it matters.
 4. Null-warehouse lines skip this entire subsystem ([ADR-007](../01-architecture/decisions/ADR-007-nullable-warehouse-on-line-items.md)).
 
-## Phase 3 preview — Stock Transfers (not built)
+## Stock Transfers
 
-Locked rules from CLAUDE.md: statuses `PENDING/APPROVED/REJECTED/COMPLETED`; source store manager or tenant_admin approves; staff request only; approval atomically deducts source + adds destination logging `TRANSFER_OUT` + `TRANSFER_IN`; rejection moves nothing; **zero ledger entries** (inventory-only event). When building: add the two transaction type constants, route both movements through `InventoryService` inside one `DB::transaction`.
+Manual same-store transfers are built (Part 3); automatic shelf replenishment and the staff request/approval flow are not. See [stock-transfers.md](stock-transfers.md).
 
 ---
 **Related documents**: [Costing & Inventory Rules](../07-business-rules/costing-and-inventory-rules.md), [ADR-007](../01-architecture/decisions/ADR-007-nullable-warehouse-on-line-items.md), [Products & Units](products-and-units.md).

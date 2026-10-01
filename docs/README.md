@@ -72,6 +72,7 @@ every claim labelled Confirmed / Inferred / Unclear / Potential issue.
 | [06-domain/payments-and-credit.md](06-domain/payments-and-credit.md) | Payments, auto-payment, credit, refunds | Backend devs, AI | Payment flow changes | Sessions touching payments/ledger |
 | [06-domain/ledger.md](06-domain/ledger.md) | The financial source of truth | Backend devs, AI | Ledger entry types change | **Every session touching money** |
 | [06-domain/inventory-and-warehouses.md](06-domain/inventory-and-warehouses.md) | Stock, transactions, adjustments | Backend devs, AI | Inventory flow changes | Sessions touching stock |
+| [06-domain/stock-transfers.md](06-domain/stock-transfers.md) | Same-store transfers, manual vs replenishment | Backend devs, AI | Transfer flow changes | Sessions touching transfers |
 | [06-domain/suppliers-and-purchase-orders.md](06-domain/suppliers-and-purchase-orders.md) | Suppliers, POs, supplier payments, costing | Backend devs, AI | Purchasing flow changes | Sessions touching purchasing |
 | [07-business-rules/financial-calculations.md](07-business-rules/financial-calculations.md) | Every money formula, with the one true source | Backend devs, AI | Any formula changes | **Every session touching money** |
 | [07-business-rules/order-lifecycle.md](07-business-rules/order-lifecycle.md) | Create → adjust → pay → cancel, step by step | Backend devs, AI | Order flow changes | Sessions touching orders |

@@ -44,6 +44,7 @@ erDiagram
 | Payment | [payments-and-credit.md](payments-and-credit.md) | Money in, credit applied, refunds out |
 | LedgerEntry | [ledger.md](ledger.md) | **The financial source of truth** |
 | Inventory / Warehouse / InventoryTransaction | [inventory-and-warehouses.md](inventory-and-warehouses.md) | Where stock physically is, and every movement |
+| StockTransfer / StockTransferItem | [stock-transfers.md](stock-transfers.md) | Moving stock between locations of one store |
 | Supplier / PurchaseOrder / SupplierPayment | [suppliers-and-purchase-orders.md](suppliers-and-purchase-orders.md) | Who we buy from, at what cost, with what debt |
 
 Not yet built (Phase 3): **StockTransfer** — moving inventory between stores with request/approve workflow. Rules are pre-decided in `CLAUDE.md` (source store approves; staff request only; zero ledger entries; atomic `TRANSFER_OUT`/`TRANSFER_IN`).

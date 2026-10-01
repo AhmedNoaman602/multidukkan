@@ -131,15 +131,19 @@ Long-lived engineering docs live in [`docs/`](docs/README.md). **AI sessions mus
 - Three roles (string column, not a roles table): `tenant_admin`, `store_manager`, `store_staff`
   - `tenant_admin`: `store_id = null`, full access
   - `store_manager`: `store_id` = their store, full access within store
-  - `store_staff`: `store_id` = their store, limited access (orders + payments + read-only inventory/products + request transfers)
+  - `store_staff`: `store_id` = their store, limited access (orders + payments + read-only inventory/products + request transfers, once the request flow exists)
 
 ## Stock Transfer Rules
 
-- Source store manager OR tenant_admin approves; `store_staff` can only request, never approve
-- On approve: atomic — deduct source, add destination, log `TRANSFER_OUT` + `TRANSFER_IN`
-- On reject: nothing moves
+See [docs/06-domain/stock-transfers.md](docs/06-domain/stock-transfers.md).
+
+- Same store only — source and destination are two locations (shelf or storage) of one store
+- **Manual transfers (built, MVP):** tenant_admin or the source store's manager; completed immediately (`status = COMPLETED`, no approval step). `store_staff` gets 403 — the staff request/approve flow is not built yet
+- **Replenishment transfers (Part 4, not built):** system-generated during a sale, `type = replenishment`, linked to the order, no approval. Clients can never create one
+- Atomic: deduct source, add destination, log `TRANSFER_OUT` + `TRANSFER_IN` sharing the transfer's `batch_id`, all through `InventoryService::transferStock`
+- Lines save the entered unit (`quantity`, `unit_type`, `conversion_factor`, `unit_name`); stock moves in base units
 - Zero ledger entries — inventory only
-- Statuses: `PENDING`, `APPROVED`, `REJECTED`, `COMPLETED`
+- Statuses: `PENDING`, `APPROVED`, `REJECTED`, `COMPLETED` (only `COMPLETED` is used until the request flow exists)
 
 ## Locked Decisions — Never Revisit
 
