@@ -88,7 +88,7 @@ class PurchaseOrderService
             $validatedItems = [];
             foreach ($data['items'] as $itemData) {
                 $product = $products->get($itemData['product_id']);
-                $warehouseId = $itemData['warehouse_id'] ?? null;
+                $warehouseId = $itemData['warehouse_id'];
                 $unitType = $itemData['unit_type'] ?? 'base';
 
                 $conversionFactor = $product->factorFor($unitType);
@@ -171,24 +171,22 @@ class PurchaseOrderService
                 $runningStock[$v['product']->id] = $effectiveStock + $v['stockQty'];
                 $runningCost[$v['product']->id] = round($newAvg, 2);
                 
-                if ($v['warehouseId']) {
-                    $this->inventory->ensureStockRow(
-                        $v['product']->id,
-                        $v['warehouseId'],
-                        $user->tenant_id
-                    );
+                $this->inventory->ensureStockRow(
+                    $v['product']->id,
+                    $v['warehouseId'],
+                    $user->tenant_id
+                );
 
-                    $this->inventory->restoreStock(
-                        $v['product']->id,
-                        $v['warehouseId'],
-                        $v['stockQty'],
-                        $purchaseOrder->id,
-                        PurchaseOrder::class,
-                        $user->id,
-                        $batchId,
-                        InventoryTransaction::TYPE_PURCHASE_IN
-                    );
-                }
+                $this->inventory->restoreStock(
+                    $v['product']->id,
+                    $v['warehouseId'],
+                    $v['stockQty'],
+                    $purchaseOrder->id,
+                    PurchaseOrder::class,
+                    $user->id,
+                    $batchId,
+                    InventoryTransaction::TYPE_PURCHASE_IN
+                );
                 $totalAmount += ($purchaseOrderItem->unit_price * $purchaseOrderItem->quantity);
             }
 
@@ -215,9 +213,7 @@ class PurchaseOrderService
             $batchId = (string) Str::uuid();
 
             foreach ($purchaseOrder->items as $item) {
-                if ($item->warehouse_id) {
-                    $this->inventory->deductStock($item->product_id, $item->warehouse_id, $item->baseQuantity(), $purchaseOrder->id, PurchaseOrder::class, $user->id, $batchId, InventoryTransaction::TYPE_PURCHASE_OUT);
-                }
+                $this->inventory->deductStock($item->product_id, $item->warehouse_id, $item->baseQuantity(), $purchaseOrder->id, PurchaseOrder::class, $user->id, $batchId, InventoryTransaction::TYPE_PURCHASE_OUT);
             }
             $this->ledger->reversePurchaseOrder([
                 'tenant_id' => $purchaseOrder->tenant_id,

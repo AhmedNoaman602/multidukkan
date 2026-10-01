@@ -14,10 +14,9 @@ return new class extends Migration
         Schema::table('order_items', function (Blueprint $table) {
 
             $table->foreignId('warehouse_id')
-            ->nullable()
             ->after('product_id')
             ->constrained()
-            ->nullOnDelete();
+            ->restrictOnDelete();
         });
     }
 

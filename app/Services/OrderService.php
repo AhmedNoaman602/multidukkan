@@ -112,7 +112,7 @@ class OrderService
             $validatedItems = [];
             foreach ($data['items'] as $itemData) {
                 $product = $products[$itemData['product_id']];
-                $warehouseId = $itemData['warehouse_id'] ?? null;
+                $warehouseId = $itemData['warehouse_id'];
                 $unitType = $itemData['unit_type'] ?? 'base';
 
                 // Resolve the unit once; the item keeps this factor for every later edit or reversal.
@@ -151,10 +151,6 @@ class OrderService
             // same product each pass on their own but can overdraw the shelf together.
             $aggregated = [];
             foreach ($validatedItems as $item) {
-                if (!$item['warehouseId']) {
-                    continue;
-                }
-
                 $key = $item['product']->id.'_'.$item['warehouseId'];
 
                 $aggregated[$key] ??= [
@@ -218,18 +214,15 @@ foreach ($validatedItems as $v) {
                     'warehouse_id' => $v['warehouseId'],
                 ]);
 
-                // If a warehouse is assigned, deduct the stock from that warehouse for this order item.
-                if ($v['warehouseId']) {
-                    $this->inventory->deductStock(
-                        $v['product']->id,
-                        $v['warehouseId'],
-                        $v['stockQty'],
-                        $order->id,
-                        Order::class,
-                        $user->id,
-                        $batchId
-                    );
-                }
+                $this->inventory->deductStock(
+                    $v['product']->id,
+                    $v['warehouseId'],
+                    $v['stockQty'],
+                    $order->id,
+                    Order::class,
+                    $user->id,
+                    $batchId
+                );
 
                 $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
             }
@@ -555,17 +548,15 @@ foreach ($creditPayments as $payment) {
 
         $batchId = (string) Str::uuid();
         foreach ($order->items as $item) {
-            if ($item->warehouse_id) {
-                $this->inventory->restoreStock(
-                    $item->product_id,
-                    $item->warehouse_id,
-                    $item->baseQuantity(),
-                    $order->id,
-                    Order::class,
-                    $user->id,
-                    $batchId
-                );
-            }
+            $this->inventory->restoreStock(
+                $item->product_id,
+                $item->warehouse_id,
+                $item->baseQuantity(),
+                $order->id,
+                Order::class,
+                $user->id,
+                $batchId
+            );
         }
 
 $reversalAmount = $chargeAmount - $creditPaymentsTotal;
