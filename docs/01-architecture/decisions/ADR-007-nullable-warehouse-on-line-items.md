@@ -1,6 +1,6 @@
 # ADR-007: `warehouse_id` is nullable on order/PO line items
 
-**Status**: Accepted **Date**: recorded 2026-07-08 (decision predates record)
+**Status**: Superseded by [ADR-010](ADR-010-stock-locations-and-shelf-fulfillment.md) **Date**: recorded 2026-07-08 (decision predates record)
 
 ## Context
 Not every sale moves tracked stock: services, items sold before inventory was set up, ad-hoc goods. Forcing a warehouse on every line would block real sales — unacceptable for a POS.

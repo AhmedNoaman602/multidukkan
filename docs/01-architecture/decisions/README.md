@@ -14,9 +14,10 @@ If you are an AI session and a change you're planning contradicts an `Accepted` 
 | [ADR-004](ADR-004-stored-order-total.md) | `order.total` is stored, synced via `adjustOrderCharge` | Accepted — supersedes the original "never store total" rule |
 | [ADR-005](ADR-005-snapshot-pricing.md) | Snapshot name + price on line items at sale time | Accepted |
 | [ADR-006](ADR-006-ledger-mutability-boundaries.md) | Ledger append-only, with two narrow edit exceptions | Accepted — amends the original "append-only, no exceptions" rule |
-| [ADR-007](ADR-007-nullable-warehouse-on-line-items.md) | `warehouse_id` nullable on line items | Accepted |
+| [ADR-007](ADR-007-nullable-warehouse-on-line-items.md) | `warehouse_id` nullable on line items | Superseded by ADR-010 |
 | [ADR-008](ADR-008-weighted-average-costing.md) | Weighted-average cost on `products.cost_price` | Accepted |
 | [ADR-009](ADR-009-capability-gates.md) | Named capability Gates for cross-cutting role rules | Accepted — closes ADR-002's open question |
+| [ADR-010](ADR-010-stock-locations-and-shelf-fulfillment.md) | Stock locations, the store shelf, and shelf-first fulfillment | Accepted — supersedes ADR-007 |
 
 ## Template
 

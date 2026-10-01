@@ -119,7 +119,8 @@ Long-lived engineering docs live in [`docs/`](docs/README.md). **AI sessions mus
 ## Database — Key Notes
 
 - `inventory` table is named singular — `$table = 'inventory'` set on model
-- `order_items` has `warehouse_id` (nullable) — no warehouse = skip stock check
+- `order_items.warehouse_id` is NOT NULL — the location the line's stock left from, always in the order's own store (ADR-010)
+- `warehouses.type` is `shelf` or `storage` — every store has exactly one shelf, created with the store
 - `customers` has `created_by_store_id` (nullable) — tracking only, not a restriction
 - `ledger_entries` and `inventory_transactions` have no soft deletes — append only
 - `users.store_id` nullable (null = tenant_admin)
@@ -147,7 +148,7 @@ Long-lived engineering docs live in [`docs/`](docs/README.md). **AI sessions mus
 - Source store approves transfers; store_staff cannot approve
 - Products managed by tenant_admin only
 - No ledger entries for transfers
-- `warehouse_id` nullable on order_items
+- `order_items.warehouse_id` NOT NULL; one shelf per store, which can't be deleted (ADR-010, supersedes ADR-007)
 - Warehouse deletion blocked if stock > 0
 
 ## Test Rules
