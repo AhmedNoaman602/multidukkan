@@ -80,11 +80,9 @@ private function fetchOrders(int $tenantId, string $from, string $to): Collectio
 private function buildSummary(Collection $orders, Collection $payments, float $totalExpenses): array {
     $totalRevenue   = $orders->sum(fn($o) => $this->calcOrderTotal($o));
     $totalCollected = $payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
-    $grossProfit    = $orders->sum(fn($o) =>
-            $o->items->sum(fn($i) =>
-                ($i->unit_price - ($i->product?->cost_price ?? 0)) * $i->quantity
-            )
-        );
+    // Same per-order profit as buildProfitByOrder, so the summary always equals the sum of
+    // the orders: the charged total (after discount / manual_total) minus cost.
+    $grossProfit    = $orders->sum(fn($o) => $this->calcOrderTotal($o) - $this->orderCost($o));
 
            return [
             'total_revenue'   => round($totalRevenue, 2),
@@ -101,7 +99,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
     {
         return $orders->map(function ($o) {
             $revenue = round($this->calcOrderTotal($o), 2);
-            $cost    = round($o->items->sum(fn($i) => ($i->product?->cost_price ?? 0) * $i->quantity), 2);
+            $cost    = round($this->orderCost($o), 2);
             $profit  = round($revenue - $cost, 2);
 
             return [
@@ -177,6 +175,12 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
     {
         // orders.total is the authoritative charge amount (ADR-004) — respects manual_total overrides.
         return (float) $order->total;
+    }
+
+    // One cost figure for every profit number in the report.
+    private function orderCost($order): float
+    {
+        return (float) $order->items->sum(fn($i) => ($i->product?->cost_price ?? 0) * $i->quantity);
     }
 
      private function countMissingCostPrices(Collection $orders): int

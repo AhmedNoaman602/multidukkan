@@ -111,6 +111,62 @@ class ReportTest extends TestCase
         $this->assertEquals(200, $summary['net_profit']);
     }
 
+    // 2 pcs × 100, cost 60 each: subtotal 200, cost 120. Only the charged total differs.
+    private function profitReport(array ...$orders): array
+    {
+        $today = now()->toDateString();
+
+        foreach ($orders as $o) {
+            $order = $this->makeOrderWithProfit(total: $o['total'], unitPrice: 100, costPrice: 60, quantity: 2, orderDate: $today);
+            $order->update(array_diff_key($o, ['total' => true]));
+        }
+
+        return $this->actingAs($this->admin)->getJson($this->reportUrl($today))->assertOk()->json();
+    }
+
+    public function test_profit_without_discount_or_manual_total_is_unchanged(): void
+    {
+        $report = $this->profitReport(['total' => 200]);
+
+        $this->assertEquals(80, $report['summary']['gross_profit']);
+        $this->assertEquals([200, 120, 80], [
+            $report['profit_by_order']['data'][0]['revenue'],
+            $report['profit_by_order']['data'][0]['cost'],
+            $report['profit_by_order']['data'][0]['profit'],
+        ]);
+    }
+
+    public function test_profit_uses_the_charged_total_after_a_discount(): void
+    {
+        $report = $this->profitReport(['total' => 170, 'discount' => 30]);
+
+        $this->assertEquals(50, $report['summary']['gross_profit']);
+        $this->assertEquals(50, $report['profit_by_order']['data'][0]['profit']);
+    }
+
+    public function test_profit_uses_the_manual_total(): void
+    {
+        $report = $this->profitReport(['total' => 150, 'manual_total' => 150]);
+
+        $this->assertEquals(30, $report['summary']['gross_profit']);
+        $this->assertEquals(30, $report['profit_by_order']['data'][0]['profit']);
+    }
+
+    public function test_summary_gross_profit_equals_the_sum_of_per_order_profit(): void
+    {
+        $report = $this->profitReport(
+            ['total' => 200],
+            ['total' => 170, 'discount' => 30],
+            ['total' => 150, 'manual_total' => 150],
+        );
+
+        $perOrder = collect($report['profit_by_order']['data'])->sum('profit');
+
+        $this->assertEquals(160, $perOrder); // 80 + 50 + 30
+        $this->assertEquals($perOrder, $report['summary']['gross_profit']);
+        $this->assertEquals(520, $report['summary']['total_revenue']); // revenue already used orders.total
+    }
+
     public function test_net_profit_goes_negative_when_expenses_exceed_gross_profit(): void
     {
         $today = now()->toDateString();
