@@ -36,7 +36,8 @@ class ReportTest extends TestCase
         ]);
     }
 
-    private function makeOrderWithProfit(float $total, float $unitPrice, float $costPrice, int $quantity, string $orderDate): Order
+    // $conversionFactor > 1 makes it a secondary-unit line (e.g. boxes); $unitPrice is per that unit.
+    private function makeOrderWithProfit(float $total, float $unitPrice, float $costPrice, int $quantity, string $orderDate, int $conversionFactor = 1): Order
     {
         $product = Product::factory()->create([
             'tenant_id'  => $this->tenant->id,
@@ -53,10 +54,12 @@ class ReportTest extends TestCase
         ]);
 
         OrderItem::factory()->create([
-            'order_id'   => $order->id,
-            'product_id' => $product->id,
-            'quantity'   => $quantity,
-            'unit_price' => $unitPrice,
+            'order_id'          => $order->id,
+            'product_id'        => $product->id,
+            'quantity'          => $quantity,
+            'unit_price'        => $unitPrice,
+            'unit_type'         => $conversionFactor > 1 ? 'secondary' : 'base',
+            'conversion_factor' => $conversionFactor,
         ]);
 
         return $order;
@@ -165,6 +168,55 @@ class ReportTest extends TestCase
         $this->assertEquals(160, $perOrder); // 80 + 50 + 30
         $this->assertEquals($perOrder, $report['summary']['gross_profit']);
         $this->assertEquals(520, $report['summary']['total_revenue']); // revenue already used orders.total
+    }
+
+    private function reportFor(callable $makeOrders): array
+    {
+        $makeOrders(now()->toDateString());
+
+        return $this->actingAs($this->admin)->getJson($this->reportUrl(now()->toDateString()))->assertOk()->json();
+    }
+
+    public function test_base_unit_sale_costs_cost_price_times_pieces(): void
+    {
+        // 24 pcs at 10, cost 5/pc → cost 120
+        $report = $this->reportFor(fn ($day) => $this->makeOrderWithProfit(total: 240, unitPrice: 10, costPrice: 5, quantity: 24, orderDate: $day));
+
+        $this->assertEquals([240, 120, 120], [
+            $report['profit_by_order']['data'][0]['revenue'],
+            $report['profit_by_order']['data'][0]['cost'],
+            $report['profit_by_order']['data'][0]['profit'],
+        ]);
+        $this->assertEquals(120, $report['summary']['gross_profit']);
+    }
+
+    public function test_secondary_unit_sale_costs_its_base_quantity(): void
+    {
+        // 2 boxes (1 box = 12) at 120/box, cost 5/pc → 24 pcs → cost 120, not 5 × 2 = 10
+        $report = $this->reportFor(fn ($day) => $this->makeOrderWithProfit(total: 240, unitPrice: 120, costPrice: 5, quantity: 2, orderDate: $day, conversionFactor: 12));
+
+        $this->assertEquals([240, 120, 120], [
+            $report['profit_by_order']['data'][0]['revenue'],
+            $report['profit_by_order']['data'][0]['cost'],
+            $report['profit_by_order']['data'][0]['profit'],
+        ]);
+        $this->assertEquals(120, $report['summary']['gross_profit']);
+    }
+
+    public function test_mixed_unit_sales_keep_summary_and_per_order_profit_consistent(): void
+    {
+        $report = $this->reportFor(function ($day) {
+            $this->makeOrderWithProfit(total: 240, unitPrice: 10, costPrice: 5, quantity: 24, orderDate: $day);                         // profit 120
+            $this->makeOrderWithProfit(total: 240, unitPrice: 120, costPrice: 5, quantity: 2, orderDate: $day, conversionFactor: 12);  // profit 120
+            $this->makeOrderWithProfit(total: 200, unitPrice: 120, costPrice: 5, quantity: 2, orderDate: $day, conversionFactor: 12)
+                ->update(['discount' => 40]);                                                                                         // profit 80
+        });
+
+        $perOrder = collect($report['profit_by_order']['data'])->sum('profit');
+
+        $this->assertEquals(320, $perOrder);
+        $this->assertEquals($perOrder, $report['summary']['gross_profit']);
+        $this->assertEquals(680, $report['summary']['total_revenue']);
     }
 
     public function test_net_profit_goes_negative_when_expenses_exceed_gross_profit(): void

@@ -177,10 +177,11 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
         return (float) $order->total;
     }
 
-    // One cost figure for every profit number in the report.
+    // One cost figure for every profit number in the report. cost_price is per base unit, so it
+    // is multiplied by the line's sale-time base quantity (2 box × 12 = 24 pcs), not the units sold.
     private function orderCost($order): float
     {
-        return (float) $order->items->sum(fn($i) => ($i->product?->cost_price ?? 0) * $i->quantity);
+        return (float) $order->items->sum(fn($i) => ($i->product?->cost_price ?? 0) * $i->baseQuantity());
     }
 
      private function countMissingCostPrices(Collection $orders): int
