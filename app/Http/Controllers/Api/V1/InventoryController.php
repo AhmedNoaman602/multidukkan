@@ -10,6 +10,7 @@ use App\Models\Inventory;
 use Illuminate\Http\Request;
 use App\Services\InventoryService;
 use App\Http\Requests\AdjustInventoryRequest;
+use App\Http\Requests\StockAvailabilityRequest;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 
@@ -57,6 +58,22 @@ public function index(Request $request)
         ],
     ]);
 }
+    // Shelf vs storage stock for the order screens. Display only: the sale re-checks under lock.
+    public function availability(StockAvailabilityRequest $request)
+    {
+        $this->authorize('viewAny', Inventory::class);
+
+        $user = auth()->user();
+        $data = $request->validated();
+
+        return response()->json([
+            'data' => $this->inventoryService->storeAvailability(
+                $user->store_id ?? (int) $data['store_id'],
+                $data['product_ids']
+            ),
+        ]);
+    }
+
     public function show(Inventory $inventory)
     {
         $this->authorize('view', $inventory);

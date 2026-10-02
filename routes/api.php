@@ -85,6 +85,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
 
     Route::get('/inventory', [InventoryController::class, 'index']);
+    Route::get('/inventory/availability', [InventoryController::class, 'availability']);
     Route::get('/inventory/{inventory}', [InventoryController::class, 'show']);
     Route::post('/inventory', [InventoryController::class, 'store']);
     Route::put('/inventory/{inventory}', [InventoryController::class, 'update']);

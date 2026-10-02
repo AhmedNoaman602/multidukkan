@@ -137,6 +137,36 @@ class InventoryService
     }
 
     /**
+     * Shelf and storage stock per product for one store, in one grouped query. Products with
+     * no stock rows come back as zeros. Display only — sales re-check under lock.
+     */
+    public function storeAvailability(int $storeId, array $productIds): array
+    {
+        $rows = DB::table('inventory')
+            ->join('warehouses', 'warehouses.id', '=', 'inventory.warehouse_id')
+            ->where('warehouses.store_id', $storeId)
+            ->whereIn('inventory.product_id', $productIds)
+            ->groupBy('inventory.product_id')
+            ->selectRaw("inventory.product_id,
+                SUM(CASE WHEN warehouses.type = 'shelf' THEN inventory.quantity ELSE 0 END) as shelf_quantity,
+                SUM(CASE WHEN warehouses.type = 'storage' THEN inventory.quantity ELSE 0 END) as storage_quantity")
+            ->get()
+            ->keyBy('product_id');
+
+        return collect($productIds)->map(function ($productId) use ($rows) {
+            $shelf = (int) ($rows[$productId]->shelf_quantity ?? 0);
+            $storage = (int) ($rows[$productId]->storage_quantity ?? 0);
+
+            return [
+                'product_id'       => (int) $productId,
+                'shelf_quantity'   => $shelf,
+                'storage_quantity' => $storage,
+                'total_quantity'   => $shelf + $storage,
+            ];
+        })->values()->all();
+    }
+
+    /**
      * Move base-unit stock between two locations: one TRANSFER_OUT and one TRANSFER_IN row,
      * both referencing the transfer and sharing its batch_id. Both inventory rows are locked
      * in id order, so concurrent transfers over the same pair queue instead of deadlocking.
