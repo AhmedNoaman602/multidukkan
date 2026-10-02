@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\StockTransfer;
 use App\Models\Warehouse;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 
@@ -43,7 +44,13 @@ class InventoryService
    public function deductStock(int $productId, int $warehouseId, int $quantity, ?int $referenceId = null, ?string $referenceType = null, ?int $userId = null, ?string $batchId = null, ?string $type = null): void{
         $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
+            ->lockForUpdate()
             ->firstOrFail();
+
+        // A clear 422 instead of the SQL error an unsigned quantity would throw below zero.
+        if ($inventory->quantity < $quantity) {
+            $this->failInsufficientStock($productId, $warehouseId, $inventory->quantity);
+        }
 
         $inventory->decrement('quantity' , $quantity);
 
@@ -100,6 +107,35 @@ class InventoryService
         );
     }
 
+    private function failInsufficientStock(int $productId, int $warehouseId, int $available): never
+    {
+        throw new HttpResponseException(
+            response()->json(['message' => __('messages.insufficient_stock', [
+                'product'   => Product::find($productId)?->name ?? "Product ID {$productId}",
+                'warehouse' => Warehouse::find($warehouseId)?->name ?? "Warehouse ID {$warehouseId}",
+                'available' => $available,
+            ])], 422)
+        );
+    }
+
+    /**
+     * Lock every inventory row for these products at these locations, in id order, so
+     * every sale and transfer touching overlapping rows queues the same way.
+     *
+     * @return Collection<int, Inventory>
+     */
+    public function lockRows(array $productIds, array $warehouseIds): Collection
+    {
+        $ids = Inventory::whereIn('product_id', $productIds)
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->pluck('id');
+
+        return Inventory::whereIn('id', $ids)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
     /**
      * Move base-unit stock between two locations: one TRANSFER_OUT and one TRANSFER_IN row,
      * both referencing the transfer and sharing its batch_id. Both inventory rows are locked
@@ -124,13 +160,7 @@ class InventoryService
             $destination = $rows->get($toWarehouseId);
 
             if (!$source || $source->quantity < $baseQuantity) {
-                throw new HttpResponseException(
-                    response()->json(['message' => __('messages.insufficient_stock', [
-                        'product'   => Product::find($productId)?->name ?? "Product ID {$productId}",
-                        'warehouse' => Warehouse::find($fromWarehouseId)?->name ?? "Warehouse ID {$fromWarehouseId}",
-                        'available' => $source?->quantity ?? 0,
-                    ])], 422)
-                );
+                $this->failInsufficientStock($productId, $fromWarehouseId, $source?->quantity ?? 0);
             }
 
             $source->decrement('quantity', $baseQuantity);
