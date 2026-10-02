@@ -8,10 +8,12 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Support\LocalDateRange;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderService
 {
@@ -206,9 +208,44 @@ class PurchaseOrderService
         });
     }
 
+    /**
+     * Cancelling takes the received stock back out of the location it was received into. If
+     * some of it has since moved (a transfer, a sale), refuse before writing anything. Rows are
+     * locked first so a sale can't take the stock between this check and the deduction.
+     */
+    private function ensureReceivedStockIsStillThere(PurchaseOrder $purchaseOrder): void
+    {
+        $needs = $purchaseOrder->items
+            ->groupBy(fn ($item) => $item->warehouse_id.'-'.$item->product_id)
+            ->map(fn ($items) => $items->sum(fn ($item) => $item->baseQuantity()));
+
+        $rows = $this->inventory
+            ->lockRows($purchaseOrder->items->pluck('product_id')->unique()->all(), $purchaseOrder->items->pluck('warehouse_id')->unique()->all())
+            ->keyBy(fn ($row) => $row->warehouse_id.'-'.$row->product_id);
+
+        foreach ($needs as $key => $needed) {
+            $available = (int) ($rows->get($key)?->quantity ?? 0);
+
+            if ($available < $needed) {
+                [$warehouseId, $productId] = explode('-', $key);
+
+                throw ValidationException::withMessages([
+                    'purchase_order' => __('messages.purchase_cancel_stock_moved', [
+                        'product'   => Product::find($productId)?->name ?? "Product ID {$productId}",
+                        'warehouse' => Warehouse::find($warehouseId)?->name ?? "Warehouse ID {$warehouseId}",
+                        'needed'    => $needed,
+                        'available' => $available,
+                    ]),
+                ]);
+            }
+        }
+    }
+
     public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, User $user): void
     {
         DB::transaction(function () use ($purchaseOrder, $user) {
+            $this->ensureReceivedStockIsStillThere($purchaseOrder);
+
             $chargeAmount = (float) $purchaseOrder->total;
             $batchId = (string) Str::uuid();
 

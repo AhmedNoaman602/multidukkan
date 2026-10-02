@@ -72,6 +72,7 @@ return [
     'product_has_stock_history' => 'Cannot delete a product with stock movement history',
     'product_has_stock' => 'Cannot delete a product with existing stock. Reduce stock to zero first',
     'purchase_order_has_payments' => 'Cannot cancel a purchase order with payments. Remove payments first',
+    'purchase_cancel_stock_moved' => 'Cannot cancel: :needed of :product were received into :warehouse, but only :available are still there. Move the stock back first',
     'store_is_only_store' => 'Cannot delete the only store. At least one store is required',
     'store_has_warehouses' => 'Cannot delete a store with existing warehouses. Remove warehouses first',
     'store_shelf_in_use' => 'Cannot delete a store whose shelf has stock or stock history',
