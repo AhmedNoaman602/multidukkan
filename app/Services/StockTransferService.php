@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\StockTransfer;
 use App\Models\User;
@@ -78,6 +79,53 @@ class StockTransferService
             }
 
             return $transfer->load('items.product', 'fromWarehouse', 'toWarehouse', 'creator', 'order');
+        });
+    }
+
+    /**
+     * Refill the shelf from one storage location for a sale. System-generated: authorised by
+     * the sale itself, so no approval and no role check — store_staff sales use it too.
+     * Only StockFulfillmentService calls this; there is no route.
+     *
+     * @param array<int, int> $baseQuantities product_id => base units to move
+     */
+    public function replenish(Order $order, Warehouse $from, Warehouse $shelf, array $baseQuantities, User $user): StockTransfer
+    {
+        return DB::transaction(function () use ($order, $from, $shelf, $baseQuantities, $user) {
+            $products = Product::where('tenant_id', $order->tenant_id)
+                ->whereIn('id', array_keys($baseQuantities))
+                ->get()
+                ->keyBy('id');
+
+            $transfer = StockTransfer::create([
+                'tenant_id'         => $order->tenant_id,
+                'store_id'          => $order->store_id,
+                'from_warehouse_id' => $from->id,
+                'to_warehouse_id'   => $shelf->id,
+                'type'              => StockTransfer::TYPE_REPLENISHMENT,
+                'status'            => StockTransfer::STATUS_COMPLETED,
+                'order_id'          => $order->id,
+                'created_by'        => $user->id,
+                'batch_id'          => (string) Str::uuid(),
+                'completed_at'      => now(),
+            ]);
+
+            ksort($baseQuantities);
+
+            foreach ($baseQuantities as $productId => $quantity) {
+                $transfer->items()->create([
+                    'tenant_id'         => $order->tenant_id,
+                    'product_id'        => $productId,
+                    'quantity'          => $quantity,
+                    'unit_type'         => 'base',
+                    'conversion_factor' => 1,
+                    'unit_name'         => $products->get($productId)?->unit ?? '',
+                ]);
+
+                $this->inventory->transferStock($productId, $from->id, $shelf->id, $quantity, $transfer, $user->id);
+            }
+
+            return $transfer;
         });
     }
 }
