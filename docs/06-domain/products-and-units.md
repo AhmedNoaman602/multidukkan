@@ -26,7 +26,9 @@ The `units` table (`UnitController`) is a tenant-defined list of unit names for 
 
 ## Other columns
 
-`sku`, `description` + `description_ar`/`description_en` (bilingual, AI-generated via `POST /ai/describe-product`), `opening_quantity` + opening fields (migration 2026-06-19) for onboarding existing stock.
+`sku`, `description` + `description_ar`/`description_en` (bilingual, AI-generated via `POST /ai/describe-product`).
+
+**Initial stock** is entered **per location** through `stocks[]` (`warehouse_id`, `quantity`, `unit_type`, `threshold`): `ProductService::syncStocks` converts with `factorFor()` and sets each location's absolute amount via `InventoryService::setStock`, which logs the difference. The same path handles product edits. `products.opening_quantity` was dropped (Part 5) and sending it returns 422.
 
 ## Deletion semantics
 

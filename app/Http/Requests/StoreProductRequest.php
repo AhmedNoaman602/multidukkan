@@ -45,7 +45,8 @@ class StoreProductRequest extends FormRequest
             'price_d'     => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
             'price_e'     => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
             'cost_price' => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
-            'opening_quantity' => 'nullable|integer|min:0|max:99999999',
+            // Initial stock is entered per location through stocks[].
+            'opening_quantity' => 'prohibited',
             'unit'      => 'nullable|string|max:20',
             'secondary_unit'    => 'nullable|string|max:50',
             'conversion_factor' => 'nullable|integer|min:2',
@@ -53,8 +54,12 @@ class StoreProductRequest extends FormRequest
             'stocks.*.warehouse_id' => [
             'required',
             'integer',
+            'distinct',
              new BelongsToTenant(Warehouse::class, $tenantId),
         ],            'stocks.*.quantity'       => 'nullable|integer|min:0',
+                      'stocks.*.unit_type'      => 'nullable|in:base,secondary',
+                      // "2 box + 7 pcs": loose base units on top of a secondary-unit quantity. Input only.
+                      'stocks.*.loose_quantity' => 'nullable|integer|min:0|prohibited_unless:stocks.*.unit_type,secondary',
                       'stocks.*.threshold'      => 'nullable|integer|min:0',
         ];
     }

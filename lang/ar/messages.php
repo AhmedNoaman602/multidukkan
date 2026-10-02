@@ -5,8 +5,6 @@ return [
     'insufficient_store_stock' => 'لا يوجد مخزون كافي من :product في هذا المتجر. المطلوب: :needed — على الرف: :shelf، في المخزن: :storage',
     'store_has_no_shelf' => 'هذا المتجر ليس له رف للبيع منه',
     'insufficient_removal_quantity' => 'لا يمكن إزالة :quantity. المتاح فقط: :available',
-    'no_warehouse_available' => 'لا يوجد مخزن متاح. يرجى إنشاء مخزن أولاً.',
-    'stock_note_opening_balance' => 'رصيد افتتاحي',
     'stock_note_initial_stock' => 'مخزون مبدئي',
     'stock_note_product_created' => 'تحديد المخزون عند إنشاء المنتج',
     'unit_already_exists' => 'هذه الوحدة موجودة بالفعل',

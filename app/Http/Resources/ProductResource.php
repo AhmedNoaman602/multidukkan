@@ -22,7 +22,6 @@ class ProductResource extends JsonResource
         'name'              => $this->name,
         'sku'               => $this->sku,
         'cost_price'        => $this->when($showsCost, fn () => $this->cost_price),
-        'opening_quantity'  => $this->opening_quantity,
         'price'             => $this->price,
         'price_a'           => $this->price_a,
         'price_b'           => $this->price_b,
@@ -57,6 +56,8 @@ class ProductResource extends JsonResource
         'stocks'            => $this->inventories->map(fn($inv) => [
             'warehouse_id'   => $inv->warehouse_id,
             'warehouse_name' => $inv->warehouse->name,
+            'warehouse_type' => $inv->warehouse->type,
+            'store_id'       => $inv->warehouse->store_id,
             'quantity'       => $inv->quantity,
             'threshold'      => $inv->threshold,
         ]),

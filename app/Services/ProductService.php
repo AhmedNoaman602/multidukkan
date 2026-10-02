@@ -4,8 +4,6 @@ namespace App\Services;
 
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Exceptions\HttpResponseException;
-use App\Models\Warehouse;
 
 class ProductService
 {
@@ -17,17 +15,6 @@ class ProductService
     }
 
     public function createProduct(array $data , int $tenantId, int $userId) : Product {
-// User creates product with opening_qty = 25
-//         ↓
-// Did user pick a warehouse? → use it
-// Did they not? → grab tenant's default warehouse
-//         ↓
-// Does an inventory row exist for product+warehouse?
-//     YES → leave it, just add 25 on top (increment)
-//     NO  → create it at 0, then add 25 (firstOrCreate + increment)
-//         ↓
-// Warehouse table now holds the truth: qty = 25
-// opening_quantity is never touched again
         return DB::transaction(function() use($data, $tenantId, $userId){
             $product = Product::create([
                 'tenant_id'          => $tenantId,
@@ -40,7 +27,6 @@ class ProductService
                 'price_d'            => $data['price_d'] ?? null,
                 'price_e'            => $data['price_e'] ?? null,
                 'cost_price'         => $data['cost_price'] ?? null,
-                'opening_quantity'   => $data['opening_quantity'] ?? 0,
                 'unit'               => $data['unit'] ?? 'pcs',
                 'secondary_unit'     => $data['secondary_unit'] ?? null,
                 'conversion_factor'  => $data['conversion_factor'] ?? null,
@@ -48,52 +34,41 @@ class ProductService
 
             $product->syncSuppliers($data['supplier_ids'] ?? []);
 
-            foreach ($data['stocks'] ?? [] as $stock) {
+            // Initial stock is per location; there is no product-level opening quantity.
+            $this->syncStocks($product, $data['stocks'] ?? [], $tenantId, $userId, __('messages.stock_note_product_created'));
+
+            return $product;
+        });
+    }
+
+    /**
+     * Set each location's stock to the quantity entered, in the unit entered, plus any loose
+     * base units ("2 box + 7 pcs" = 2 × 12 + 7). The server converts to base units with
+     * factorFor(); setStock() then logs the difference as an adjustment. With no quantity at
+     * all, stock is left alone and only the threshold is updated.
+     */
+    public function syncStocks(Product $product, array $stocks, int $tenantId, int $userId, string $note, ?string $batchId = null): void
+    {
+        DB::transaction(function () use ($product, $stocks, $tenantId, $userId, $note, $batchId) {
+            foreach ($stocks as $stock) {
                 if (empty($stock['warehouse_id'])) continue;
+
+                $quantity = isset($stock['quantity']) || isset($stock['loose_quantity'])
+                    ? (int) ($stock['quantity'] ?? 0) * $product->factorFor($stock['unit_type'] ?? 'base')
+                        + (int) ($stock['loose_quantity'] ?? 0)
+                    : null;
+
                 $this->inventory->setStock(
                     $product->id,
                     (int) $stock['warehouse_id'],
                     $tenantId,
-                    isset($stock['quantity']) ? (int) $stock['quantity'] : null,
-                    $stock['threshold'] ?? 10,
+                    $quantity,
+                    isset($stock['threshold']) ? (int) $stock['threshold'] : null,
                     $userId,
-                    __('messages.stock_note_product_created')
+                    $note,
+                    $batchId
                 );
             }
-             // Opening stock — one time only, backend owned
-            if (!empty($data['opening_quantity']) && $data['opening_quantity'] > 0) {
-                $warehouseId = collect($data['stocks'] ?? [])
-                    ->pluck('warehouse_id')
-                    ->filter()
-                    ->first()
-                    ?? $this->getDefaultWarehouse($tenantId);
-                if (!$warehouseId) {
-                    throw new HttpResponseException(
-                        response()->json(['message' => __('messages.no_warehouse_available')], 422)
-                    );
-                }
-
-                $this->inventory->ensureStockRow($product->id, $warehouseId, $tenantId);
-
-                $this->inventory->adjustStock(
-                    $product->id,
-                    $warehouseId,
-                    (int) $data['opening_quantity'],
-                    'in',
-                    'base',
-                    $userId,
-                    __('messages.stock_note_opening_balance')
-                );
-            }
-            return $product;
         });
-        
-    }
-
-    private function getDefaultWarehouse(int $tenantId): int
-    {
-        return Warehouse::where('tenant_id', $tenantId)
-            ->orderBy('id', 'asc')
-            ->value('id');
     }
 }

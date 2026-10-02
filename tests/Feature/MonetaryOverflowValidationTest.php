@@ -190,29 +190,4 @@ class MonetaryOverflowValidationTest extends TestCase
             'description' => 'Overpayment',
         ])->assertStatus(422)->assertJsonValidationErrors('amount');
     }
-
-    // ─────────────────────────────────────────────────────────
-    // products.opening_quantity — decimal(10,2), integer-validated
-    // (whole-number max that fits 8 integer digits = 99,999,999)
-    // ─────────────────────────────────────────────────────────
-
-    public function test_opening_quantity_at_column_maximum_is_accepted(): void
-    {
-        $this->createProduct(['sku' => 'OQ-MAX', 'opening_quantity' => 99999999])
-            ->assertStatus(201);
-
-        $this->assertDatabaseHas('products', [
-            'sku'              => 'OQ-MAX',
-            'opening_quantity' => 99999999,
-        ]);
-    }
-
-    public function test_opening_quantity_exceeding_column_maximum_returns_422(): void
-    {
-        $this->createProduct(['sku' => 'OQ-OVER', 'opening_quantity' => 100000000]) // 9 digits — overflows decimal(10,2)
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('opening_quantity');
-
-        $this->assertDatabaseMissing('products', ['sku' => 'OQ-OVER']);
-    }
 }

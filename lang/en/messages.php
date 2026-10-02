@@ -5,8 +5,6 @@ return [
     'insufficient_store_stock' => 'Not enough :product in this store. Needed: :needed — on the shelf: :shelf, in storage: :storage',
     'store_has_no_shelf' => 'This store has no shelf to sell from',
     'insufficient_removal_quantity' => 'Cannot remove :quantity. Only :available available',
-    'no_warehouse_available' => 'No warehouse available. Please create one first.',
-    'stock_note_opening_balance' => 'Opening balance',
     'stock_note_initial_stock' => 'Initial stock',
     'stock_note_product_created' => 'Stock set on product creation',
     'unit_already_exists' => 'This unit already exists',

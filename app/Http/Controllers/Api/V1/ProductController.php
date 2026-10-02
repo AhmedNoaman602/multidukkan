@@ -9,7 +9,6 @@ use App\Http\Requests\UpdateProductRequest;
 use App\Models\Product;
 use App\Http\Resources\ProductResource;
 use App\Services\ProductService;
-use App\Services\InventoryService;
 use App\Http\Resources\ProductSupplierResource;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +18,7 @@ class ProductController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function __construct(protected ProductService $productService, protected InventoryService $inventoryService) {}
+    public function __construct(protected ProductService $productService) {}
 
     public function index(Request $request)
 {
@@ -32,7 +31,8 @@ class ProductController extends Controller
             $q->where('name', 'like', "%$request->search%")
               ->orWhere('sku', 'like', "%$request->search%");
         })
-        ->orderBy('name', 'asc');
+        ->orderBy('name', 'asc')
+        ->with('inventories.warehouse');
 
     if ($request->per_page === 'all') {
         return ProductResource::collection($query->get());
@@ -55,7 +55,7 @@ class ProductController extends Controller
          $user->id
         );
 
-        return (new ProductResource($product))
+        return (new ProductResource($product->load('inventories.warehouse')))
             ->response()
             ->setStatusCode(201);
     }
@@ -70,8 +70,8 @@ class ProductController extends Controller
         if ($product->tenant_id !== auth()->user()->tenant_id) {
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
-        
-        return new ProductResource($product);
+
+        return new ProductResource($product->load('inventories.warehouse'));
     }
 
     /**
@@ -109,20 +109,14 @@ class ProductController extends Controller
         $batchId = (string) Str::uuid();
 
         try {
-            foreach ($request->stocks ?? [] as $stock) {
-                if (empty($stock['warehouse_id'])) continue;
-
-                $this->inventoryService->setStock(
-                    $product->id,
-                    $stock['warehouse_id'],
-                    $user->tenant_id,
-                    $stock['quantity'] ?? null,
-                    $stock['threshold'] ?? null,
-                    $user->id,
-                    'Product stock edit',
-                    $batchId
-                );
-            }
+            $this->productService->syncStocks(
+                $product,
+                $request->validated()['stocks'] ?? [],
+                $user->tenant_id,
+                $user->id,
+                'Product stock edit',
+                $batchId
+            );
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => __('messages.validation_error'),
@@ -130,7 +124,7 @@ class ProductController extends Controller
             ], 422);
         }
 
-        return new ProductResource($product);
+        return new ProductResource($product->load('inventories.warehouse'));
     }
 
     /**

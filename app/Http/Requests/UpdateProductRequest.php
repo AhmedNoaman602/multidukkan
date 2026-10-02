@@ -39,10 +39,14 @@ class UpdateProductRequest extends FormRequest
             'stocks.*.warehouse_id' => [
                 'required_with:stocks',
                 'integer',
+                'distinct',
                 new BelongsToTenant(Warehouse::class, $tenantId),
             ],
             'stocks.*.threshold'    => ['nullable', 'integer', 'min:0'],
             'stocks.*.quantity'     => ['nullable', 'integer', 'min:0'],
+            'stocks.*.unit_type'    => ['nullable', 'in:base,secondary'],
+            // "2 box + 7 pcs": loose base units on top of a secondary-unit quantity. Input only.
+            'stocks.*.loose_quantity' => ['nullable', 'integer', 'min:0', 'prohibited_unless:stocks.*.unit_type,secondary'],
         ];
     }
 }

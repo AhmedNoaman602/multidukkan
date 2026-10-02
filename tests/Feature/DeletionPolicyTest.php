@@ -215,15 +215,14 @@ class DeletionPolicyTest extends TestCase
         ]);
     }
 
-    public function test_product_opening_quantity_writes_a_transaction(): void
+    public function test_product_initial_stock_writes_a_transaction(): void
     {
         $response = $this->actingAs($this->admin)->postJson('/api/products', [
             'name' => 'Opening Balance Widget',
             'sku' => 'OBW-001',
             'price' => 50,
-            'opening_quantity' => 30,
             'stocks' => [
-                ['warehouse_id' => $this->warehouse->id, 'quantity' => 0, 'threshold' => 5],
+                ['warehouse_id' => $this->warehouse->id, 'quantity' => 30, 'threshold' => 5],
             ],
         ]);
 
