@@ -12,8 +12,10 @@ Physical stock truth: **`inventory.quantity` is the current state; `inventory_tr
 
 | `InventoryService` method | Transaction type | Triggered by |
 |---|---|---|
-| `checkStock` | — (read/guard) | Order create/adjust — throws Arabic-message `ValidationException` when insufficient |
-| `deductStock` | `TYPE_SALE` | Order lines with a warehouse; **also PO cancellation** (see quirk below) |
+| `checkStock` | — (read/guard) | No longer called by orders (Part 4); kept until the Part 6 cleanup |
+| `deductStock` | `TYPE_SALE` | Sales from the shelf (via `StockFulfillmentService`); PO cancellation. Locks the row and returns 422 instead of going below zero |
+| `lockRows` | — | Locks a set of rows in id order before fulfillment decides anything |
+| `storeAvailability` | — (read) | `GET /inventory/availability`: shelf vs storage per product for one store, one grouped query; display only |
 | `restoreStock` | `TYPE_RETURN` | Order cancel / qty reduction; **also PO receiving** (quirk below) |
 | `adjustStock` | `TYPE_ADJUSTMENT_IN` / `_OUT` | Manual `POST /inventory/{i}/adjust`; handles secondary-unit conversion itself; blocks negative result |
 | `transferStock` | `TYPE_TRANSFER_OUT` + `TYPE_TRANSFER_IN` | Stock transfers between two locations of one store — see [stock-transfers.md](stock-transfers.md); locks both rows, blocks negative result |
@@ -24,12 +26,22 @@ Physical stock truth: **`inventory.quantity` is the current state; `inventory_tr
 
 1. **No mutation without a transaction row.** `Inventory::increment/decrement` outside `InventoryService` is forbidden. (Known violation: `Product::booted()` hard-deletes inventory rows on product delete without logging — flagged in [products-and-units.md](products-and-units.md).)
 2. **Base units only** in `inventory.quantity` and transaction quantities. Conversion happens before the service call (orders/POs) or inside `adjustStock`.
-3. Stock can be zero but not negative via `adjustStock`/`checkStock` paths. **Race window**: `checkStock` then `deductStock` without row locking — two simultaneous sales of the last unit can oversell. Accepted at current volume; fix is `lockForUpdate()` inside the order transaction when it matters.
-4. Null-warehouse lines skip this entire subsystem ([ADR-007](../01-architecture/decisions/ADR-007-nullable-warehouse-on-line-items.md)).
+3. Stock can be zero but never negative. Sales lock the shelf and storage rows (`lockRows`, id order) before checking, so two simultaneous sales of the last unit queue instead of overselling.
+4. Every sale line has a location (`order_items.warehouse_id` NOT NULL, [ADR-010](../01-architecture/decisions/ADR-010-stock-locations-and-shelf-fulfillment.md)).
+
+## Shelf-first fulfillment (Part 4)
+
+`StockFulfillmentService::fulfill(order, location, baseNeeds, user, batchId)`, called by create order, add item and quantity increases, inside the order's transaction:
+
+1. Eligible sources: the store's `storage` locations — only when the location is the shelf.
+2. Ensure a shelf row per product, then `lockRows` on the shelf + sources.
+3. Per product: shortfall = need − shelf. Cover it from sources sorted by quantity (highest first), then warehouse id (lowest first), several if needed. If storage can't cover it → 422 `insufficient_store_stock` (shelf and storage totals) before anything is written.
+4. One `replenishment` transfer per source used (`StockTransferService::replenish`, linked to the order, `COMPLETED`, no approval).
+5. `deductStock` each product's need from the shelf (`SALE`, the order's batch).
 
 ## Stock Transfers
 
-Manual same-store transfers are built (Part 3); automatic shelf replenishment and the staff request/approval flow are not. See [stock-transfers.md](stock-transfers.md).
+Manual same-store transfers (Part 3) and automatic shelf replenishment during sales (Part 4) are built; the staff request/approval flow is not. See [stock-transfers.md](stock-transfers.md).
 
 ---
 **Related documents**: [Costing & Inventory Rules](../07-business-rules/costing-and-inventory-rules.md), [ADR-007](../01-architecture/decisions/ADR-007-nullable-warehouse-on-line-items.md), [Products & Units](products-and-units.md).

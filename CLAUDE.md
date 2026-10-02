@@ -139,7 +139,8 @@ See [docs/06-domain/stock-transfers.md](docs/06-domain/stock-transfers.md).
 
 - Same store only — source and destination are two locations (shelf or storage) of one store
 - **Manual transfers (built, MVP):** tenant_admin or the source store's manager; completed immediately (`status = COMPLETED`, no approval step). `store_staff` gets 403 — the staff request/approve flow is not built yet
-- **Replenishment transfers (Part 4, not built):** system-generated during a sale, `type = replenishment`, linked to the order, no approval. Clients can never create one
+- **Replenishment transfers (built, Part 4):** system-generated during a sale whose shelf is short (`StockFulfillmentService`), `type = replenishment`, linked to the order, no approval — `store_staff` sales use it too. Clients can never create one
+- **Sales are taken from the shelf:** `warehouse_id` is prohibited in order payloads; the shelf is refilled from the same store's storage only (fullest first, lowest id on ties), inside the sale's transaction
 - Atomic: deduct source, add destination, log `TRANSFER_OUT` + `TRANSFER_IN` sharing the transfer's `batch_id`, all through `InventoryService::transferStock`
 - Lines save the entered unit (`quantity`, `unit_type`, `conversion_factor`, `unit_name`); stock moves in base units
 - Zero ledger entries — inventory only

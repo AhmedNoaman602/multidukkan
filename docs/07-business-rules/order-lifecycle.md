@@ -6,14 +6,16 @@ The complete life of a sale. All flows in `OrderService`/`PaymentService`, all i
 
 ```mermaid
 flowchart TD
-    A[Validated input] --> B[Prefetch customer + all products in 2 queries]
-    B --> C[Aggregate duplicate lines per product+warehouse<br/>convert secondary units to base]
-    C --> D{Stock sufficient for<br/>every warehoused line?}
-    D -- no --> X[422 - Arabic message - full rollback]
-    D -- yes --> E[Resolve price per line:<br/>manual unit_price > tier a-e > base price<br/>secondary lines: price × conversion_factor]
+    A[Validated input - no warehouse_id, it is prohibited] --> B[Prefetch customer + all products in 2 queries<br/>load the store's shelf - 422 if none]
+    B --> C[Convert every line to base units<br/>sum the base need per product]
+    C --> E[Resolve price per line:<br/>manual unit_price > tier a-e > base price<br/>secondary lines: price × conversion_factor]
     E --> F[Create order: invoice YYYY-NNN,<br/>customer_name_snapshot, optional backdated order_date]
-    F --> G[Merge identical lines - product+warehouse+unit_type<br/>create order_items, deduct stock per warehoused line]
-    G --> H[manual_total set? chargeAmount = manual_total, discount = 0<br/>else chargeAmount = round subtotal − clamped discount]
+    F --> G[Merge identical lines - product+unit_type+factor<br/>create order_items, all at the shelf]
+    G --> S[StockFulfillmentService::fulfill<br/>lock shelf + storage rows in id order]
+    S --> D{Shelf + store storage<br/>cover every product?}
+    D -- no --> X[422 insufficient_store_stock - full rollback]
+    D -- yes --> R[Shelf short? replenishment transfer per storage source<br/>fullest first, lowest id on ties<br/>then SALE from the shelf]
+    R --> H[manual_total set? chargeAmount = manual_total, discount = 0<br/>else chargeAmount = round subtotal − clamped discount]
     H --> I[Store orders.total + manual_total + ORDER_CHARGE ledger entry]
     I --> J{Customer has credit?<br/>balanceBefore < 0}
     J -- yes --> K[Auto-apply min credit, charge:<br/>credit Payment is_auto_reversible=true<br/>+ PAYMENT + CREDIT_CONSUMED entries]
@@ -27,6 +29,7 @@ flowchart TD
 Key subtleties:
 - **Credit is consumed before cash, always, automatically.** The customer cannot owe-and-be-owed simultaneously after a new order (until credit runs out).
 - `pay_immediately` pays `chargeAmount − appliedCredit` — never double-pays the credit-covered part.
+- **The seller never picks a location.** Every line is sold from the store's shelf; a short shelf is refilled from the same store's storage in the same transaction, recorded as a `COMPLETED` replenishment transfer linked to the order, with no approval — `store_staff` sales use it too ([ADR-010](../01-architecture/decisions/ADR-010-stock-locations-and-shelf-fulfillment.md), [stock-transfers.md](../06-domain/stock-transfers.md)).
 - Backdating (`order_date`) rewrites `created_at`, which FIFO payment allocation and reports sort by. Intended behavior for entering historical sales.
 
 ## Payment (see [payments-and-credit.md](../06-domain/payments-and-credit.md) for the three entry paths)
@@ -37,8 +40,8 @@ Status is always derived: **unpaid → partially paid → settled** is a spectru
 
 | Edit | Path | Stock | Ledger |
 |---|---|---|---|
-| Item quantity/price | `adjustItem` | Delta: deduct increase (with check) / restore decrease | Clear `manual_total`, recompute items − discount → `adjustOrderCharge` |
-| Add item | `addItem` (merges into an existing identical line if present) | Check + deduct | same |
+| Item quantity/price | `adjustItem` | Increase: `fulfill` at the line's recorded location (a shelf line refills from storage) / decrease: restore to that location | Clear `manual_total`, recompute items − discount → `adjustOrderCharge` |
+| Add item | `addItem` (merges into an existing identical shelf line if present) | `fulfill` at the shelf | same |
 | Discount | `updateOrder` | none | same |
 | Manual total | `updateOrder` | none | Set `discount = 0`, `adjustOrderCharge(manual_total)` |
 
@@ -54,7 +57,7 @@ flowchart TD
     A[DELETE /orders/id] --> B{Any cash payments<br/>not fully refunded?}
     B -- yes --> X[422: refund all payments first]
     B -- no --> C[For each credit payment:<br/>CREDIT_APPLY restores the credit]
-    C --> D[Restore stock for every warehoused line<br/>secondary converted to base]
+    C --> D[Restore each line's base quantity to its recorded warehouse_id<br/>replenishment transfers are not reversed]
     D --> E[REVERSAL entry for total − credit portion<br/>only if > 0]
     E --> F[Hard-delete the credit Payment rows<br/>soft-delete the order]
 ```

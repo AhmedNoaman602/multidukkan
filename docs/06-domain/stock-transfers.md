@@ -13,7 +13,7 @@ A stock transfer moves base-unit stock between two locations of **the same store
 | Type | Who creates it | Status | Built |
 |---|---|---|---|
 | `manual` | `tenant_admin`, or the `store_manager` of the source store | `COMPLETED` immediately | ✅ Part 3 |
-| `replenishment` | The system, during a sale whose shelf is short; linked to the order | `COMPLETED` immediately, no approval | Part 4 |
+| `replenishment` | The system, during a sale whose shelf is short (`StockFulfillmentService` → `StockTransferService::replenish`, no route); linked to the order; lines in base units, factor 1 | `COMPLETED` immediately, no approval | ✅ Part 4 |
 
 `store_staff` cannot create manual transfers (403). The staff request → manager approval flow (`PENDING` / `APPROVED` / `REJECTED`) is deferred; it adds status transitions on the same tables. `POST /stock-transfers` creates manual transfers only: sending `type`, `status` or `order_id` returns 422 (`prohibited`), so a replenishment can't be forged.
 

@@ -19,19 +19,19 @@ An order is a **sale event**: an immutable-ish snapshot of what was sold, to who
 
 ## Order items — schema highlights
 
-`product_id` (FK for analytics) + `product_name` (snapshot), `quantity`, `unit_type` (`base`|`secondary`), `unit_price` (snapshot, tier-resolved or overridden, already converted for secondary units), `warehouse_id` (nullable — null means no stock movement, [ADR-007](../01-architecture/decisions/ADR-007-nullable-warehouse-on-line-items.md)).
+`product_id` (FK for analytics) + `product_name` (snapshot), `quantity`, `unit_type` (`base`|`secondary`), `unit_price` (snapshot, tier-resolved or overridden, already converted for secondary units), `warehouse_id` (NOT NULL — the location the line's stock left from, always the store's shelf for new sales; the API prohibits it in payloads, [ADR-010](../01-architecture/decisions/ADR-010-stock-locations-and-shelf-fulfillment.md)).
 
-**Line merging**: at creation, and in `addItem`, lines with identical (`product_id`, `warehouse_id`, `unit_type`) merge into one row by summing quantity. Identical products at different warehouses or unit types stay separate rows — required for correct stock movement.
+**Line merging**: at creation, lines with identical (`product_id`, `unit_type`, `conversion_factor`) merge into one row by summing quantity; `addItem` merges into an identical line at the shelf. Different unit types stay separate rows. Stock need is summed **per product** across lines (1 box + 5 pcs = one need of 17).
 
 ## Mutation surface (all in `OrderService`)
 
 | Action | Endpoint | Money effect | Stock effect |
 |---|---|---|---|
-| Create | `POST /orders` | `ORDER_CHARGE`; auto credit-consume; optional `pay_immediately` cash payment | Check + deduct per warehoused line |
+| Create | `POST /orders` | `ORDER_CHARGE`; auto credit-consume; optional `pay_immediately` cash payment | `StockFulfillmentService::fulfill` at the shelf: refill from storage if short (replenishment transfer), then `SALE` |
 | Update header | `PATCH /orders/{o}` | `manual_total` → discount 0 + `adjustOrderCharge(manual_total)`; discount change → clear `manual_total`, recompute + `adjustOrderCharge` | none |
-| Adjust item | `PATCH /orders/{o}/items/{i}` | Clear `manual_total`, recompute + `adjustOrderCharge` | Delta deduct/restore |
-| Add item | `POST /orders/{o}/items` | Clear `manual_total`, recompute + `adjustOrderCharge` | Check + deduct |
-| Cancel | `DELETE /orders/{o}` | Blocked if unrefunded cash payments; restores credit; `REVERSAL` for cash portion | Restore all warehoused lines |
+| Adjust item | `PATCH /orders/{o}/items/{i}` | Clear `manual_total`, recompute + `adjustOrderCharge` | Increase: `fulfill` at the line's location / decrease: restore there |
+| Add item | `POST /orders/{o}/items` | Clear `manual_total`, recompute + `adjustOrderCharge` | `fulfill` at the shelf |
+| Cancel | `DELETE /orders/{o}` | Blocked if unrefunded cash payments; restores credit; `REVERSAL` for cash portion | Restore every line to its recorded location; replenishments stay |
 
 ---
 **Related documents**: [Order Lifecycle](../07-business-rules/order-lifecycle.md), [Payments & Credit](payments-and-credit.md), [Ledger](ledger.md).
