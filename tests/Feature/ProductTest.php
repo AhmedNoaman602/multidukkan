@@ -22,6 +22,54 @@ class ProductTest extends TestCase
      */
     use RefreshDatabase;
 
+private function productWithBoxes(): array
+{
+    $tenant = Tenant::factory()->create();
+    $user = User::factory()->create(['tenant_id' => $tenant->id, 'role' => 'tenant_admin', 'store_id' => null]);
+    $product = Product::factory()->create([
+        'tenant_id'         => $tenant->id,
+        'sku'               => 'BOX-001',
+        'unit'              => 'pcs',
+        'secondary_unit'    => 'box',
+        'conversion_factor' => 12,
+    ]);
+
+    return [$user, $product];
+}
+
+private function updateFactor(User $user, Product $product, int $factor)
+{
+    return $this->actingAs($user)->putJson("/api/products/{$product->id}", [
+        'name'              => $product->name,
+        'sku'               => $product->sku,
+        'price'             => $product->price,
+        'unit'              => 'pcs',
+        'secondary_unit'    => 'box',
+        'conversion_factor' => $factor,
+    ]);
+}
+
+public function test_updating_a_product_with_a_conversion_factor_of_one_is_rejected(): void
+{
+    [$user, $product] = $this->productWithBoxes();
+
+    // 1 box = 1 pc would make the secondary unit the base unit; create already requires 2+.
+    $this->updateFactor($user, $product, 1)
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('conversion_factor');
+
+    $this->assertDatabaseHas('products', ['id' => $product->id, 'conversion_factor' => 12]);
+}
+
+public function test_updating_a_product_with_a_conversion_factor_of_two_is_accepted(): void
+{
+    [$user, $product] = $this->productWithBoxes();
+
+    $this->updateFactor($user, $product, 2)->assertOk();
+
+    $this->assertDatabaseHas('products', ['id' => $product->id, 'conversion_factor' => 2]);
+}
+
 public function test_can_update_product_without_changing_sku(): void
 {
     $tenant = Tenant::factory()->create();

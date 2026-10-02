@@ -32,7 +32,8 @@ class UpdateProductRequest extends FormRequest
             'price_d'            => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             'price_e'            => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
             'secondary_unit'     => ['nullable', 'string'],
-            'conversion_factor'  => ['nullable', 'integer', 'min:1'],
+            // Base units in one secondary unit; 1 would make the secondary unit the base unit. Same rule as create.
+            'conversion_factor'  => ['nullable', 'integer', 'min:2'],
             'supplier_ids'       => ['sometimes', 'array'],
             'supplier_ids.*'     => ['integer', new BelongsToTenant(Supplier::class, $tenantId)],
             'stocks'             => ['nullable', 'array'],

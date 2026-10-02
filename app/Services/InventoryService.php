@@ -13,34 +13,6 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryService
 {
-    /**
-     * Create a new class instance.
-     */
-
-  public function checkStock(int $productId, int $warehouseId, int $quantity): void
-{
-    $inventory = Inventory::where('warehouse_id', $warehouseId)
-        ->where('product_id', $productId)
-        ->first();
-
-    $product = Product::find($productId);
-    $warehouse = Warehouse::find($warehouseId);
-
-    $productName = $product?->name ?? "Product ID {$productId}";
-    $warehouseName = $warehouse?->name ?? "Warehouse ID {$warehouseId}";
-    $available = $inventory?->quantity ?? 0;
-
-    if (!$inventory || $inventory->quantity < $quantity) {
-        throw new HttpResponseException(
-            response()->json(['message' => __('messages.insufficient_stock', [
-                'product'   => $productName,
-                'warehouse' => $warehouseName,
-                'available' => $available,
-            ])], 422)
-        );
-    }
-}
-
    public function deductStock(int $productId, int $warehouseId, int $quantity, ?int $referenceId = null, ?string $referenceType = null, ?int $userId = null, ?string $batchId = null, ?string $type = null): void{
         $inventory = Inventory::where('warehouse_id', $warehouseId)
             ->where('product_id', $productId)
