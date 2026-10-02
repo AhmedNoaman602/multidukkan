@@ -219,6 +219,84 @@ class ReportTest extends TestCase
         $this->assertEquals(680, $report['summary']['total_revenue']);
     }
 
+    // One product (1 box = 12) sold on today's orders; each line is [quantity, conversionFactor, unitPrice].
+    private function productsSoldFor(Product $product, array ...$lines): array
+    {
+        foreach ($lines as [$quantity, $factor, $unitPrice]) {
+            $order = Order::factory()->create([
+                'tenant_id'   => $this->tenant->id,
+                'store_id'    => $this->store->id,
+                'customer_id' => $this->customer->id,
+                'total'       => $unitPrice * $quantity,
+                'order_date'  => now()->toDateString(),
+            ]);
+            OrderItem::factory()->create([
+                'order_id'          => $order->id,
+                'product_id'        => $product->id,
+                'product_name'      => $product->name,
+                'quantity'          => $quantity,
+                'unit_price'        => $unitPrice,
+                'unit_type'         => $factor > 1 ? 'secondary' : 'base',
+                'conversion_factor' => $factor,
+            ]);
+        }
+
+        return $this->actingAs($this->admin)
+            ->getJson($this->reportUrl(now()->toDateString()))
+            ->assertOk()
+            ->json('products_sold');
+    }
+
+    private function boxedProduct(): Product
+    {
+        return Product::factory()->create([
+            'tenant_id'         => $this->tenant->id,
+            'name'              => 'Water',
+            'unit'              => 'pcs',
+            'secondary_unit'    => 'box',
+            'conversion_factor' => 12,
+        ]);
+    }
+
+    public function test_units_sold_counts_a_base_unit_sale_in_pieces(): void
+    {
+        $sold = $this->productsSoldFor($this->boxedProduct(), [24, 1, 10]);
+
+        $this->assertEquals([['product_name' => 'Water', 'units_sold' => 24, 'revenue' => 240]], $sold);
+    }
+
+    public function test_units_sold_counts_a_secondary_unit_sale_in_base_units(): void
+    {
+        $sold = $this->productsSoldFor($this->boxedProduct(), [2, 12, 120]); // 2 boxes
+
+        $this->assertEquals(24, $sold[0]['units_sold']); // not 2
+        $this->assertEquals(240, $sold[0]['revenue']);   // unchanged: unit_price × quantity
+    }
+
+    public function test_units_sold_adds_mixed_base_and_secondary_lines_in_base_units(): void
+    {
+        $sold = $this->productsSoldFor($this->boxedProduct(), [2, 12, 120], [5, 1, 10]); // 2 boxes + 5 pcs
+
+        $this->assertCount(1, $sold);
+        $this->assertEquals(29, $sold[0]['units_sold']); // 24 + 5, not 7
+        $this->assertEquals(290, $sold[0]['revenue']);
+    }
+
+    public function test_units_sold_keeps_the_sale_time_factor_after_the_product_factor_changes(): void
+    {
+        $product = $this->boxedProduct();
+        $this->productsSoldFor($product, [2, 12, 120]);
+
+        $product->update(['conversion_factor' => 10]);
+
+        $sold = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl(now()->toDateString()))
+            ->assertOk()
+            ->json('products_sold');
+
+        $this->assertEquals(24, $sold[0]['units_sold']); // saved factor 12, not 2 × 10
+    }
+
     public function test_net_profit_goes_negative_when_expenses_exceed_gross_profit(): void
     {
         $today = now()->toDateString();
