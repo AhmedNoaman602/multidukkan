@@ -157,8 +157,8 @@ foreach ($createdProducts as $product) {
             'order_date'  => now()->subDays(3)->toDateString(),
             'notes'       => 'طلب عادي',
             'items'       => [
-                ['product_id' => $hammer->id, 'quantity' => 2, 'warehouse_id' => $mainWarehouse->id],
-                ['product_id' => $screwdriver->id, 'quantity' => 3, 'warehouse_id' => $mainWarehouse->id],
+                ['product_id' => $hammer->id, 'quantity' => 2],
+                ['product_id' => $screwdriver->id, 'quantity' => 3],
             ],
             'pay_immediately' => true,
             'payment_method'  => 'cash',
@@ -171,7 +171,7 @@ foreach ($createdProducts as $product) {
             'order_date'  => now()->subDay()->toDateString(),
             'notes'       => 'خصم خاص للعميل',
             'items'       => [
-                ['product_id' => $hammer->id, 'quantity' => 2, 'warehouse_id' => $mainWarehouse->id],
+                ['product_id' => $hammer->id, 'quantity' => 2],
             ],
             'manual_total' => 250,
         ]);
@@ -183,7 +183,7 @@ foreach ($createdProducts as $product) {
             'order_date'  => now()->toDateString(),
             'notes'       => 'دفعة جزئية',
             'items'       => [
-                ['product_id' => $screwdriver->id, 'quantity' => 4, 'warehouse_id' => $mainWarehouse->id],
+                ['product_id' => $screwdriver->id, 'quantity' => 4],
             ],
         ]);
         $paymentService->processDirectPayment([

@@ -2,6 +2,8 @@
 
 return [
     'insufficient_stock' => 'لا يوجد مخزون كافي لـ :product في :warehouse. المتاح: :available',
+    'insufficient_store_stock' => 'لا يوجد مخزون كافي من :product في هذا المتجر. المطلوب: :needed — على الرف: :shelf، في المخزن: :storage',
+    'store_has_no_shelf' => 'هذا المتجر ليس له رف للبيع منه',
     'insufficient_removal_quantity' => 'لا يمكن إزالة :quantity. المتاح فقط: :available',
     'no_warehouse_available' => 'لا يوجد مخزن متاح. يرجى إنشاء مخزن أولاً.',
     'stock_note_opening_balance' => 'رصيد افتتاحي',

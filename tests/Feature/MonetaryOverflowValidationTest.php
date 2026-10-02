@@ -47,7 +47,7 @@ class MonetaryOverflowValidationTest extends TestCase
             'store_id'  => null,
             'role'      => 'tenant_admin',
         ]);
-        $this->warehouse = Warehouse::factory()->create([
+        $this->warehouse = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
         ]);
@@ -75,7 +75,7 @@ class MonetaryOverflowValidationTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => now()->toDateString(),
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 2],
             ],
         ], $overrides));
     }

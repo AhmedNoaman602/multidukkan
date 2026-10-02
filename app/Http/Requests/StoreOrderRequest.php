@@ -4,11 +4,9 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use App\Rules\BelongsToTenant;
-use App\Rules\WarehouseInStore;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Store;
-use App\Models\Warehouse;
 use App\Support\LocalDateRange;
 
 class StoreOrderRequest extends FormRequest
@@ -21,7 +19,6 @@ class StoreOrderRequest extends FormRequest
     public function rules(): array
     {
         $tenantId = auth()->user()->tenant_id;
-        $storeId = $this->user()->store_id ?? ($this->integer('store_id') ?: null);
 
         return [
             'store_id'             => $this->user()->store_id
@@ -32,7 +29,8 @@ class StoreOrderRequest extends FormRequest
             'notes'                => 'nullable|string',
             'items'                => 'required|array|min:1',
             'items.*.product_id'   => ['required', 'exists:products,id', new BelongsToTenant(Product::class, $tenantId)],
-            'items.*.warehouse_id' => ['required', 'exists:warehouses,id', new BelongsToTenant(Warehouse::class, $tenantId), new WarehouseInStore($storeId)],
+            // Sales are fulfilled from the store's shelf; the client never picks a location.
+            'items.*.warehouse_id' => 'prohibited',
             'items.*.quantity'     => 'required|integer|min:1',
             'items.*.unit_type' => 'nullable|in:base,secondary',
             'items.*.unit_price' => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',

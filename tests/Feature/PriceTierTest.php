@@ -45,7 +45,7 @@ class PriceTierTest extends TestCase
             'role'      => 'tenant_admin',
         ]);
 
-        $this->warehouse = Warehouse::factory()->create([
+        $this->warehouse = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
         ]);
@@ -82,7 +82,7 @@ class PriceTierTest extends TestCase
                 'customer_id' => $customer->id,
                 'order_date'  => now()->toDateString(),
                 'items'       => [
-                    ['product_id' => $this->product->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
+                    ['product_id' => $this->product->id, 'quantity' => 1],
                 ],
             ]);
 
@@ -162,7 +162,7 @@ class PriceTierTest extends TestCase
                 'customer_id' => $customer->id,
                 'order_date'  => now()->toDateString(),
                 'items'       => [
-                    ['product_id' => $productNoTiers->id, 'quantity' => 1,'warehouse_id' => $this->warehouse->id,],
+                    ['product_id' => $productNoTiers->id, 'quantity' => 1],
                 ],
             ]);
 

@@ -26,7 +26,7 @@ class InventoryTest extends TestCase
         $this->store     = Store::factory()->create(['tenant_id' => $this->tenant->id]);
         $this->customer  = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
         $this->product   = Product::factory()->create(['tenant_id' => $this->tenant->id, 'price' => 100]);
-        $this->warehouse = Warehouse::factory()->create([
+        $this->warehouse = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
         ]);
@@ -48,7 +48,6 @@ class InventoryTest extends TestCase
         $item = [
             'product_id' => $this->product->id,
             'quantity' => $quantity,
-            'warehouse_id' => $this->warehouse->id,
         ];
         
         return $this->actingAs($this->user)->postJson('/api/orders', [
@@ -260,23 +259,23 @@ public function test_cannot_create_inventory_with_product_from_different_tenant(
     ])->assertStatus(422);
 }
 
-public function test_cannot_create_order_with_warehouse_from_different_tenant(): void {
-    $otherTenant = Tenant::factory()->create();
-    $otherWarehouse = Warehouse::factory()->create([
-        'tenant_id' => $otherTenant->id,
-        'store_id' => $this->store->id,
-    ]);
+public function test_order_payload_cannot_choose_a_warehouse(): void {
     $this->actingAs($this->user)->postJson("/api/orders", [
         'store_id' => $this->store->id,
         'customer_id' => $this->customer->id,
+        'order_date' => now()->toDateString(),
         'items' => [
             [
                 'product_id' => $this->product->id,
-                'warehouse_id' => $otherWarehouse->id,
+                'warehouse_id' => $this->warehouse->id,
                 'quantity' => 1,
             ],
         ],
-    ])->assertStatus(422);
+    ])->assertStatus(422)
+      ->assertJsonValidationErrors('items.0.warehouse_id');
+
+    $this->assertDatabaseCount('orders', 0);
+    $this->assertDatabaseHas('inventory', ['id' => $this->inventory->id, 'quantity' => 50]);
 }
 
 private function warehouseInAnotherStore(): Warehouse
@@ -305,7 +304,8 @@ public function test_cannot_create_order_with_warehouse_from_another_store(): vo
         'customer_id' => $this->customer->id,
         'order_date'  => now()->toDateString(),
         'items'       => [['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $warehouseB->id]],
-    ])->assertStatus(422);
+    ])->assertStatus(422)
+      ->assertJsonValidationErrors('items.0.warehouse_id');
 
     $this->assertDatabaseCount('orders', 0);
     $this->assertDatabaseHas('inventory', ['warehouse_id' => $warehouseB->id, 'product_id' => $this->product->id, 'quantity' => 50]);
@@ -321,7 +321,8 @@ public function test_cannot_add_item_from_another_stores_warehouse(): void
         'product_id'   => $this->product->id,
         'warehouse_id' => $warehouseB->id,
         'quantity'     => 1,
-    ])->assertStatus(422);
+    ])->assertStatus(422)
+      ->assertJsonValidationErrors('warehouse_id');
 
     $this->assertDatabaseCount('order_items', 1);
     $this->assertDatabaseHas('inventory', ['warehouse_id' => $warehouseB->id, 'product_id' => $this->product->id, 'quantity' => 50]);
@@ -355,9 +356,9 @@ public function test_cancelled_order_restores_stock(): void
 
 public function test_two_stores_can_sell_same_product_from_different_warehouses(): void
 {
-    // Store B setup
+    // Store B setup — each store sells from its own shelf
     $storeB     = Store::factory()->create(['tenant_id' => $this->tenant->id]);
-    $warehouseB = Warehouse::factory()->create([
+    $warehouseB = Warehouse::factory()->shelf()->create([
         'tenant_id' => $this->tenant->id,
         'store_id'  => $storeB->id,
     ]);
@@ -380,7 +381,6 @@ public function test_two_stores_can_sell_same_product_from_different_warehouses(
         'items'       => [[
             'product_id'   => $this->product->id,
             'quantity'     => 5,
-            'warehouse_id' => $warehouseB->id,
         ]],
     ])->assertStatus(201);
 

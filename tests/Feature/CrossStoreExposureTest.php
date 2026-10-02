@@ -64,12 +64,12 @@ class CrossStoreExposureTest extends TestCase
             'price'     => 100,
         ]);
 
-        $this->warehouseA = Warehouse::factory()->create([
+        $this->warehouseA = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->storeA->id,
         ]);
 
-        $this->warehouseB = Warehouse::factory()->create([
+        $this->warehouseB = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->storeB->id,
         ]);
@@ -105,7 +105,6 @@ class CrossStoreExposureTest extends TestCase
             'items'       => [[
                 'product_id'   => $this->product->id,
                 'quantity'     => 1,
-                'warehouse_id' => $warehouse->id,
             ]],
         ])->assertStatus(201)->json('id');
     }

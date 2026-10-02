@@ -59,7 +59,7 @@ class TimezoneTest extends TestCase
             'store_id'  => null,
             'role'      => 'tenant_admin',
         ]);
-        $this->warehouse = Warehouse::factory()->create([
+        $this->warehouse = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
         ]);
@@ -386,7 +386,7 @@ class TimezoneTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => self::BUSINESS_DAY,
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 1],
             ],
         ])->assertStatus(201);
     }
@@ -446,7 +446,7 @@ class TimezoneTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString(),
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 1],
             ],
         ])->assertStatus(201)->json('invoice_number');
     }
@@ -520,7 +520,7 @@ class TimezoneTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => '2026-08-21',
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 1],
             ],
         ])->assertStatus(201);
     }
@@ -535,7 +535,7 @@ class TimezoneTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => '2026-08-25',
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 1],
             ],
         ])->assertStatus(422)->assertJsonValidationErrors('order_date');
     }
@@ -572,7 +572,7 @@ class TimezoneTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => '2026-08-18',           // backdated by three days
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 1],
             ],
         ])->assertStatus(201)->json('id');
 
@@ -608,7 +608,7 @@ class TimezoneTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => '2026-08-18',
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 1],
             ],
         ])->assertStatus(201);
 
@@ -641,7 +641,7 @@ class TimezoneTest extends TestCase
             'customer_id' => $this->customer->id,
             'order_date'  => '2026-08-21',
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => 1, 'warehouse_id' => $this->warehouse->id],
+                ['product_id' => $this->product->id, 'quantity' => 1],
             ],
         ])->assertStatus(201)->json('id');
 

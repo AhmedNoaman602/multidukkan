@@ -61,7 +61,7 @@ class DiscountTest extends TestCase
             'price'     => 250,
         ]);
 
-        $this->warehouse = Warehouse::factory()->create([
+        $this->warehouse = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
         ]);
@@ -84,7 +84,6 @@ class DiscountTest extends TestCase
             'items'       => [[
                 'product_id'   => $this->product->id,
                 'quantity'     => $quantity,
-                'warehouse_id' => $this->warehouse->id,
             ]],
         ], $discount));
     }

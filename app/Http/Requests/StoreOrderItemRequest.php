@@ -5,9 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use App\Models\Product;
-use App\Models\Warehouse;
 use App\Rules\BelongsToTenant;
-use App\Rules\WarehouseInStore;
 
 class StoreOrderItemRequest extends FormRequest
 {
@@ -30,7 +28,8 @@ class StoreOrderItemRequest extends FormRequest
 
         return [
             'product_id'   => ['required', 'integer', new BelongsToTenant(Product::class, $tenantId)],
-            'warehouse_id' => ['required', 'integer', new BelongsToTenant(Warehouse::class, $tenantId), new WarehouseInStore($this->route('order')?->store_id)],
+            // Sales are fulfilled from the order's store shelf; the client never picks a location.
+            'warehouse_id' => 'prohibited',
             'quantity'     => ['required', 'numeric', 'min:1'],
             'unit_type'    => ['nullable', 'in:base,secondary'],
             'unit_price'   => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],

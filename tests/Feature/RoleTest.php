@@ -84,6 +84,7 @@ class RoleTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
             'name'      => 'Main Warehouse',
+            'type'      => Warehouse::TYPE_SHELF,
         ]);
 
         $this->inventory = Inventory::create([
@@ -238,6 +239,8 @@ class RoleTest extends TestCase
 
     private function createOrderForStore(Store $store, User $actor): int
     {
+        $this->shelfFor($store);
+
         return $this->actingAs($actor)
             ->postJson('/api/orders', [
                 'store_id'    => $store->id,
@@ -247,21 +250,20 @@ class RoleTest extends TestCase
                     [
                         'product_id'   => $this->product->id,
                         'quantity'     => 1,
-                        'warehouse_id' => $this->warehouseFor($store)->id,
                     ],
                 ],
             ])->assertStatus(201)->json('id');
     }
 
-    // Orders may only draw stock from their own store's warehouses.
-    private function warehouseFor(Store $store): Warehouse
+    // Each store sells from its own shelf, so the other store needs one with stock.
+    private function shelfFor(Store $store): Warehouse
     {
         if ($store->is($this->store)) {
             return $this->warehouse;
         }
 
         $warehouse = Warehouse::firstOrCreate(
-            ['tenant_id' => $this->tenant->id, 'store_id' => $store->id, 'name' => 'Other Store Warehouse']
+            ['tenant_id' => $this->tenant->id, 'store_id' => $store->id, 'type' => Warehouse::TYPE_SHELF], ['name' => 'Other Store Shelf']
         );
         Inventory::firstOrCreate(
             ['warehouse_id' => $warehouse->id, 'product_id' => $this->product->id],
@@ -421,7 +423,6 @@ class RoleTest extends TestCase
             ->postJson("/api/orders/{$orderId}/items", [
                 'product_id'   => $this->product->id,
                 'quantity'     => 1,
-                'warehouse_id' => $this->warehouseFor($otherStore)->id,
             ])
             ->assertStatus(403);
     }
@@ -524,6 +525,7 @@ class RoleTest extends TestCase
             'tenant_id' => $otherTenant->id,
             'store_id'  => $otherStore->id,
             'name'      => 'Foreign Warehouse',
+            'type'      => Warehouse::TYPE_SHELF,
         ]);
         Inventory::create([
             'tenant_id'    => $otherTenant->id,
@@ -540,7 +542,6 @@ class RoleTest extends TestCase
             'items'       => [[
                 'product_id'   => $otherProduct->id,
                 'quantity'     => 1,
-                'warehouse_id' => $otherWarehouse->id,
             ]],
         ])->assertStatus(201)->json('id');
 
@@ -697,7 +698,6 @@ public function test_staff_can_create_order(): void
                 [
                     'product_id' => $this->product->id,
                     'quantity'   => 1,
-                    'warehouse_id' => $this->warehouse->id,
                 ],
             ],
         ])->assertStatus(201);
@@ -714,7 +714,6 @@ public function test_staff_can_process_payment(): void
                 [
                     'product_id' => $this->product->id,
                     'quantity'   => 1,
-                    'warehouse_id' => $this->warehouse->id,
                 ],
             ],
         ]);
@@ -767,7 +766,7 @@ public function test_staff_cannot_modify_partially_paid_order(): void
         'customer_id' => $this->customer->id,
         'order_date'  => now()->toDateString(),
         'items'       => [
-            ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id],
+            ['product_id' => $this->product->id, 'quantity' => 2],
         ],
     ])->assertStatus(201)->json();
 
@@ -791,7 +790,7 @@ public function test_manager_can_modify_partially_paid_order(): void
         'customer_id' => $this->customer->id,
         'order_date'  => now()->toDateString(),
         'items'       => [
-            ['product_id' => $this->product->id, 'quantity' => 2, 'warehouse_id' => $this->warehouse->id],
+            ['product_id' => $this->product->id, 'quantity' => 2],
         ],
     ])->assertStatus(201)->json();
 

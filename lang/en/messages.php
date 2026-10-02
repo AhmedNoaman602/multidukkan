@@ -2,6 +2,8 @@
 
 return [
     'insufficient_stock' => 'Insufficient stock for :product in :warehouse. Available: :available',
+    'insufficient_store_stock' => 'Not enough :product in this store. Needed: :needed — on the shelf: :shelf, in storage: :storage',
+    'store_has_no_shelf' => 'This store has no shelf to sell from',
     'insufficient_removal_quantity' => 'Cannot remove :quantity. Only :available available',
     'no_warehouse_available' => 'No warehouse available. Please create one first.',
     'stock_note_opening_balance' => 'Opening balance',

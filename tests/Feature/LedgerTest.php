@@ -42,7 +42,7 @@ class LedgerTest extends TestCase
         'store_id'  => null,
         'role'      => 'tenant_admin',
     ]);
-    $this->warehouse = Warehouse::factory()->create([
+    $this->warehouse = Warehouse::factory()->shelf()->create([
         'tenant_id' => $this->tenant->id,
         'store_id'  => $this->store->id,
     ]);
@@ -65,7 +65,7 @@ class LedgerTest extends TestCase
             'notes'       => 'Test order',
             'order_date'  => now()->toDateString(),
             'items'       => [
-                ['product_id' => $this->product->id, 'quantity' => $quantity,'warehouse_id' => $this->warehouse->id,],
+                ['product_id' => $this->product->id, 'quantity' => $quantity],
             ],
         ]);
     }

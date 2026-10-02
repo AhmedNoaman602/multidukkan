@@ -51,7 +51,7 @@ class UnitSnapshotTest extends TestCase
             'store_id'  => null,
             'role'      => 'tenant_admin',
         ]);
-        $this->warehouse = Warehouse::factory()->create([
+        $this->warehouse = Warehouse::factory()->shelf()->create([
             'tenant_id' => $this->tenant->id,
             'store_id'  => $this->store->id,
         ]);
@@ -71,7 +71,6 @@ class UnitSnapshotTest extends TestCase
             'order_date'  => now()->toDateString(),
             'items'       => array_map(fn ($item) => $item + [
                 'product_id'   => $this->product->id,
-                'warehouse_id' => $this->warehouse->id,
             ], $items),
         ]);
     }
@@ -162,7 +161,6 @@ class UnitSnapshotTest extends TestCase
         $this->actingAs($this->admin)
             ->postJson("/api/orders/{$order->id}/items", [
                 'product_id'   => $this->product->id,
-                'warehouse_id' => $this->warehouse->id,
                 'quantity'     => 1,
                 'unit_type'    => 'secondary',
             ])

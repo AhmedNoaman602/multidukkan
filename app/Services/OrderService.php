@@ -8,6 +8,7 @@ use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Support\LocalDateRange;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,21 @@ class OrderService
     /**
      * Create a new class instance.
      */
-    public function __construct(protected LedgerService $ledger, protected InventoryService $inventory) {}
+    public function __construct(
+        protected LedgerService $ledger,
+        protected InventoryService $inventory,
+        protected StockFulfillmentService $fulfillment,
+    ) {}
+
+    // Every sale is taken from the store's shelf (ADR-010).
+    private function shelfOf(int $tenantId, int $storeId): Warehouse
+    {
+        return Warehouse::where('tenant_id', $tenantId)
+            ->where('store_id', $storeId)
+            ->where('type', Warehouse::TYPE_SHELF)
+            ->first()
+            ?? throw ValidationException::withMessages(['store' => __('messages.store_has_no_shelf')]);
+    }
 
     private function generateInvoiceNumber(int $tenantId): string
     {
@@ -107,12 +122,15 @@ class OrderService
 
             abort_if($products->count() !== $productIds->count(), 404, 'Product not found.');
 
+            $storeId = $user->store_id ?? $data['store_id'];
+            $shelf = $this->shelfOf($user->tenant_id, $storeId);
+
             // --- ITEM PREPARATION & PRICE CALCULATION ---
             // Normalize every line once: base-unit stock quantity + tier price.
             $validatedItems = [];
+            $baseNeeds = [];
             foreach ($data['items'] as $itemData) {
                 $product = $products[$itemData['product_id']];
-                $warehouseId = $itemData['warehouse_id'];
                 $unitType = $itemData['unit_type'] ?? 'base';
 
                 // Resolve the unit once; the item keeps this factor for every later edit or reversal.
@@ -137,7 +155,6 @@ class OrderService
                 // Temporarily store the validated data of the item to be processed after the order record is created.
                 $validatedItems[] = [
                     'product' => $product,
-                    'warehouseId' => $warehouseId,
                     'stockQty' => $stockQuantity,
                     'quantity' => $itemData['quantity'],
                     'unitType' => $unitType,
@@ -145,36 +162,16 @@ class OrderService
                     'unitName' => $product->unitNameFor($unitType),
                     'unitPrice' => $unitPrice,
                 ];
-            }
 
-            // Stock is checked per product+warehouse, not per line: two lines for the
-            // same product each pass on their own but can overdraw the shelf together.
-            $aggregated = [];
-            foreach ($validatedItems as $item) {
-                $key = $item['product']->id.'_'.$item['warehouseId'];
-
-                $aggregated[$key] ??= [
-                    'product_id' => $item['product']->id,
-                    'warehouse_id' => $item['warehouseId'],
-                    'stockQty' => 0,
-                ];
-
-                $aggregated[$key]['stockQty'] += $item['stockQty'];
-            }
-
-            foreach ($aggregated as $entry) {
-                $this->inventory->checkStock(
-                    $entry['product_id'],
-                    $entry['warehouse_id'],
-                    $entry['stockQty']
-                );
+                // Stock is needed per product, not per line: 1 box + 5 pcs is one need of 17.
+                $baseNeeds[$product->id] = ($baseNeeds[$product->id] ?? 0) + $stockQuantity;
             }
 
             // --- ORDER CREATION BLOCK ---
             // Create the main Order record with tenant, store, customer, creator, and generated invoice number details.
             $order = Order::create([
                 'tenant_id' => $user->tenant_id,
-                'store_id' => $user->store_id ?? $data['store_id'],
+                'store_id' => $storeId,
                 'customer_id' => $data['customer_id'],
                 'created_by' => $user->id,
                 'notes' => $data['notes'] ?? null,
@@ -186,8 +183,8 @@ class OrderService
 
             $mergedItems = [];
 foreach ($validatedItems as $v) {
-    // Key now includes unit_type — only merges truly identical rows
-    $key = $v['product']->id . '_' . $v['warehouseId'] . '_' . $v['unitType'];
+    // Only merges truly identical rows: same product, unit and conversion factor
+    $key = $v['product']->id . '_' . $v['unitType'] . '_' . $v['conversionFactor'];
     
     if (isset($mergedItems[$key])) {
         $mergedItems[$key]['quantity'] += $v['quantity'];
@@ -198,9 +195,9 @@ foreach ($validatedItems as $v) {
     }
 }
 
-            // --- ORDER ITEMS & STOCK DEDUCTION BLOCK ---
-            // For each validated item, create the line item record in the database and deduct the physical stock from the inventory.
-            // Also, compute the running total price of all items in the order.
+            // --- ORDER ITEMS & STOCK BLOCK ---
+            // Every line is recorded at the shelf; fulfill() then refills the shelf from storage
+            // if needed and deducts the sale, all inside this transaction.
             $totalAmount = 0;
             foreach ($mergedItems as $v) {
                 $orderItem = $order->items()->create([
@@ -211,21 +208,13 @@ foreach ($validatedItems as $v) {
                     'conversion_factor' => $v['conversionFactor'],
                     'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
-                    'warehouse_id' => $v['warehouseId'],
+                    'warehouse_id' => $shelf->id,
                 ]);
-
-                $this->inventory->deductStock(
-                    $v['product']->id,
-                    $v['warehouseId'],
-                    $v['stockQty'],
-                    $order->id,
-                    Order::class,
-                    $user->id,
-                    $batchId
-                );
 
                 $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
             }
+
+            $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
 
             // --- LEDGER & CREDIT CHARGING BLOCK ---
             // Check the customer's current balance before processing this order.
@@ -344,10 +333,10 @@ if (!empty($data['pay_immediately'])) {
         $stockDelta = $delta * $item->conversion_factor;
 
         if ($stockDelta > 0) {
-             $this->inventory->checkStock($item->product_id, $item->warehouse_id, $stockDelta);
-            $this->inventory->deductStock(
-                $item->product_id, $item->warehouse_id,
-                $stockDelta, $order->id, Order::class, auth()->id()
+            // Taken from the line's recorded location; a shelf line refills from storage if short.
+            $this->fulfillment->fulfill(
+                $order, $item->warehouse, [$item->product_id => $stockDelta],
+                auth()->user(), (string) Str::uuid()
             );
         } elseif ($stockDelta < 0) {
             $this->inventory->restoreStock(
@@ -430,14 +419,12 @@ if (!empty($data['pay_immediately'])) {
         $this->ensureOrderIsEditable($order);
 
         $product = Product::findOrFail($data['product_id']);
-        $warehouseId = $data['warehouse_id'];
+        $shelf = $this->shelfOf($order->tenant_id, $order->store_id);
         $unitType = $data['unit_type'] ?? 'base';
         $customer = $order->customer;
 
         $conversionFactor = $product->factorFor($unitType);
         $stockQuantity = $data['quantity'] * $conversionFactor;
-
-        $this->inventory->checkStock($product->id, $warehouseId, $stockQuantity);
 
        $price = match ($customer->price_tier) {
                     'a' => $product->price_a ?? $product->price,
@@ -454,7 +441,7 @@ if (!empty($data['pay_immediately'])) {
 
      $existingItem = $order->items()
         ->where('product_id', $product->id)
-        ->where('warehouse_id', $warehouseId)
+        ->where('warehouse_id', $shelf->id)
         ->where('unit_type', $unitType)
         ->where('conversion_factor', $conversionFactor)
         ->first();
@@ -467,7 +454,7 @@ if (!empty($data['pay_immediately'])) {
         $order->items()->create([
             'product_id'   => $product->id,
             'product_name' => $product->name,
-            'warehouse_id' => $warehouseId,
+            'warehouse_id' => $shelf->id,
             'quantity'     => $data['quantity'],
             'unit_price'   => $unitPrice,
             'unit_type'    => $unitType,
@@ -475,7 +462,10 @@ if (!empty($data['pay_immediately'])) {
             'unit_name'    => $product->unitNameFor($unitType),
         ]);
     }
-          $this->inventory->deductStock($product->id, $warehouseId, $stockQuantity, $order->id, Order::class, auth()->id());
+        $this->fulfillment->fulfill(
+            $order, $shelf, [$product->id => $stockQuantity],
+            auth()->user(), (string) Str::uuid()
+        );
 
       $this->resetToCalculatedTotal($order);
     });
