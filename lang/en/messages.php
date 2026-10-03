@@ -131,4 +131,5 @@ return [
     'refund_exceeds_payment' => 'Cannot exceed :max EGP for this payment',
     'refund_exceeds_order' => 'Cannot exceed :max EGP for this order',
     'refund_target_required' => 'Please select a specific order or payment to refund from',
+    'invalid_invite_code' => 'Invalid invitation code',
 ];

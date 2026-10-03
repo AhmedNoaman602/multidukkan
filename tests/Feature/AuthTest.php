@@ -41,7 +41,8 @@ class AuthTest extends TestCase
           ->assertJsonStructure([
               'token',
               'user' => ['id', 'name', 'email', 'role', 'tenant_id'],
-          ]);
+          ])
+          ->assertJsonPath('user.plan', Tenant::PLAN_MAX);
     }
 
     public function test_login_fails_with_wrong_password(): void
@@ -210,6 +211,7 @@ class AuthTest extends TestCase
         'role'          => 'tenant_admin',
         'tenant_id'     => $this->user->tenant_id,
         'business_name' => 'Test Tenant',
+        'plan'          => Tenant::PLAN_MAX,
     ]);
     }
 

@@ -59,7 +59,7 @@ Provider-agnostic. Modeled so multiple products (Skaibeam platform) can reuse it
 | Table | Purpose | Key fields |
 |---|---|---|
 | `billing_products` | A sellable Skaibeam product | `id`, `slug` (`multidukkan`), `name`, `active` |
-| `plans` | A plan within a product | `id`, `billing_product_id`, `slug` (`starter`/`pro`/`business`), `name`, `active`, `trial_days`, `is_public` |
+| `plans` | A plan within a product | `id`, `billing_product_id`, `slug` (`starter`/`pro`/`max`), `name`, `active`, `trial_days`, `is_public` |
 | `plan_prices` | A price for a plan (per interval/currency) | `id`, `plan_id`, `interval` (`monthly`/`yearly`), `currency` (`EGP`/`USD`), `amount_minor` (integer, piastres/cents), `provider_price_ref` (nullable) |
 | `plan_entitlements` | Feature/limit config per plan | `id`, `plan_id`, `key` (`max_stores`/`ai_enabled`/…), `value` (int/bool/json) |
 | `subscriptions` | An account's subscription to a product | `id`, `account_id`, `billing_product_id`, `plan_id`, `plan_price_id`, `status`, `trial_ends_at`, `current_period_start`, `current_period_end`, `cancel_at`, `canceled_at`, `grace_ends_at`, `provider_subscription_ref`, `provider_customer_ref` |
@@ -72,6 +72,7 @@ Provider-agnostic. Modeled so multiple products (Skaibeam platform) can reuse it
 Notes:
 - **`account_id`** links to the platform account seam (saas-platform §4), not directly to `tenant_id`. For MultiDukkan today it's 1:1, but the FK is to `accounts`.
 - **Money is stored as integer minor units** (`amount_minor`) + `currency`, never floats — same discipline as the existing ledger.
+- **Early-access seam (built):** until this module exists, `tenants.plan` holds the plan slug (`Tenant::PLAN_*`, every signup gets `max`) and `/me` exposes `plan` + `early_access`. When `plans`/`subscriptions` land: backfill one subscription per tenant from `tenants.plan`, make `/me` read the plan from the active subscription, then drop the column. The API field name stays, so the frontend doesn't change.
 - **No card data ever stored** — only provider tokens/refs. PAN/CVV never touch our servers (PCI scope stays minimal; this is also a hard line in the security policy).
 
 ### 3.1 Subscription status machine

@@ -12,8 +12,8 @@ Add a reusable, provider-agnostic **subscription billing** capability to the pla
 
 ## Current state
 
-- `tenants` table is `id/name/timestamps` only — no billing, plan, or status.
-- Signup (`AuthController::register`) creates tenant + admin + walk-in customer in a transaction; **no billing**.
+- `tenants` has a temporary `plan` slug column (default `max`, early access) — no billing or status. See architecture §3 "Early-access seam".
+- Signup (`AuthController::register`) creates tenant + admin + walk-in customer in a transaction; **no billing**. Signup is invite-only (`INVITE_CODE`, checked in `RegisterRequest`) during early testing.
 - No `accounts` layer, no plans, no payment provider, no entitlement enforcement. All features are ungated.
 - Money discipline already established (integer-safe ledger, `DB::transaction`, one source of truth) — mirror it here in a *separate* module.
 

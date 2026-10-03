@@ -9,8 +9,14 @@ class Tenant extends Model
 {
     /** @use HasFactory<\Database\Factories\TenantFactory> */
     use HasFactory;
+
+    const PLAN_STARTER = 'starter';
+    const PLAN_PRO     = 'pro';
+    const PLAN_MAX     = 'max';
+
     protected $fillable = [
         'name',
+        'plan',
     ];
     public function stores()
     {

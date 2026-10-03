@@ -23,6 +23,7 @@ class AuthController extends Controller
         
         $tenant = Tenant::create([
             'name' => $request->business_name,
+            'plan' => Tenant::PLAN_MAX,
         ]);
 
 
@@ -63,6 +64,8 @@ foreach ($defaultUnits as $unit) {
             'tenant_id' => $result->tenant_id,
             'store_id'  => $result->store_id,
             'business_name' => $result->tenant->name,
+            'plan'          => $result->tenant->plan,
+            'early_access'  => config('multidukkan.early_access'),
             'walk_in_customer_id' => Customer::where('tenant_id', $result->tenant_id)
             ->where('is_walk_in', true)
             ->value('id'),
@@ -93,6 +96,8 @@ if (!$user || !Hash::check($request->password, $user->password)) {
             'store_id'  => $user->store_id,
             'tenant_id' => $user->tenant_id,
             'business_name' => $user->tenant->name,
+            'plan'          => $user->tenant->plan,
+            'early_access'  => config('multidukkan.early_access'),
             'walk_in_customer_id' => Customer::where('tenant_id', $user->tenant_id)
                             ->where('is_walk_in', true)
                             ->value('id'),
@@ -140,6 +145,8 @@ if (!$user || !Hash::check($request->password, $user->password)) {
         'tenant_id'     => $user->tenant_id,
         'store_id'      => $user->store_id,
         'business_name' => $user->tenant->name,
+        'plan'          => $user->tenant->plan,
+        'early_access'  => config('multidukkan.early_access'),
         'walk_in_customer_id' => Customer::where('tenant_id', $user->tenant_id)
              ->where('is_walk_in', true)
              ->value('id'),

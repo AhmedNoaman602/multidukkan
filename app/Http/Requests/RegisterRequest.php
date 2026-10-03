@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -27,6 +28,13 @@ class RegisterRequest extends FormRequest
             'name'          => ['required', 'string', 'max:255'],
             'email'         => ['required', 'email', 'unique:users,email'],
             'password'      => ['required', 'string', 'min:8', 'confirmed'],
+            'invite_code'   => ['bail', 'required', 'string', function (string $attribute, mixed $value, Closure $fail) {
+                $expected = (string) config('multidukkan.invite_code');
+
+                if ($expected === '' || ! hash_equals(strtoupper($expected), strtoupper(trim($value)))) {
+                    $fail(__('messages.invalid_invite_code'));
+                }
+            }],
         ];
     }
 }

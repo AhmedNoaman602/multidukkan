@@ -131,4 +131,5 @@ return [
     'refund_exceeds_payment' => 'لا يمكن أن يتجاوز المبلغ :max جنيه لهذه الدفعة',
     'refund_exceeds_order' => 'لا يمكن أن يتجاوز المبلغ :max جنيه لهذا الطلب',
     'refund_target_required' => 'يرجى اختيار طلب أو دفعة محددة للاسترجاع منها',
+    'invalid_invite_code' => 'رمز الدعوة غير صحيح',
 ];
