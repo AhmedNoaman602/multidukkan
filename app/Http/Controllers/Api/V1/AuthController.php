@@ -19,7 +19,7 @@ class AuthController extends Controller
     public function register(RegisterRequest $request){
 
      $result = DB::transaction(function () use ($request) {
-        $defaultUnits = ['حتة', 'متر','لفة', 'رول'];
+        $defaultUnits = __('messages.default_units');
         
         $tenant = Tenant::create([
             'name' => $request->business_name,

@@ -37,6 +37,7 @@ return [
     'warehouse_has_inventory' => 'Cannot delete warehouse with existing inventory',
     'warehouse_deleted' => 'Warehouse deleted successfully',
     'default_shelf_name' => 'Shelf',
+    'default_units' => ['Piece', 'Meter', 'Coil', 'Roll'],
     'cannot_delete_shelf' => "The store's shelf cannot be deleted",
     'warehouse_not_in_store' => 'The selected warehouse does not belong to this store',
     'transfer_same_location' => 'Choose a destination different from the source',

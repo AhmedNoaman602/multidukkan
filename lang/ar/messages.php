@@ -37,6 +37,7 @@ return [
     'warehouse_has_inventory' => 'لا يمكن حذف المخزن لوجود مخزون به',
     'warehouse_deleted' => 'تم حذف المخزن بنجاح',
     'default_shelf_name' => 'الرف',
+    'default_units' => ['حتة', 'متر', 'لفة', 'رول'],
     'cannot_delete_shelf' => 'لا يمكن حذف رف المتجر',
     'warehouse_not_in_store' => 'المخزن المختار لا يتبع هذا المتجر',
     'transfer_same_location' => 'اختر وجهة مختلفة عن المصدر',

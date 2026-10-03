@@ -10,7 +10,7 @@ class UnitController extends Controller
 {
     public function index(){
         $units = Unit::where('tenant_id', auth()->user()->tenant_id) 
-                    ->orderBy('name')
+                    ->orderBy('id')
                     ->get();
 
                     return response()->json([
