@@ -21,7 +21,7 @@ class AIService
     private Provider $provider;
 
     /**
-     * The model name to be used for requests (e.g., llama-3.3-70b-versatile).
+     * The model name to be used for requests (e.g., openai/gpt-oss-120b).
      */
     private string $model;
 
@@ -34,7 +34,7 @@ class AIService
         $this->provider = Provider::Groq;
         
         // Set the default LLM model
-        $this->model = 'llama-3.3-70b-versatile';
+        $this->model = 'openai/gpt-oss-120b';
     }
 
     /**
@@ -227,7 +227,7 @@ class AIService
         })->join("\n");
             
         // Instruct the AI to act as a store assistant with direct access to catalog context
-        $systemPrompt = " لا تكرر كلام العميل أو تعيد صياغة سؤاله. اذهب مباشرة للإجابة.أنت مساعد ذكي لمتجر أدوات. ساعد العملاء في الاستفسار عن المنتجات والأسعار والمخزون. كن مختصراً ومفيداً. تحدث بالعربية دائماً.
+        $systemPrompt = " لا تكرر كلام العميل أو تعيد صياغة سؤاله. اذهب مباشرة للإجابة.أنت مساعد ذكي لمتجر أدوات. ساعد العملاء في الاستفسار عن المنتجات والأسعار والمخزون. كن مختصراً ومفيداً. تحدث بالعربية دائماً. اكتب نصاً عادياً بدون أي تنسيق markdown مثل ** أو #.
 
 المنتجات المتاحة حالياً:
 {$catalog}
