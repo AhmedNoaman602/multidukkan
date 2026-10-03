@@ -107,6 +107,8 @@ return [
     'ai_no_low_stock' => 'لا توجد منتجات منخفضة المخزون حاليًا. كل المنتجات فوق الحد الأدنى.',
     'ai_low_stock_header' => 'المنتجات المنخفضة المخزون:',
     'ai_low_stock_item' => '- :name: :quantity وحدة (الحد الأدنى: :threshold)',
+    'ai_reply_language' => 'اكتب ردك بالكامل باللغة العربية.',
+    'ai_insights_fallback_title' => 'تحليل المبيعات',
 
     'deleted_customer' => 'عميل محذوف',
     'deleted_supplier' => 'مورد محذوف',

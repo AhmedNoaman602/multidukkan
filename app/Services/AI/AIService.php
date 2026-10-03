@@ -143,7 +143,7 @@ class AIService
     public function generateInsights(array $salesData, string $tenantName = 'صاحب المتجر'): array
     {
         // Set the business analyst system persona
-        $systemPrompt = 'أنت محلل أعمال متخصص في تجارة أدوات البناء والأدوات اليدوية في مصر. حلل بيانات المبيعات الفعلية فقط. أجب بـ JSON فقط بدون أي نص إضافي أو markdown.';
+        $systemPrompt = 'أنت محلل أعمال متخصص في تجارة أدوات البناء والأدوات اليدوية في مصر. حلل بيانات المبيعات الفعلية فقط. أجب بـ JSON فقط بدون أي نص إضافي أو markdown. ' . __('messages.ai_reply_language');
 
         // Encode the sales data to send as context
         $summary = json_encode($salesData, JSON_UNESCAPED_UNICODE);
@@ -184,7 +184,7 @@ class AIService
 
         // Fallback structure in case of invalid or unstructured response
         return [
-            'opportunity' => ['title' => 'تحليل المبيعات', 'body' => $raw],
+            'opportunity' => ['title' => __('messages.ai_insights_fallback_title'), 'body' => $raw],
             'urgent'      => ['title' => '', 'body' => ''],
             'trend'       => ['title' => '', 'body' => ''],
         ];
@@ -227,7 +227,7 @@ class AIService
         })->join("\n");
             
         // Instruct the AI to act as a store assistant with direct access to catalog context
-        $systemPrompt = " لا تكرر كلام العميل أو تعيد صياغة سؤاله. اذهب مباشرة للإجابة.أنت مساعد ذكي لمتجر أدوات. ساعد العملاء في الاستفسار عن المنتجات والأسعار والمخزون. كن مختصراً ومفيداً. تحدث بالعربية دائماً. اكتب نصاً عادياً بدون أي تنسيق markdown مثل ** أو #.
+        $systemPrompt = " لا تكرر كلام العميل أو تعيد صياغة سؤاله. اذهب مباشرة للإجابة.أنت مساعد ذكي لمتجر أدوات. ساعد العملاء في الاستفسار عن المنتجات والأسعار والمخزون. كن مختصراً ومفيداً. اكتب نصاً عادياً بدون أي تنسيق markdown مثل ** أو #. " . __('messages.ai_reply_language') . "
 
 المنتجات المتاحة حالياً:
 {$catalog}

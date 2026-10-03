@@ -107,6 +107,8 @@ return [
     'ai_no_low_stock' => 'No products are currently low on stock. Everything is above threshold.',
     'ai_low_stock_header' => 'Low-stock products:',
     'ai_low_stock_item' => '- :name: :quantity units (threshold: :threshold)',
+    'ai_reply_language' => 'Write your entire reply in English, even though the data and instructions are in Arabic. Keep product names exactly as they are written in the data, and write amounts in EGP.',
+    'ai_insights_fallback_title' => 'Sales analysis',
 
     'deleted_customer' => 'Deleted Customer',
     'deleted_supplier' => 'Deleted Supplier',
