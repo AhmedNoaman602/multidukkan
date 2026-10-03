@@ -14,8 +14,7 @@ return new class extends Migration
         Schema::create('tenants', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('plan', 32)->default('max');
-            $table->datetimes();
+            $table->datetimes();  
         });
     }
 
