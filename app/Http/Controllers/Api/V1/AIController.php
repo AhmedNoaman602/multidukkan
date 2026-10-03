@@ -68,7 +68,7 @@ public function insights(): JsonResponse
                     'order_count'    => 0,
                 ];
             }
-            $productSales[$name]['total_quantity'] += $item->quantity;
+            $productSales[$name]['total_quantity'] += $item->baseQuantity();
             $productSales[$name]['total_revenue']  += $item->unit_price * $item->quantity;
             $productSales[$name]['order_count']    += 1;
         }
