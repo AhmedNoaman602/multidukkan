@@ -107,7 +107,7 @@ class InventoryService
             ->lockForUpdate()
             ->get();
     }
-
+// ay haga
     /**
      * Shelf and storage stock per product for one store, in one grouped query. Products with
      * no stock rows come back as zeros. Display only — sales re-check under lock.
