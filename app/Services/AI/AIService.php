@@ -170,7 +170,7 @@ class AIService
 }";
 
         // Call the AI generator with a slightly larger token limit
-        $raw = $this->generate($systemPrompt, $userMessage, 600);
+        $raw = $this->generate($systemPrompt, $userMessage, 2000);
 
         // Strip markdown code blocks if the AI model outputted them
         $cleaned = preg_replace('/^```json\s*|\s*```$/s', '', trim($raw));
@@ -250,7 +250,7 @@ class AIService
             $response = Prism::text()
                 ->using($this->provider, $this->model)
                 ->withSystemPrompt($systemPrompt)
-                ->withMaxTokens(300)
+                ->withMaxTokens(1000)
                 ->withMessages($messages)
                 ->generate();
 
