@@ -42,10 +42,12 @@ class ProductService
     }
 
     /**
-     * Set each location's stock to the quantity entered, in the unit entered, plus any loose
-     * base units ("2 box + 7 pcs" = 2 × 12 + 7). The server converts to base units with
-     * factorFor(); setStock() then logs the difference as an adjustment. With no quantity at
-     * all, stock is left alone and only the threshold is updated.
+     * Processes stock quantities submitted from the product form, one location at a time.
+     * Converts each location's quantity into base units (quantity × unit factor + loose pieces),
+     * then sets that location's stock to it.
+     * A location with no quantity keeps its stock unchanged; only its threshold is updated.
+     *
+     * Flow: syncStocks() → setStock() → adjustStock()
      */
     public function syncStocks(Product $product, array $stocks, int $tenantId, int $userId, string $note, ?string $batchId = null): void
     {

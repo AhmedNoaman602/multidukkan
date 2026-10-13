@@ -221,6 +221,13 @@ class InventoryService
         return Inventory::where($column, $id)->delete();
     }
 
+    /**
+     * Applies a relative stock change (increase or decrease).
+     * Records the stock adjustment in the inventory history.
+     *
+     * Used when stock needs to change by a specific amount,
+     * rather than be set directly to a target quantity.
+     */
    public function adjustStock(int $productId, int $warehouseId, int $quantity, string $direction , string $unitType = 'base', ?int $userId = null, ?string $notes = null, ?string $batchId = null): void{
    DB::transaction(function() use ($productId, $warehouseId, $quantity, $direction, $unitType, $userId, $notes, $batchId){
 
@@ -263,9 +270,11 @@ class InventoryService
    }
 
     /**
-     * Set a warehouse's stock to an absolute quantity, going through adjustStock so the
-     * delta is logged as an inventory_transactions row. Used by the product stocks[] editor,
-     * the one remaining path that sets stock by absolute value rather than by delta.
+     * Sets a product's stock at one location to a desired final quantity.
+     * Compares the target quantity with the current stock
+     * to determine how much stock needs to change.
+     *
+     * Delegates the actual stock adjustment to adjustStock().
      */
     public function setStock(int $productId, int $warehouseId, int $tenantId, ?int $quantity, ?int $threshold = null, ?int $userId = null, ?string $notes = null, ?string $batchId = null): Inventory
     {
