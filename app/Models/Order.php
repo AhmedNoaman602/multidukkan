@@ -76,4 +76,10 @@ class Order extends Model
         return round($this->payments->where('is_auto_reversible', false)
             ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
     }
+
+    // cost_price is per base unit, so cost uses base quantity (2 box × 12 = 24 pcs).
+    public function costOfGoods(): float
+    {
+        return (float) $this->items->sum(fn ($i) => ($i->product?->cost_price ?? 0) * $i->baseQuantity());
+    }
 }

@@ -87,10 +87,21 @@ class OrderResource extends JsonResource
             ...($showsCost ? ['cost_price' => $item->product?->cost_price ?? null] : []),
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
+        ...($showsCost ? $this->profitFields($total) : []),
         'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
         'order_date' => $this->order_date,
     ];
 }
+private function profitFields(float $total): array
+{
+    $cost = round($this->costOfGoods(), 2);
+
+    return [
+        'cost'         => $cost,
+        'gross_profit' => round($total - $cost, 2),
+    ];
+}
+
 private function resolveStatus(float $totalPaid, float $total): string
 {
     if ($totalPaid >= $total) {
