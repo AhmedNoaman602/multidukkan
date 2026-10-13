@@ -130,7 +130,7 @@ class CostDataVisibilityTest extends TestCase
         }
 
         $this->assertSame(40.0, (float) $row['profit_margin']);
-        $this->assertSame(90.0, (float) $row['profit_margin_e']);
+        $this->assertSame(60.0, (float) $row['profit_margin_e']);
     }
 
     public function test_store_manager_product_list_omits_all_seven_cost_fields(): void

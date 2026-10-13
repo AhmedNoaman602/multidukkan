@@ -28,26 +28,12 @@ class ProductResource extends JsonResource
         'price_c'           => $this->price_c,
         'price_d'           => $this->price_d,
         'price_e'           => $this->price_e,
-        'profit_margin'   => $this->when($showsCost, fn () => $this->cost_price !== null
-    ? round($this->price - $this->cost_price, 2)
-    : null),
-
-    'profit_margin_a' => $this->when($showsCost, fn () => $this->cost_price !== null
-    ? round(($this->price_a ?? $this->price) - $this->cost_price, 2)
-    : null),
-
-    'profit_margin_b' => $this->when($showsCost, fn () => $this->cost_price !== null
-    ? round(($this->price_b ?? $this->price) - $this->cost_price, 2)
-    : null),
-    'profit_margin_c' => $this->when($showsCost, fn () => $this->cost_price !== null
-    ? round(($this->price_c ?? $this->price) - $this->cost_price, 2)
-    : null),
-    'profit_margin_d' => $this->when($showsCost, fn () => $this->cost_price !== null
-    ? round(($this->price_d ?? $this->price) - $this->cost_price, 2)
-    : null),
-    'profit_margin_e' => $this->when($showsCost, fn () => $this->cost_price !== null
-    ? round(($this->price_e ?? $this->price) - $this->cost_price, 2)
-    : null),
+        'profit_margin'     => $this->when($showsCost, fn () => $this->marginPercent($this->price)),
+        'profit_margin_a'   => $this->when($showsCost, fn () => $this->marginPercent($this->price_a ?? $this->price)),
+        'profit_margin_b'   => $this->when($showsCost, fn () => $this->marginPercent($this->price_b ?? $this->price)),
+        'profit_margin_c'   => $this->when($showsCost, fn () => $this->marginPercent($this->price_c ?? $this->price)),
+        'profit_margin_d'   => $this->when($showsCost, fn () => $this->marginPercent($this->price_d ?? $this->price)),
+        'profit_margin_e'   => $this->when($showsCost, fn () => $this->marginPercent($this->price_e ?? $this->price)),
 
         'unit'              => $this->unit,
         'secondary_unit'    => $this->secondary_unit,
@@ -63,4 +49,16 @@ class ProductResource extends JsonResource
         ]),
     ];
 }
+
+    // Margin % = (price − cost) / price × 100, same rounding and zero-price rule as the report.
+    private function marginPercent($price): ?float
+    {
+        if ($this->cost_price === null) {
+            return null;
+        }
+
+        $price = (float) $price;
+
+        return $price > 0 ? round(($price - $this->cost_price) / $price * 100, 1) : 0.0;
+    }
 }
