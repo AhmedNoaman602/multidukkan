@@ -4,15 +4,17 @@ A multi-tenant inventory and sales management system for small retail businesses
 
 This repository is the **backend**: the REST API, business services and database. The React client lives in [multidukkan-frontend](https://github.com/AhmedNoaman602/multidukkan-frontend). The two together are MultiDukkan.
 
-One tenant can run several stores and warehouses, sell in multiple units, track customer credit, purchase from suppliers, and see where every unit of stock and every pound went. It is being built for a real family retail business.
+One tenant can run several stores, each with its own shelf and storage locations, sell in multiple units, track customer credit, purchase from suppliers, and see where every unit of stock and every pound went. It is being built for a real family retail business.
 
-**Status:** personal project, in active development. Not deployed, no users, no CI pipeline. The functionality described below is implemented in this repository, with automated tests concentrated on the business and authorization rules.
+**Status:** personal project, in active development. Deployed, with signup limited to invited businesses during early access. No CI pipeline. The functionality described below is implemented in this repository, with automated tests concentrated on the business and authorization rules.
 
 ---
 
 ## What it does
 
-- **Multi-store, multi-warehouse inventory** with per-warehouse stock levels and reorder thresholds
+- **Multi-store inventory** — every store has one shelf it sells from, plus storage locations, each with its own stock levels and reorder thresholds
+- **Stock transfers** — move stock between a store's locations; when a sale finds the shelf short, the system refills it from storage automatically, in the same transaction
+- **Invite-only signup** — during early access, new businesses register with an invitation code, and each business carries a plan
 - **Orders** with line-item snapshots, discounts, refunds, and walk-in customers
 - **Payments and customer credit** tracked through an append-only financial ledger
 - **Purchasing** — suppliers, purchase orders, supplier payments, and weighted-average cost tracking
@@ -31,11 +33,9 @@ One tenant can run several stores and warehouses, sell in multiple units, track 
 | Backend | Laravel 12, PHP 8.2+ |
 | Database | MySQL (InnoDB and strict mode required) |
 | Auth | Laravel Sanctum, token-based |
-| AI | Prism PHP against Groq (`llama-3.3-70b-versatile`) |
+| AI | Prism PHP against Groq (`openai/gpt-oss-120b`) |
 | Testing | PHPUnit 11, feature tests against real MySQL |
 | Frontend | React 19 (JavaScript), Vite, React Router 7, TanStack Query 5, Tailwind — separate repo: [multidukkan-frontend](https://github.com/AhmedNoaman602/multidukkan-frontend) |
-
-At a glance: **87 REST endpoints** across 21 controllers, 19 models, 55 migrations, **390 feature tests** in 33 files.
 
 ---
 
@@ -59,13 +59,13 @@ The decisions worth knowing about, and where they are documented.
 
 ### Tenant isolation is enforced at the model layer
 
-A global Eloquent scope ([`ScopedToTenant`](app/Models/Concerns/ScopedToTenant.php)) is applied to **15 models**. It filters queries by `tenant_id` and stamps tenant ownership on insert, so isolation does not depend on a developer remembering to add a `where` clause to each query.
+A global Eloquent scope ([`ScopedToTenant`](app/Models/Concerns/ScopedToTenant.php)) is applied to every tenant-owned model except `User`, which is scoped by hand. It filters queries by `tenant_id` and stamps tenant ownership on insert, so isolation does not depend on a developer remembering to add a `where` clause to each query.
 
 This replaced an earlier design where each controller checked `tenant_id` by hand. That pattern was flagged as structurally fragile during a code-level security review — see finding H-01 in [`docs/security/SECURITY-AUDIT.md`](docs/security/SECURITY-AUDIT.md), which recommended converting isolation from a convention into an enforced default.
 
 ### Authorization is layered
 
-Three roles — `tenant_admin`, `store_manager`, `store_staff` — enforced by **11 policies** plus two named capability gates (`view-cost-data`, `view-reports`). Policies answer "may this user touch this record"; gates answer "may this role do this kind of thing at all". Store-level isolation means a manager in one store cannot read or modify another store's orders, payments, or refunds.
+Three roles — `tenant_admin`, `store_manager`, `store_staff` — enforced by Laravel policies plus two named capability gates (`view-cost-data`, `view-reports`). Policies answer "may this user touch this record"; gates answer "may this role do this kind of thing at all". Store-level isolation means a manager in one store cannot read or modify another store's orders, payments, or refunds.
 
 See [ADR-002](docs/01-architecture/decisions/ADR-002-string-role-column.md) and [ADR-009](docs/01-architecture/decisions/ADR-009-capability-gates.md).
 
@@ -79,7 +79,9 @@ See [ADR-003](docs/01-architecture/decisions/ADR-003-ledger-single-source-of-tru
 
 ### Stock is an event log, not just a number
 
-`inventory.quantity` is the current count; `inventory_transactions` is the append-only history of how it got there. Sales, restocks, and manual adjustments each write a transaction row referencing what caused the movement.
+`inventory.quantity` is the current count; `inventory_transactions` is the append-only history of how it got there. Sales, restocks, adjustments and transfers each write a transaction row referencing what caused the movement.
+
+Sales are taken from the store's shelf. If the shelf is short, the backend refills exactly the shortfall from the same store's storage locations, records it as a replenishment transfer linked to the order, and then completes the sale — all inside one database transaction, so a failed sale leaves no half-moved stock ([ADR-010](docs/01-architecture/decisions/ADR-010-stock-locations-and-shelf-fulfillment.md), [`docs/06-domain/stock-transfers.md`](docs/06-domain/stock-transfers.md)).
 
 One gap is known and tracked: `InventoryService::setStock` writes a quantity directly without logging a transaction. That is finding M-02 in the security audit, still open.
 
@@ -93,7 +95,7 @@ Route → FormRequest (validation) → Controller (thin) → Service (business l
                                    API Resource (response shaping)
 ```
 
-Controllers authorize and delegate; business logic lives in services. Validation lives in 33 FormRequest classes, and 13 API Resources shape responses for the main entities. Two deviations exist today: `AIController` validates inline rather than through a FormRequest, and a number of endpoints — reporting, search, auth and some others — return arrays directly instead of going through a Resource.
+Controllers authorize and delegate; business logic lives in services. Validation lives in FormRequest classes, and API Resources shape responses for the main entities. Two deviations exist today: `AIController` validates inline rather than through a FormRequest, and a number of endpoints — reporting, search, auth and some others — return arrays directly instead of going through a Resource.
 
 See [`docs/01-architecture/backend-architecture.md`](docs/01-architecture/backend-architecture.md).
 
@@ -112,13 +114,13 @@ The React client lives in its own repository, [multidukkan-frontend](https://git
 
 **Authentication.** Login stores the token and user in `localStorage`. An `AuthGate` component re-fetches `/me` on every route change rather than trusting that cached copy, which is what keeps role and onboarding state correct after it changes server-side.
 
-**Server state vs UI state.** TanStack Query owns everything read from the API (40 query sites); component state owns only UI concerns. Writes are deliberately not `useMutation` — they are direct calls on the shared client followed by explicit `invalidateQueries` on the affected keys.
+**Server state vs UI state.** TanStack Query owns everything read from the API; component state owns only UI concerns. Writes are deliberately not `useMutation` — they are direct calls on the shared client followed by explicit `invalidateQueries` on the affected keys.
 
 **Role-aware routing.** `PrivateRoute` gates on the presence of a token. `RoleRoute` takes a capability predicate from `src/lib/permissions.js`, whose two functions mirror the server's `view-cost-data` and `view-reports` gates. Supplier, purchase-order and report routes sit behind it.
 
 > **This is user experience, not security.** Hiding a route, a column or a cost price in React prevents a user from being offered a dead end that the API would reject anyway. It is not an access control. Authorization is enforced independently in the Laravel backend by policies and gates, and the cross-store exposure tests exercise that server-side. Anyone can edit client-side JavaScript; nobody can edit the policy layer.
 
-**Arabic first.** A hand-written i18n layer — no i18n library — with Arabic as the default language and 20 translation namespaces per language. The provider sets `<html lang>` and `dir`, and components branch on direction for icons, drawer sides and sheet placement, so RTL is real layout behaviour rather than a mirrored stylesheet. The choice persists in `localStorage` and rides along on every request via `X-Locale`.
+**Arabic first.** A hand-written i18n layer — no i18n library — with Arabic as the default language. The provider sets `<html lang>` and `dir`, and components branch on direction for icons, drawer sides and sheet placement, so RTL is real layout behaviour rather than a mirrored stylesheet. The choice persists in `localStorage` and rides along on every request via `X-Locale`.
 
 ## Testing
 
@@ -126,19 +128,21 @@ The React client lives in its own repository, [multidukkan-frontend](https://git
 php artisan test
 ```
 
-**390 feature tests across 33 files**, run against **real MySQL rather than an in-memory SQLite database**, so foreign keys, transactions, and `STRICT_TRANS_TABLES` behave the way they will on a real server.
+The feature test suite runs against **real MySQL rather than an in-memory SQLite database**, so foreign keys, transactions, and `STRICT_TRANS_TABLES` behave the way they will on a real server.
 
 Coverage is concentrated where mistakes are expensive:
 
 | Area | Tests |
 |---|---|
-| Role and permission matrix | `RoleTest` (47) |
-| Ledger and financial correctness | `LedgerTest` (35) |
-| Inventory movements | `InventoryTest` (24) |
-| Timezone handling | `TimezoneTest` (23) |
-| Discount rules and role ceilings | `DiscountTest` (23) |
-| Monetary overflow boundaries | `MonetaryOverflowValidationTest` (12) |
-| Cross-store data exposure | `CrossStoreExposureTest` (8), `CostDataVisibilityTest` (14) |
+| Role and permission matrix | `RoleTest` |
+| Ledger and financial correctness | `LedgerTest` |
+| Inventory movements | `InventoryTest` |
+| Shelf fulfilment and stock transfers | `ShelfFulfillmentTest`, `StockTransferTest`, `StoreShelfTest` |
+| Invite-only signup | `RegisterTest` |
+| Timezone handling | `TimezoneTest` |
+| Discount rules and role ceilings | `DiscountTest` |
+| Monetary overflow boundaries | `MonetaryOverflowValidationTest` |
+| Cross-store data exposure | `CrossStoreExposureTest`, `CostDataVisibilityTest` |
 
 Test conventions are in [`docs/04-engineering-standards/testing-strategy.md`](docs/04-engineering-standards/testing-strategy.md).
 
@@ -182,6 +186,8 @@ Seeding runs `DemoSeeder`, which builds a tenant with stores, warehouses, produc
 
 These are local development fixtures, defined in plain text in `database/seeders/DemoSeeder.php`, and are not used by any deployed system. The seeder refuses to run when `APP_ENV=production`.
 
+Signup is invite-only. To register a new business locally, set `INVITE_CODE` in `.env`; with no code set, registration is closed.
+
 ### Verifying the database is configured correctly
 
 Two diagnostic commands ship with the project. Both are read-only.
@@ -195,7 +201,7 @@ Strict mode matters: without it MySQL silently truncates overflowing monetary va
 
 ### Running the frontend
 
-The API serves JSON only; there are no Blade views, so you need the client to see a UI. Clone [multidukkan-frontend](https://github.com/AhmedNoaman602/multidukkan-frontend), `npm install`, `npm run dev`. Note that its API base URL is currently hardcoded to `http://multidukkan.test/api` in `src/api/axios.js` — change it there if you serve this API from somewhere else.
+The API serves JSON only; there are no Blade views, so you need the client to see a UI. Clone [multidukkan-frontend](https://github.com/AhmedNoaman602/multidukkan-frontend), `npm install`, `npm run dev`. Its API base URL comes from `VITE_API_URL`; `.env.development` points at `http://multidukkan.test/api`, so change it there if you serve this API from somewhere else.
 
 ### Tests
 
@@ -216,7 +222,7 @@ This project is documented more heavily than most of its size, because writing t
 | A tour of the whole system | [`docs/DEVELOPER_GUIDE.md`](docs/DEVELOPER_GUIDE.md) |
 | The invariants that must not break | [`docs/DOMAIN_RULES.md`](docs/DOMAIN_RULES.md) |
 | Every table, column, and foreign key | [`docs/DATABASE_GUIDE.md`](docs/DATABASE_GUIDE.md) |
-| Why a decision is the way it is | [9 ADRs](docs/01-architecture/decisions/) |
+| Why a decision is the way it is | [Architecture Decision Records](docs/01-architecture/decisions/) |
 | Known rough edges, honestly ranked | [`docs/CODEBASE_NOTES.md`](docs/CODEBASE_NOTES.md) |
 | The security review and what came out of it | [`docs/security/SECURITY-AUDIT.md`](docs/security/SECURITY-AUDIT.md) |
 
@@ -226,17 +232,17 @@ This project is documented more heavily than most of its size, because writing t
 
 ```
 app/
-  Http/Controllers/Api/V1/   21 controllers
-  Http/Requests/             33 FormRequests
-  Http/Resources/            13 API Resources
-  Services/                  business logic (Order, Ledger, Inventory, Payment, ...)
+  Http/Controllers/Api/V1/   controllers
+  Http/Requests/             FormRequests — validation
+  Http/Resources/            API Resources — response shaping
+  Services/                  business logic (Order, Ledger, Inventory, StockTransfer, ...)
   Services/AI/               LLM integration
-  Policies/                  11 authorization policies
-  Models/                    19 models; Models/Concerns holds the ScopedToTenant scope
-  Rules/                     BelongsToTenant, OrderBelongsToCustomer
+  Policies/                  authorization policies
+  Models/                    Eloquent models; Models/Concerns holds the ScopedToTenant scope
+  Rules/                     BelongsToTenant, OrderBelongsToCustomer, ...
   Console/Commands/          db:verify-sql-mode, db:verify-engine
-database/migrations/         55 migrations
-tests/Feature/               33 test files, 390 tests
+database/migrations/         schema history
+tests/Feature/               feature tests, run against MySQL
 docs/                        engineering documentation
 ```
 
@@ -256,11 +262,11 @@ Finding C-01 in the security audit — Telescope shipping enabled, which could p
 
 ## Known limitations
 
-- No deployment, no CI, no automated pre-deploy checks. The deployment steps above are manual.
+- No CI pipeline or automated pre-deploy checks. The deployment steps above are manual.
 - `setStock` bypasses the inventory transaction log (audit M-02, open).
+- Stock transfers are made by admins and store managers only; the staff request-and-approve flow is not built yet.
 - Remaining medium and low findings from the security audit are listed, with reasoning, in [`docs/security/SECURITY-AUDIT.md`](docs/security/SECURITY-AUDIT.md).
-- The frontend has no automated tests, and its API base URL is hardcoded rather than read from an environment variable, so it cannot be pointed at another environment without a code change.
-- The frontend ships as a single ~1.2 MB bundle (~319 kB gzipped) with no code splitting.
+- The frontend has no automated tests, and its bundle is not code-split.
 
 ---
 
