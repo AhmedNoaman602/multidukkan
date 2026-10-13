@@ -122,7 +122,7 @@ class OrderController extends Controller
 
     $validated = $request->validated();
 
-try {
+    try {
         $order = $this->order->updateOrder($order, $validated, auth()->user());
         return new OrderResource($order);
 
@@ -180,8 +180,8 @@ try {
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
-$this->order->addItem($order, $request->validated());
-return new OrderResource($order->load('items.product', 'payments', 'customer'));
+        $this->order->addItem($order, $request->validated());
+        return new OrderResource($order->load('items.product', 'payments', 'customer'));
     }
     
 }
