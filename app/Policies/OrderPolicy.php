@@ -31,7 +31,8 @@ class OrderPolicy
      */
     public function create(User $user): bool
     {
-return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);    }
+        return in_array($user->role, ['tenant_admin', 'store_manager', 'store_staff']);
+    }
 
     /**
      * Determine whether the user can update the model.
