@@ -82,4 +82,10 @@ class Order extends Model
     {
         return (float) $this->items->sum(fn ($i) => ($i->product?->cost_price ?? 0) * $i->baseQuantity());
     }
+
+    // The sum of the rounded line amounts, so the lines shown on an invoice add up to it.
+    public function subtotal(): float
+    {
+        return round($this->items->sum(fn ($i) => $i->lineTotal()), 2);
+    }
 }

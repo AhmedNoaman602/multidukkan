@@ -31,7 +31,7 @@ class OrderResource extends JsonResource
      */
    public function toArray(Request $request): array
 {
-    $subtotal  = $this->items->sum(fn($i) => $i->unit_price * $i->quantity);
+    $subtotal  = $this->subtotal();
     $discount  = (float) ($this->discount ?? 0);
     // orders.total is the authoritative charge amount (ADR-004) — may differ from
     // subtotal - discount when a manual_total override was applied at creation.
@@ -83,7 +83,7 @@ class OrderResource extends JsonResource
             'unit_label'   => $item->unit_name,
             'conversion_factor' => $item->conversion_factor,
             'base_quantity' => $item->baseQuantity(),
-            'total'        => $item->unit_price * $item->quantity,
+            'total'        => $item->lineTotal(),
             ...($showsCost ? ['cost_price' => $item->product?->cost_price ?? null] : []),
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),

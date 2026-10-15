@@ -136,7 +136,7 @@ class PurchaseOrderService
             $syncData = [];
             foreach($validatedItems as $v) {
                 $syncData[$v['product']->id] = [
-                    'last_purchase_price' => $v['costPerBaseUnit'],
+                    'last_purchase_price' => round($v['costPerBaseUnit'], 6),
                     'last_purchased_at' => $purchasedOn,
                 ];
             }
@@ -155,7 +155,7 @@ class PurchaseOrderService
                     'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
                     'warehouse_id' => $v['warehouseId'],
-                    'total' => $v['unitPrice'] * $v['quantity'],
+                    'total' => round($v['unitPrice'] * $v['quantity'], 2),
                 ]);
 
               
@@ -169,9 +169,9 @@ class PurchaseOrderService
                 } else {
                     $newAvg = $v['costPerBaseUnit'];
                 }
-                $v['product']->update(['cost_price' => round($newAvg, 2)]);
+                $v['product']->update(['cost_price' => round($newAvg, 6)]);
                 $runningStock[$v['product']->id] = $effectiveStock + $v['stockQty'];
-                $runningCost[$v['product']->id] = round($newAvg, 2);
+                $runningCost[$v['product']->id] = round($newAvg, 6);
                 
                 $this->inventory->ensureStockRow(
                     $v['product']->id,
@@ -189,7 +189,7 @@ class PurchaseOrderService
                     $batchId,
                     InventoryTransaction::TYPE_PURCHASE_IN
                 );
-                $totalAmount += ($purchaseOrderItem->unit_price * $purchaseOrderItem->quantity);
+                $totalAmount += $purchaseOrderItem->total;
             }
 
             $supplier->syncProducts($syncData);

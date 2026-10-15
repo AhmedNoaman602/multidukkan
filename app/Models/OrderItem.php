@@ -30,6 +30,12 @@ class OrderItem extends Model
         return (int) $this->quantity * $this->conversion_factor;
     }
 
+    // A line is money, so it is rounded to the piaster before lines are added up.
+    public function lineTotal(): float
+    {
+        return round($this->unit_price * $this->quantity, 2);
+    }
+
     public function order()
     {
         return $this->belongsTo(Order::class);

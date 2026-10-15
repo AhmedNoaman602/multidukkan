@@ -32,7 +32,7 @@ class StoreOrderItemRequest extends FormRequest
             'warehouse_id' => 'prohibited',
             'quantity'     => ['required', 'numeric', 'min:1'],
             'unit_type'    => ['nullable', 'in:base,secondary'],
-            'unit_price'   => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
+            'unit_price'   => ['nullable', 'numeric', 'min:0', 'max:99999999.999999', 'decimal:0,6'],
         ];
     }
 }

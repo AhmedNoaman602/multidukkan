@@ -148,9 +148,9 @@ class OrderService
                 };
 
                 // Calculate the final unit price, adjusting it if using a secondary unit and conversion factor.
-                $unitPrice = isset($itemData['unit_price']) && $itemData['unit_price'] !== null
+                $unitPrice = round(isset($itemData['unit_price']) && $itemData['unit_price'] !== null
                 ? (float) $itemData['unit_price']
-                : $price * $conversionFactor;
+                : $price * $conversionFactor, 6);
 
                 // Temporarily store the validated data of the item to be processed after the order record is created.
                 $validatedItems[] = [
@@ -211,8 +211,9 @@ foreach ($validatedItems as $v) {
                     'warehouse_id' => $shelf->id,
                 ]);
 
-                $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
+                $totalAmount += $orderItem->lineTotal();
             }
+            $totalAmount = round($totalAmount, 2);
 
             $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
 
@@ -400,7 +401,7 @@ if (!empty($data['pay_immediately'])) {
 
     private function recalculateTotal(Order $order): float
     {
-        $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
+        $subtotal = $order->load('items')->subtotal();
         $discount = (float) ($order->discount ?? 0);
 
         return max(0, round($subtotal - $discount, 2));
@@ -435,7 +436,7 @@ if (!empty($data['pay_immediately'])) {
                     default => $product->price,
                 };
 
-        $unitPrice = $data['unit_price'] ?? $price * $conversionFactor;
+        $unitPrice = round($data['unit_price'] ?? $price * $conversionFactor, 6);
 
 
 
@@ -489,7 +490,7 @@ public function updateOrder(Order $order, array $data, User $user): Order
         } elseif ($hasDiscount) {
             $this->ensureOrderIsEditable($order);
 
-            $subtotal = (float) $order->items()->sum(DB::raw('unit_price * quantity'));
+            $subtotal = $order->load('items')->subtotal();
 
             $order->update($fields + ['discount' => $this->resolveDiscount($data, $subtotal, $user)]);
             $this->resetToCalculatedTotal($order);

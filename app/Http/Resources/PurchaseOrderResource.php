@@ -13,7 +13,7 @@ class PurchaseOrderResource extends JsonResource
      */
        public function toArray(Request $request): array
 {
-    $subtotal  = $this->items->sum(fn($i) => $i->unit_price * $i->quantity);
+    $subtotal  = $this->items->sum(fn($i) => (float) $i->total);
     // purchase_orders.total is the authoritative charge amount, mirroring ADR-004 for orders.
     $total     = (float) $this->total;
     $totalPaid = $this->supplierPayments->sum('amount');
@@ -39,7 +39,7 @@ class PurchaseOrderResource extends JsonResource
             'conversion_factor' => $item->conversion_factor,
             'base_quantity' => $item->baseQuantity(),
             'unit_price'   => $item->unit_price,
-            'total'        => $item->unit_price * $item->quantity,
+            'total'        => (float) $item->total,
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),

@@ -94,7 +94,7 @@ class MonetaryOverflowValidationTest extends TestCase
 
     public function test_price_exceeding_column_maximum_returns_422(): void
     {
-        $this->createProduct(['price' => 100000000]) // 9 integer digits — overflows decimal(10,2)
+        $this->createProduct(['price' => 100000000]) // 9 integer digits — overflows decimal(14,6)
             ->assertStatus(422)
             ->assertJsonValidationErrors('price');
 
@@ -103,9 +103,11 @@ class MonetaryOverflowValidationTest extends TestCase
 
     public function test_price_with_too_many_decimals_returns_422(): void
     {
-        $this->createProduct(['price' => 10.555])
+        $this->createProduct(['price' => '10.5555555'])
             ->assertStatus(422)
             ->assertJsonValidationErrors('price');
+
+        $this->assertDatabaseMissing('products', ['price' => 10.555556]);
     }
 
     public function test_price_tier_and_cost_price_are_also_capped(): void
@@ -114,9 +116,11 @@ class MonetaryOverflowValidationTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('price_a');
 
-        $this->createProduct(['price' => 100, 'cost_price' => 10.999])
+        $this->createProduct(['price' => 100, 'cost_price' => '10.9999999'])
             ->assertStatus(422)
             ->assertJsonValidationErrors('cost_price');
+
+        $this->assertDatabaseMissing('products', ['cost_price' => 11]);
     }
 
     // ─────────────────────────────────────────────────────────

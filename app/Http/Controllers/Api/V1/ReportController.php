@@ -153,7 +153,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
                 'product_name' => $name,
                 // Base units by each line's sale-time factor: 2 box + 5 pcs = 29, not 7.
                 'units_sold'   => $items->sum(fn($i) => $i->baseQuantity()),
-                'revenue'      => round($items->sum(fn($i) => $i->unit_price * $i->quantity), 2),
+                'revenue'      => round($items->sum(fn($i) => $i->lineTotal()), 2),
             ])
             ->sortByDesc('units_sold')
             ->values();

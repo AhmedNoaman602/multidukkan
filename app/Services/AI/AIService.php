@@ -77,6 +77,12 @@ class AIService
         return trim(preg_replace('/<think>.*?<\/think>/is', '', $text));
     }
 
+    // Unit prices keep up to six decimals without trailing zeros: 150.000000 → 150, 0.012500 → 0.0125.
+    private function formatUnitPrice(float|string|null $price): string
+    {
+        return rtrim(rtrim(number_format((float) $price, 6, '.', ''), '0'), '.');
+    }
+
     /**
      * Generates a 1-2 sentence bilingual (Arabic and English) product description.
      *
@@ -223,7 +229,8 @@ class AIService
         // Format the entire catalog with prices and stock levels
         $catalog = $products->map(function ($product) {
             $totalStock = $product->inventories->sum('quantity');
-            return "- {$product->name}: {$totalStock} وحدة (الحد الأدنى: {$product->inventories->min('threshold')}) — السعر: {$product->price} جنيه";  
+            $price = $this->formatUnitPrice($product->price);
+            return "- {$product->name}: {$totalStock} وحدة (الحد الأدنى: {$product->inventories->min('threshold')}) — السعر: {$price} جنيه";
         })->join("\n");
             
         // Instruct the AI to act as a store assistant with direct access to catalog context

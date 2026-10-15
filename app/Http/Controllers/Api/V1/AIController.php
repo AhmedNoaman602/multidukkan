@@ -69,7 +69,7 @@ public function insights(): JsonResponse
                 ];
             }
             $productSales[$name]['total_quantity'] += $item->baseQuantity();
-            $productSales[$name]['total_revenue']  += $item->unit_price * $item->quantity;
+            $productSales[$name]['total_revenue']  += $item->lineTotal();
             $productSales[$name]['order_count']    += 1;
         }
     }
@@ -78,7 +78,10 @@ public function insights(): JsonResponse
         'period'         => __('messages.ai_period_last_30_days'),
         'total_orders'   => $orders->count(),
         'total_revenue'  => round($orders->sum('total'), 2),
-        'products'       => array_values($productSales),
+        'products'       => array_values(array_map(
+            fn ($p) => [...$p, 'total_revenue' => round($p['total_revenue'], 2)],
+            $productSales
+        )),
     ];
 
 try {

@@ -33,7 +33,7 @@ class Product extends Model
     ];
     
     protected $casts = [
-        'price' => 'decimal:2',
+        'price' => 'decimal:6',
         ];
     
     public function factorFor(string $unitType): int
