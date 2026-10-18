@@ -23,7 +23,7 @@ class UpdateOrderItemRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'quantity'   => ['nullable', 'numeric', 'min:1'],
+            'quantity'   => ['nullable', 'integer', 'min:1'],
             'unit_price' => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];
     }

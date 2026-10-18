@@ -30,7 +30,7 @@ class StoreOrderItemRequest extends FormRequest
             'product_id'   => ['required', 'integer', new BelongsToTenant(Product::class, $tenantId)],
             // Sales are fulfilled from the order's store shelf; the client never picks a location.
             'warehouse_id' => 'prohibited',
-            'quantity'     => ['required', 'numeric', 'min:1'],
+            'quantity'     => ['required', 'integer', 'min:1'],
             'unit_type'    => ['nullable', 'in:base,secondary'],
             'unit_price'   => ['nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
         ];
