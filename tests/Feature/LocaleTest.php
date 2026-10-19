@@ -133,7 +133,7 @@ class LocaleTest extends TestCase
             ->postJson('/api/units', []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('errors.name.0', 'حقل name مطلوب.');
+            ->assertJsonPath('errors.name.0', 'حقل الاسم مطلوب.');
     }
 
     public function test_english_validation_error_uses_english_validation_file(): void

@@ -32,7 +32,7 @@ class UpdateOrderItemRequest extends FormRequest
     {
         $validator->after(function ($validator) {
             if (!$this->quantity && !$this->unit_price) {
-                $validator->errors()->add('quantity', 'Provide quantity or unit_price to update.');
+                $validator->errors()->add('quantity', __('messages.order_item_update_requires_field'));
             }
         });
     }

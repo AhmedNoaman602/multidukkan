@@ -15,12 +15,15 @@ class SetLocale
 
     public function handle(Request $request, Closure $next): Response
     {
-        $locale = $request->header('X-Locale');
-
-        App::setLocale(
-            in_array($locale, self::SUPPORTED_LOCALES, true) ? $locale : self::DEFAULT_LOCALE
-        );
+        App::setLocale(self::localeFor($request));
 
         return $next($request);
+    }
+
+    public static function localeFor(Request $request): string
+    {
+        $locale = $request->header('X-Locale');
+
+        return in_array($locale, self::SUPPORTED_LOCALES, true) ? $locale : self::DEFAULT_LOCALE;
     }
 }

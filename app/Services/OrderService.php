@@ -120,7 +120,7 @@ class OrderService
                 ->get()
                 ->keyBy('id');
 
-            abort_if($products->count() !== $productIds->count(), 404, 'Product not found.');
+            abort_if($products->count() !== $productIds->count(), 404, __('messages.product_not_found'));
 
             $storeId = $user->store_id ?? $data['store_id'];
             $shelf = $this->shelfOf($user->tenant_id, $storeId);

@@ -119,6 +119,12 @@ return [
     'walk_in_label' => 'Walk-in',
 
     'unauthenticated' => 'Unauthenticated',
+    'resource_not_found' => 'The requested item was not found or has been deleted.',
+    'route_not_found' => 'The requested page or action does not exist.',
+    'too_many_requests' => 'Too many requests. Please try again in :seconds second.|Too many requests. Please try again in :seconds seconds.',
+    'server_error' => 'Something went wrong. Please try again, and contact support if it keeps happening.',
+    'product_not_found' => 'Product not found.',
+    'order_item_update_requires_field' => 'Provide quantity or unit_price to update.',
 
     'description_required_for_misc_expense' => 'A description is required for MISCELLANEOUS expenses',
     'field_not_tenant_owned' => 'The selected :attribute does not belong to this tenant',

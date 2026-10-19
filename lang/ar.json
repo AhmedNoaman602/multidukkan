@@ -1,0 +1,5 @@
+{
+    "(and :count more error)": "(وخطأ آخر)",
+    "(and :count more errors)": "(و:count أخطاء أخرى)|(وخطأ آخر)|(وخطآن آخران)|(و:count أخطاء أخرى)|(و:count خطأً آخر)|(و:count خطأ آخر)",
+    "The given data was invalid.": "البيانات المدخلة غير صحيحة."
+}
