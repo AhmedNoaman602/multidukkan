@@ -6,9 +6,17 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\Concerns\UppercasesCodes;
 
 class StoreSupplierRequest extends FormRequest
 {
+    use UppercasesCodes;
+
+    protected function prepareForValidation(): void
+    {
+        $this->uppercase(['code']);
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */

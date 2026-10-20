@@ -7,9 +7,17 @@ use Illuminate\Validation\Rule;
 use App\Rules\BelongsToTenant;
 use App\Models\Warehouse;
 use App\Models\Supplier;
+use App\Http\Requests\Concerns\UppercasesCodes;
 
 class UpdateProductRequest extends FormRequest
 {
+    use UppercasesCodes;
+
+    protected function prepareForValidation(): void
+    {
+        $this->uppercase(['sku']);
+    }
+
     public function authorize(): bool
     {
         return true;

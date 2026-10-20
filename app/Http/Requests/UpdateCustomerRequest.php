@@ -4,9 +4,17 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use App\Http\Requests\Concerns\UppercasesCodes;
 
 class UpdateCustomerRequest extends FormRequest
 {
+    use UppercasesCodes;
+
+    protected function prepareForValidation(): void
+    {
+        $this->uppercase(['code']);
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */

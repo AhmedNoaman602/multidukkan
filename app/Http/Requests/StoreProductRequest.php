@@ -8,9 +8,17 @@ use Illuminate\Support\Facades\Auth;
 use App\Rules\BelongsToTenant;
 use App\Models\Warehouse;
 use App\Models\Supplier;
+use App\Http\Requests\Concerns\UppercasesCodes;
 
 class StoreProductRequest extends FormRequest
 {
+    use UppercasesCodes;
+
+    protected function prepareForValidation(): void
+    {
+        $this->uppercase(['sku']);
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
