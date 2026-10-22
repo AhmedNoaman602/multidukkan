@@ -290,8 +290,11 @@ It matters: `toISOString().slice(0,10)` would give the **UTC** date and be wrong
 hours of every Cairo morning.
 
 `src/lib/format.js` owns all rendering. Two decisions worth knowing:
-- Both languages use **Western numerals** (`ar-EG-u-nu-latn`) — the approved style for this Arabic
-  UI. Only the currency symbol and its side change with language.
+- Arabic screens show **Arabic digits** with the Arabic thousands and decimal marks (`١٬٢٥٠٫٥٠`,
+  locale `ar-EG`), like the shop's previous system. Identifiers (invoice numbers, SKUs, phones)
+  get Arabic digits too, through `toDisplayDigits`. English stays Western (`en-US`). This is
+  display only: state, API payloads and date-picker values (`en-CA`) stay Western. Decided
+  2026-10-20, replacing the earlier Western-numerals rule.
 - `hour12: true` is set explicitly, because `en-GB` defaults to 24-hour and `ar-EG` to 12-hour, so
   without it the same screen would read differently in each language.
 
