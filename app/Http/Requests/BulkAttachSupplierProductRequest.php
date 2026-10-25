@@ -16,7 +16,7 @@ class BulkAttachSupplierProductRequest extends FormRequest
         return [
             'products'                => ['required', 'array', 'min:1'],
             'products.*.product_id'   => ['required', 'exists:products,id'],
-            'products.*.cost_price'   => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
+            'products.*.cost_price'   => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
             'products.*.is_preferred' => ['sometimes', 'boolean'],
             'products.*.notes'        => ['sometimes', 'nullable', 'string', 'max:255'],
         ];

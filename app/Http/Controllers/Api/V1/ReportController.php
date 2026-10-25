@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\Money;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Payment;
@@ -85,12 +86,12 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
     $grossProfit    = $orders->sum(fn($o) => $this->calcOrderTotal($o) - $this->orderCost($o));
 
            return [
-            'total_revenue'   => round($totalRevenue, 2),
-            'total_collected' => round($totalCollected, 2),
-            'outstanding'     => round($totalRevenue - $totalCollected, 2),
-            'gross_profit'    => round($grossProfit, 2),
-            'total_expenses'  => round($totalExpenses, 2),
-            'net_profit'      => round($grossProfit - $totalExpenses, 2),
+            'total_revenue'   => round($totalRevenue, Money::SCALE),
+            'total_collected' => round($totalCollected, Money::SCALE),
+            'outstanding'     => round($totalRevenue - $totalCollected, Money::SCALE),
+            'gross_profit'    => round($grossProfit, Money::SCALE),
+            'total_expenses'  => round($totalExpenses, Money::SCALE),
+            'net_profit'      => round($grossProfit - $totalExpenses, Money::SCALE),
             'order_count'     => $orders->count(),
         ];
 }
@@ -98,9 +99,9 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
  private function buildProfitByOrder(Collection $orders): Collection
     {
         return $orders->map(function ($o) {
-            $revenue = round($this->calcOrderTotal($o), 2);
-            $cost    = round($this->orderCost($o), 2);
-            $profit  = round($revenue - $cost, 2);
+            $revenue = round($this->calcOrderTotal($o), Money::SCALE);
+            $cost    = round($this->orderCost($o), Money::SCALE);
+            $profit  = round($revenue - $cost, Money::SCALE);
 
             return [
                 'invoice_number' => $o->invoice_number,
@@ -118,7 +119,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
         return $payments->map(fn($p) => [
             'invoice_number' => $p->order?->invoice_number,
             'customer_name'  => $p->order?->customer_name_snapshot ?? __('messages.walk_in_label'),
-            'amount'         => round($p->amount - ($p->refunded_amount ?? 0), 2),
+            'amount'         => round($p->amount - ($p->refunded_amount ?? 0), Money::SCALE),
             'method'         => $p->method,
             'paid_at'        => $p->paid_at,
         ])
@@ -134,11 +135,11 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
                     ?? $customerOrders->first()->customer?->name
                     ?? __('messages.walk_in_label'),
                 'orders_count'  => $customerOrders->count(),
-                'total'         => round($customerOrders->sum(fn($o) => $this->calcOrderTotal($o)), 2),
+                'total'         => round($customerOrders->sum(fn($o) => $this->calcOrderTotal($o)), Money::SCALE),
                 'collected'     => round(
                     $payments->whereIn('order_id', $customerOrders->pluck('id'))
                         ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)),
-                    2
+                    Money::SCALE
                 ),
             ])
             ->sortByDesc('total')
@@ -153,7 +154,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
                 'product_name' => $name,
                 // Base units by each line's sale-time factor: 2 box + 5 pcs = 29, not 7.
                 'units_sold'   => $items->sum(fn($i) => $i->baseQuantity()),
-                'revenue'      => round($items->sum(fn($i) => $i->unit_price * $i->quantity), 2),
+                'revenue'      => round($items->sum(fn($i) => $i->unit_price * $i->quantity), Money::SCALE),
             ])
             ->sortByDesc('units_sold')
             ->values();
@@ -164,7 +165,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
         return $orders->groupBy(fn($o) => $o->order_date)
             ->map(fn($dayOrders, $date) => [
                 'date'    => $date,
-                'revenue' => round($dayOrders->sum(fn($o) => $this->calcOrderTotal($o)), 2),
+                'revenue' => round($dayOrders->sum(fn($o) => $this->calcOrderTotal($o)), Money::SCALE),
                 'orders'  => $dayOrders->count(),
             ])
             ->sortBy('date')

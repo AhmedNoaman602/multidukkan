@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Http\Resources\CustomerResource;
 use App\Services\LedgerService;
+use App\Support\Money;
 use App\Http\Requests\RefundCustomerRequest;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
@@ -60,7 +61,7 @@ class CustomerController extends Controller
         ],
         'stats' => [
             'total_customers'   => $customers->total(),
-            'total_outstanding' => round($totalOutstanding,2),
+            'total_outstanding' => round($totalOutstanding, Money::SCALE),
         ],
     ]);
 }

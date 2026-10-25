@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 /**
@@ -49,7 +50,7 @@ class OrderResource extends JsonResource
         'customer_name' => $this->customer_name_snapshot ?? $this->customer?->name ?? __('messages.deleted_customer'),
         'created_by' => $this->created_by,
         'notes'      => $this->notes,
-        'subtotal'       => round($subtotal, 2),  
+        'subtotal'       => round($subtotal, Money::SCALE),  
         'discount'       => $discount,
         'manual_total'   => $this->manual_total !== null ? (float) $this->manual_total : null,
         'total'      => $total,
@@ -86,7 +87,7 @@ class OrderResource extends JsonResource
             'total'        => $item->unit_price * $item->quantity,
             ...($showsCost ? ['cost_price' => $item->product?->cost_price ?? null] : []),
         ]),
-        'amount_remaining' => max(0, round($total - $totalPaid , 2)),
+        'amount_remaining' => max(0, round($total - $totalPaid , Money::SCALE)),
         ...($showsCost ? $this->profitFields($total) : []),
         'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
         'order_date' => $this->order_date,
@@ -94,11 +95,11 @@ class OrderResource extends JsonResource
 }
 private function profitFields(float $total): array
 {
-    $cost = round($this->costOfGoods(), 2);
+    $cost = round($this->costOfGoods(), Money::SCALE);
 
     return [
         'cost'         => $cost,
-        'gross_profit' => round($total - $cost, 2),
+        'gross_profit' => round($total - $cost, Money::SCALE),
     ];
 }
 

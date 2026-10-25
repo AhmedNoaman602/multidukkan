@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\Money;
 use Illuminate\Http\Request;
 use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
@@ -62,7 +63,7 @@ class OrderController extends Controller
         ->cashOnly()
         ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
 
-    $unpaidAmount = round($totalRevenue - $paidAmount, 2);
+    $unpaidAmount = round($totalRevenue - $paidAmount, Money::SCALE);
 
     $orders = $query->with('items.product', 'payments', 'customer')
         ->orderBy('id', 'desc')
@@ -79,9 +80,9 @@ class OrderController extends Controller
         'years' => $years,
         'stats' => [
             'total_orders'  => $orders->total(),
-            'total_revenue' => round($totalRevenue, 2),
-            'unpaid_amount' => round($unpaidAmount, 2),
-            'paid_amount'   => round($paidAmount, 2),
+            'total_revenue' => round($totalRevenue, Money::SCALE),
+            'unpaid_amount' => round($unpaidAmount, Money::SCALE),
+            'paid_amount'   => round($paidAmount, Money::SCALE),
         ],
     ]);
 }

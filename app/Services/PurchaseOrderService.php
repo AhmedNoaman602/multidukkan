@@ -10,6 +10,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\LocalDateRange;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -169,9 +170,9 @@ class PurchaseOrderService
                 } else {
                     $newAvg = $v['costPerBaseUnit'];
                 }
-                $v['product']->update(['cost_price' => round($newAvg, 2)]);
+                $v['product']->update(['cost_price' => round($newAvg, Money::SCALE)]);
                 $runningStock[$v['product']->id] = $effectiveStock + $v['stockQty'];
-                $runningCost[$v['product']->id] = round($newAvg, 2);
+                $runningCost[$v['product']->id] = round($newAvg, Money::SCALE);
                 
                 $this->inventory->ensureStockRow(
                     $v['product']->id,
@@ -193,7 +194,7 @@ class PurchaseOrderService
             }
 
             $supplier->syncProducts($syncData);
-            $purchaseOrder->update(['total' => round($totalAmount, 2)]);
+            $purchaseOrder->update(['total' => round($totalAmount, Money::SCALE)]);
 
             $this->ledger->purchaseCharge([
                 'tenant_id' => $purchaseOrder->tenant_id,

@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\LocalDateRange;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -223,14 +224,14 @@ foreach ($validatedItems as $v) {
              $creditAvailable = max(0, -$balanceBefore);
 
             // manual_total and discount are mutually exclusive: an override replaces the discount.
-            $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
+            $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], Money::SCALE) : null;
 
             if ($manualTotal !== null) {
                 $discount = 0;
                 $chargeAmount = $manualTotal;
             } else {
                 $discount = $this->resolveDiscount($data, $totalAmount, $user);
-                $chargeAmount = round($totalAmount - $discount, 2);
+                $chargeAmount = round($totalAmount - $discount, Money::SCALE);
             }
 
             // Update the order with its final total cost. The discount column carries the
@@ -290,7 +291,7 @@ foreach ($validatedItems as $v) {
             }
 
 if (!empty($data['pay_immediately'])) {
- $cashAmount = round($chargeAmount - ($applyAmount ?? 0), 2);
+ $cashAmount = round($chargeAmount - ($applyAmount ?? 0), Money::SCALE);
  
     if ($cashAmount > 0) {
         
@@ -377,13 +378,13 @@ if (!empty($data['pay_immediately'])) {
         $value = (float) ($data['discount'] ?? 0);
 
         if (($data['discount_type'] ?? 'amount') === 'percent') {
-            $value = round($subtotal * $value / 100, 2);
+            $value = round($subtotal * $value / 100, Money::SCALE);
         }
 
         $value = max(0, min($value, $subtotal));
 
         if ($user->isStoreStaff() && $subtotal > 0) {
-            $ceiling = round($subtotal * self::STAFF_MAX_DISCOUNT_PERCENT / 100, 2);
+            $ceiling = round($subtotal * self::STAFF_MAX_DISCOUNT_PERCENT / 100, Money::SCALE);
 
             if ($value > $ceiling) {
                 throw ValidationException::withMessages([
@@ -403,7 +404,7 @@ if (!empty($data['pay_immediately'])) {
         $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
         $discount = (float) ($order->discount ?? 0);
 
-        return max(0, round($subtotal - $discount, 2));
+        return max(0, round($subtotal - $discount, Money::SCALE));
     }
 
     private function resetToCalculatedTotal(Order $order): void
@@ -475,7 +476,7 @@ if (!empty($data['pay_immediately'])) {
 public function updateOrder(Order $order, array $data, User $user): Order
 {
     DB::transaction(function () use ($order, $data, $user) {
-        $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
+        $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], Money::SCALE) : null;
         $hasDiscount = isset($data['discount']);
         $fields = array_diff_key($data, array_flip(['discount', 'discount_type', 'manual_total']));
 

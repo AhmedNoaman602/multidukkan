@@ -29,7 +29,7 @@ class UpdateExpenseRequest extends FormRequest
     {
         return [
             'category'     => ['sometimes', 'required', Rule::in(Expense::CATEGORIES)],
-            'amount'       => ['sometimes', 'required', 'numeric', 'gt:0', 'max:99999999.99', 'decimal:0,2'],
+            'amount'       => ['sometimes', 'required', 'numeric', 'gt:0', 'max:99999999.9999', 'decimal:0,4'],
             'description'  => ['sometimes', 'nullable', 'string', 'max:255'],
             'expense_date' => ['sometimes', 'required', 'date', 'before_or_equal:today'],
         ];

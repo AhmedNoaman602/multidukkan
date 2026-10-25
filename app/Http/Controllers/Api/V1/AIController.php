@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\Money;
 use Illuminate\Http\Request;
 use App\Services\AI\AIService;
 use Illuminate\Http\JsonResponse;
@@ -77,7 +78,7 @@ public function insights(): JsonResponse
     $salesData = [
         'period'         => __('messages.ai_period_last_30_days'),
         'total_orders'   => $orders->count(),
-        'total_revenue'  => round($orders->sum('total'), 2),
+        'total_revenue'  => round($orders->sum('total'), Money::SCALE),
         'products'       => array_values($productSales),
     ];
 

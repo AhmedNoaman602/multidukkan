@@ -458,7 +458,7 @@ class PurchaseOrderMoneyTest extends TestCase
 
         $response->assertJsonFragment([
             'id'     => $paymentId,
-            'amount' => '50.00',
+            'amount' => '50.0000',
             'method' => 'cash',
         ]);
     }

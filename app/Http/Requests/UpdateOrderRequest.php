@@ -34,10 +34,10 @@ class UpdateOrderRequest extends FormRequest
             ],
             'discount_type' => ['nullable', 'in:amount,percent'],
             'discount'   => [
-                'sometimes', 'numeric', 'min:0', 'decimal:0,2',
-                $this->input('discount_type') === 'percent' ? 'max:100' : 'max:99999999.99',
+                'sometimes', 'numeric', 'min:0', 'decimal:0,4',
+                $this->input('discount_type') === 'percent' ? 'max:100' : 'max:99999999.9999',
             ],
-            'manual_total' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
+            'manual_total' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
         ];
     }
 }

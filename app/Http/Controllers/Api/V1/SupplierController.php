@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\SupplierPayment;
 use App\Http\Resources\SupplierResource;
 use App\Http\Resources\PurchaseOrderResource; 
+use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -39,7 +40,7 @@ class SupplierController extends Controller
 
     $balances = $this->ledgerService->getBalancesForSuppliers($user->tenant_id, $supplierIds);
 
-    $totalOwed = max(0, round(array_sum($balances), 2));
+    $totalOwed = max(0, round(array_sum($balances), Money::SCALE));
 
     $perPage = $request->per_page === 'all' ? max(count($supplierIds), 1) : 20;
 

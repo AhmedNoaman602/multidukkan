@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\Money;
 use Illuminate\Http\Request;
 use App\Models\PurchaseOrder;
 use App\Http\Requests\StorePurchaseOrderRequest;
@@ -47,7 +48,7 @@ class PurchaseOrderController extends Controller
         ->whereIn('purchase_order_id', (clone $query)->select('id'))
         ->sum('amount');
 
-    $unpaidAmount = max(0, round($totalSpent - $paidAmount, 2));
+    $unpaidAmount = max(0, round($totalSpent - $paidAmount, Money::SCALE));
 
     $purchaseOrders = $query
         ->with('supplier', 'items.product', 'items.warehouse', 'supplierPayments')
@@ -64,9 +65,9 @@ class PurchaseOrderController extends Controller
         'years' => $years,
         'stats' => [
             'total_orders'  => $purchaseOrders->total(),
-            'total_spent'   => round($totalSpent, 2),
+            'total_spent'   => round($totalSpent, Money::SCALE),
             'unpaid_amount' => $unpaidAmount,
-            'paid_amount'   => round($paidAmount, 2),
+            'paid_amount'   => round($paidAmount, Money::SCALE),
         ],
     ]);
 }

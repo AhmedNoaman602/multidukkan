@@ -4,6 +4,7 @@ namespace App\Services;
 use App\Models\SupplierPayment;
 use App\Models\User;
 use App\Models\PurchaseOrder;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use App\Services\LedgerService;
 use Illuminate\Validation\ValidationException;
@@ -17,7 +18,7 @@ class SupplierPaymentService
     public function processSupplierPayment(array $data , User $user) : array {
         return DB::transaction(function () use ($data , $user) {
             $supplierId = $data['supplier_id'];
-            $remaining = round((float)$data['amount'],2);
+            $remaining = round((float)$data['amount'], Money::SCALE);
             
             // Direct payment to a specific order
 if (!empty($data['purchase_order_id'])) {
@@ -29,7 +30,7 @@ if (!empty($data['purchase_order_id'])) {
         ]);
     }
 
-    $orderOwed = round($order->total - $order->supplierPayments->sum('amount'), 2);
+    $orderOwed = round($order->total - $order->supplierPayments->sum('amount'), Money::SCALE);
 
     if ($remaining > $orderOwed) {
     throw ValidationException::withMessages([
@@ -68,7 +69,7 @@ if (!empty($data['purchase_order_id'])) {
     ->orderBy('created_at', 'asc')
     ->get();
 
-    $totalOwed = round($PurchaseOrders->sum(fn($o) => $o->total - $o->supplierPayments->sum('amount')), 2);
+    $totalOwed = round($PurchaseOrders->sum(fn($o) => $o->total - $o->supplierPayments->sum('amount')), Money::SCALE);
 
 if ($remaining > $totalOwed) {
     throw ValidationException::withMessages([
@@ -82,7 +83,7 @@ if ($remaining > $totalOwed) {
 
         $orderTotal = $order->total;
         $alreadyPaid = $order->supplierPayments->sum('amount');
-        $orderOwed = round($orderTotal - $alreadyPaid, 2);
+        $orderOwed = round($orderTotal - $alreadyPaid, Money::SCALE);
 
         if($orderOwed <=0) continue;
 
@@ -107,7 +108,7 @@ if ($remaining > $totalOwed) {
             'user_id' => $user->id,
         ]);
 
-        $remaining = round($remaining - $applyAmount, 2);
+        $remaining = round($remaining - $applyAmount, Money::SCALE);
         $payments[] = $payment;
     }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\Money;
 use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Services\LedgerService;
@@ -143,18 +144,18 @@ $unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $o->total)->cou
         'stats' => [
             'total_orders'  => $orders->count(),
             'unpaid_orders' => $unpaidOrders,
-            'total_ordered'   => round($totalOrdered, 2),
+            'total_ordered'   => round($totalOrdered, Money::SCALE),
         ],
         'orders' => $orders->map(function ($o) use ($user) {
     $total = $o->total;
     $paid            = $o->settledAmount();
-    $amountRemaining = max(0, round($total - $paid, 2));
+    $amountRemaining = max(0, round($total - $paid, Money::SCALE));
 
     return [
         'id'               => $o->id,
         'invoice_number'   => $o->invoice_number,
         'total'            => $total,
-        'paid'             => round(min($paid, $total), 2),
+        'paid'             => round(min($paid, $total), Money::SCALE),
         'amount_remaining' => $amountRemaining,
         'status'           => $amountRemaining > 0 ? 'unpaid' : 'paid',
         'can_view'         => $user->can('view', $o),

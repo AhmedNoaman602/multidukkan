@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\ScopedToTenant;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -59,7 +60,7 @@ class Order extends Model
      */
     public function settledAmount(): float
     {
-        return round($this->payments->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
+        return round($this->payments->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), Money::SCALE);
     }
 
     public function isSettled(): bool
@@ -74,7 +75,7 @@ class Order extends Model
     public function cashReceived(): float
     {
         return round($this->payments->where('is_auto_reversible', false)
-            ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
+            ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), Money::SCALE);
     }
 
     // cost_price is per base unit, so cost uses base quantity (2 box × 12 = 24 pcs).

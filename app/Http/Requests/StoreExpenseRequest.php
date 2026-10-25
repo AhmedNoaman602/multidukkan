@@ -35,9 +35,9 @@ class StoreExpenseRequest extends FormRequest
                                 ? []
                                 : ['nullable', 'exists:stores,id', new BelongsToTenant(Store::class, $tenantId)],
             'category'     => ['required', Rule::in(Expense::CATEGORIES)],
-            // Upper bound guards decimal(10,2) overflow (else a 500); decimal:0,2 blocks
+            // Upper bound guards decimal(12,4) overflow (else a 500); decimal:0,4 blocks
             // silent MySQL rounding of extra decimal places.
-            'amount'       => ['required', 'numeric', 'gt:0', 'max:99999999.99', 'decimal:0,2'],
+            'amount'       => ['required', 'numeric', 'gt:0', 'max:99999999.9999', 'decimal:0,4'],
             'description'  => ['nullable', 'string', 'max:255',
                                 Rule::requiredIf(fn () => $this->input('category') === 'MISCELLANEOUS')],
             'expense_date' => ['required', 'date', 'before_or_equal:today'],

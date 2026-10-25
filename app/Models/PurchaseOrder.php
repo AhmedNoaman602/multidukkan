@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\ScopedToTenant;
+use App\Support\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -50,7 +51,7 @@ class PurchaseOrder extends Model
      */
     public function settledAmount(): float
     {
-        return round($this->supplierPayments->sum('amount'), 2);
+        return round($this->supplierPayments->sum('amount'), Money::SCALE);
     }
 
     public function isSettled(): bool

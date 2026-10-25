@@ -5,6 +5,7 @@ use App\Models\LedgerEntry;
 use App\Models\PurchaseOrder;
 use App\Models\Payment;
 use App\Models\Order;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 /**
@@ -194,8 +195,8 @@ class LedgerService
             ->whereIn('type', ['PAYMENT', 'CREDIT_APPLY','REVERSAL' ])
             ->sum('amount');
 
-        // Return the net balance rounded to 2 decimal places.
-        return round($debits - $credits, 2);
+        // Return the net balance rounded to the money scale.
+        return round($debits - $credits, Money::SCALE);
     }
 
     /**
@@ -222,7 +223,7 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
     foreach ($customerIds as $id) {
         $debit = $debits[$id] ?? 0;
         $credit = $credits[$id] ?? 0;
-        $balances[$id] = round($debit - $credit, 2);
+        $balances[$id] = round($debit - $credit, Money::SCALE);
     }
 
     return $balances;
@@ -247,8 +248,8 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
             ->where('direction', 'credit')
             ->sum('amount');
 
-        // Return the net supplier balance rounded to 2 decimal places.
-        return round($debits - $credits, 2);
+        // Return the net supplier balance rounded to the money scale.
+        return round($debits - $credits, Money::SCALE);
     }
 
     public function getBalancesForSuppliers(int $tenantId, array $supplierIds): array{
@@ -272,7 +273,7 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
         foreach ($supplierIds as $id) {
             $debit = $debits[$id] ?? 0;
             $credit = $credits[$id] ?? 0;
-            $balances[$id] = round($debit - $credit, 2);
+            $balances[$id] = round($debit - $credit, Money::SCALE);
         }
 
         return $balances;
@@ -362,7 +363,7 @@ public function restoreCredit(array $data): LedgerEntry
             Payment::where('order_id', $orderId)
                 ->cashOnly()
                 ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
-            2
+            Money::SCALE
         );
     }
 
@@ -372,7 +373,7 @@ public function restoreCredit(array $data): LedgerEntry
      */
     public function refundableForPayment(Payment $payment): float
     {
-        return round($payment->amount - ($payment->refunded_amount ?? 0), 2);
+        return round($payment->amount - ($payment->refunded_amount ?? 0), Money::SCALE);
     }
 
     /**
@@ -419,7 +420,7 @@ public function restoreCredit(array $data): LedgerEntry
                 ->lockForUpdate()
                 ->get();
 
-            $totalPaid = round($payments->sum(fn ($p) => $this->refundableForPayment($p)), 2);
+            $totalPaid = round($payments->sum(fn ($p) => $this->refundableForPayment($p)), Money::SCALE);
 
             // Validate that the refund request doesn't exceed the total amount paid on the order.
             if ($data['amount'] > $totalPaid) {
@@ -481,7 +482,7 @@ public function restoreCredit(array $data): LedgerEntry
             ->whereIn('type', ['CREDIT_CONSUMED'])
             ->sum('amount');
 
-        return max(0, round($credits - $consumed, 2));
+        return max(0, round($credits - $consumed, Money::SCALE));
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Expense;
 use App\Models\User;
+use App\Support\Money;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -26,7 +27,7 @@ class ExpenseService
             ->groupBy('category')
             ->orderByDesc('total')
             ->get()
-            ->map(fn ($row) => ['category' => $row->category, 'total' => round((float) $row->total, 2)])
+            ->map(fn ($row) => ['category' => $row->category, 'total' => round((float) $row->total, Money::SCALE)])
             ->values();
     }
 

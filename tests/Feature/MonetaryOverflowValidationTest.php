@@ -18,7 +18,7 @@ use Tests\TestCase;
  * DECIMAL column's precision/scale so an out-of-range value returns a clean
  * 422 instead of overflowing the column and producing a 500.
  *
- * Every money column is DECIMAL(10,2) -> max 99,999,999.99
+ * Every money column is DECIMAL(12,4) -> max 99,999,999.9999
  */
 class MonetaryOverflowValidationTest extends TestCase
 {
@@ -81,7 +81,7 @@ class MonetaryOverflowValidationTest extends TestCase
     }
 
     // ─────────────────────────────────────────────────────────
-    // DECIMAL(10,2) — product price (no business cap on the value)
+    // DECIMAL(12,4) — product price (no business cap on the value)
     // ─────────────────────────────────────────────────────────
 
     public function test_price_at_column_maximum_is_accepted(): void
@@ -94,7 +94,7 @@ class MonetaryOverflowValidationTest extends TestCase
 
     public function test_price_exceeding_column_maximum_returns_422(): void
     {
-        $this->createProduct(['price' => 100000000]) // 9 integer digits — overflows decimal(10,2)
+        $this->createProduct(['price' => 100000000]) // 9 integer digits — overflows decimal(12,4)
             ->assertStatus(422)
             ->assertJsonValidationErrors('price');
 
@@ -103,7 +103,7 @@ class MonetaryOverflowValidationTest extends TestCase
 
     public function test_price_with_too_many_decimals_returns_422(): void
     {
-        $this->createProduct(['price' => 10.555])
+        $this->createProduct(['price' => 10.55555])
             ->assertStatus(422)
             ->assertJsonValidationErrors('price');
     }
@@ -114,7 +114,7 @@ class MonetaryOverflowValidationTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('price_a');
 
-        $this->createProduct(['price' => 100, 'cost_price' => 10.999])
+        $this->createProduct(['price' => 100, 'cost_price' => 10.99999])
             ->assertStatus(422)
             ->assertJsonValidationErrors('cost_price');
     }
@@ -154,7 +154,7 @@ class MonetaryOverflowValidationTest extends TestCase
 
     public function test_manual_total_with_too_many_decimals_returns_422(): void
     {
-        $this->createOrder(['manual_total' => 500.555])
+        $this->createOrder(['manual_total' => 500.55555])
             ->assertStatus(422)
             ->assertJsonValidationErrors('manual_total');
     }
@@ -175,7 +175,7 @@ class MonetaryOverflowValidationTest extends TestCase
         $response = $this->actingAs($this->user)->postJson('/api/payments', [
             'order_id'    => $order->id,
             'customer_id' => $this->customer->id,
-            'amount'      => 100000000000, // wildly over decimal(10,2)
+            'amount'      => 100000000000, // wildly over decimal(12,4)
             'method'      => 'cash',
         ]);
 
@@ -186,7 +186,7 @@ class MonetaryOverflowValidationTest extends TestCase
     public function test_customer_credit_overflow_returns_422(): void
     {
         $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/credit", [
-            'amount'      => 100000000, // overflows decimal(10,2)
+            'amount'      => 100000000, // overflows decimal(12,4)
             'description' => 'Overpayment',
         ])->assertStatus(422)->assertJsonValidationErrors('amount');
     }

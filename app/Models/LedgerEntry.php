@@ -27,7 +27,7 @@ class LedgerEntry extends Model
 ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
+        'amount' => 'decimal:4',
     ];
 
     // Microsecond precision so same-second events (e.g. an order's ORDER_CHARGE ledger

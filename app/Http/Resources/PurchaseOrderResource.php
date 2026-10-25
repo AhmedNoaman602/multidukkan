@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 class PurchaseOrderResource extends JsonResource
@@ -26,7 +27,7 @@ class PurchaseOrderResource extends JsonResource
         'supplier_name'  => $this->supplier_name_snapshot ?? $this->supplier?->name ?? __('messages.deleted_supplier'),
         'supplier_phone' => $this->supplier->phone ?? '',
         'notes'          => $this->notes,
-        'subtotal'       => round($subtotal, 2), 
+        'subtotal'       => round($subtotal, Money::SCALE), 
         'total'          => $total,
         'status'         => $this->resolveStatus($totalPaid, $total),
         'items_count'    => $this->items->count(),
@@ -41,7 +42,7 @@ class PurchaseOrderResource extends JsonResource
             'unit_price'   => $item->unit_price,
             'total'        => $item->unit_price * $item->quantity,
         ]),
-        'amount_remaining' => max(0, round($total - $totalPaid , 2)),
+        'amount_remaining' => max(0, round($total - $totalPaid , Money::SCALE)),
         'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
     ];
 }

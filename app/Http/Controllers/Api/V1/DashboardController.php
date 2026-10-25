@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Support\Money;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Customer;
@@ -159,9 +160,9 @@ class DashboardController extends Controller
         ];
 
         if ($canViewFinancials) {
-            $stats['today_revenue'] = round($periodRevenue, 2);
-            $stats['today_sales']   = round($periodSales, 2);
-            $stats['total_owed']    = round($totalOwed, 2);
+            $stats['today_revenue'] = round($periodRevenue, Money::SCALE);
+            $stats['today_sales']   = round($periodSales, Money::SCALE);
+            $stats['total_owed']    = round($totalOwed, Money::SCALE);
         }
 
         $payload = [

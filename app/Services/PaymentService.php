@@ -3,6 +3,7 @@
 namespace App\Services;
 use App\Models\Payment;
 use App\Models\LedgerEntry;
+use App\Support\Money;
 use Illuminate\Support\Facades\DB;
 use App\Models\OrderItem;
 use App\Models\User;
@@ -44,7 +45,7 @@ class PaymentService
             $orderTotal = $order->total;
             $totalAlreadyPaid = round(
                 Payment::where('order_id', $order->id)->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
-                2
+                Money::SCALE
             );
 
             // If the order has already been fully paid off, reject any new direct payment attempts.
@@ -58,7 +59,7 @@ class PaymentService
             // and determine if the customer paid an excess amount that exceeds the remaining balance.
             $remaining     = max(0, $orderTotal - $totalAlreadyPaid);
             $appliedAmount = min($data['amount'], $remaining);
-            $excess        = max(0, round($data['amount'] - $remaining, 2));
+            $excess        = max(0, round($data['amount'] - $remaining, Money::SCALE));
 
             // Create a payment record for the portion of the payment that is applied to the current order.
             $payment = Payment::create([
@@ -119,7 +120,7 @@ class PaymentService
         // Wrap the auto-payment flow in a transaction to make sure all created payments are saved together.
         return DB::transaction(function () use ($data, $user) {
             $customerId = $data['customer_id'];
-            $remaining  = round((float) $data['amount'], 2);
+            $remaining  = round((float) $data['amount'], Money::SCALE);
             $method     = $data['method'];
 
             // Query all unpaid orders for this customer in chronological order (oldest first).
@@ -146,9 +147,9 @@ class PaymentService
                 $orderTotal = $order->total;
                 $alreadyPaid = round(
                     Payment::where('order_id', $order->id)->lockForUpdate()->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
-                    2
+                    Money::SCALE
                 );
-                $orderOwed  = round($orderTotal - $alreadyPaid, 2);
+                $orderOwed  = round($orderTotal - $alreadyPaid, Money::SCALE);
 
                 if ($orderOwed <= 0) continue;
 
@@ -179,7 +180,7 @@ class PaymentService
                 ]);
 
                 // Deduct the allocated amount from our running payment balance.
-                $remaining  = round($remaining - $applyAmount, 2);
+                $remaining  = round($remaining - $applyAmount, Money::SCALE);
                 $payments[] = $payment;
             }
 
@@ -222,7 +223,7 @@ class PaymentService
             ->lockForUpdate()
             ->get();
 
-        $remaining = round($excess, 2);
+        $remaining = round($excess, Money::SCALE);
 
         // Distribute the excess money chronologically across these other unpaid orders.
         foreach ($unpaidOrders as $unpaidOrder) {
@@ -232,9 +233,9 @@ class PaymentService
             $orderTotal = $unpaidOrder->total;
             $alreadyPaid = round(
                 Payment::where('order_id', $unpaidOrder->id)->lockForUpdate()->sum(DB::raw('amount - COALESCE(refunded_amount, 0)')),
-                2
+                Money::SCALE
             );
-            $orderOwed   = round($orderTotal - $alreadyPaid, 2);
+            $orderOwed   = round($orderTotal - $alreadyPaid, Money::SCALE);
 
             if ($orderOwed <= 0) continue;
 
@@ -265,7 +266,7 @@ class PaymentService
             ]);
 
             // Subtract the applied amount from our running excess total.
-            $remaining = round($remaining - $applyAmount, 2);
+            $remaining = round($remaining - $applyAmount, Money::SCALE);
         }
 
         // Return whatever excess amount remains unallocated.
