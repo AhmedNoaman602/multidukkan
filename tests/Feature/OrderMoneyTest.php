@@ -12,6 +12,7 @@ use App\Models\Store;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\LedgerService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -259,5 +260,39 @@ class OrderMoneyTest extends TestCase
             'type'           => 'REFUND',
             'amount'         => 250,
         ]);
+    }
+
+    public function test_refund_rejects_an_order_belonging_to_another_customer(): void
+    {
+        $otherCustomer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);
+
+        $response = $this->createOrder(['customer_id' => $otherCustomer->id])->assertStatus(201);
+        $orderId  = $response->json('id');
+
+        $payment = Payment::factory()->create([
+            'tenant_id'   => $this->tenant->id,
+            'order_id'    => $orderId,
+            'customer_id' => $otherCustomer->id,
+            'amount'      => 500,
+            'method'      => 'cash',
+        ]);
+
+        $ledger = app(LedgerService::class);
+        $balanceBefore      = $ledger->getBalance($this->tenant->id, $this->customer->id);
+        $otherBalanceBefore = $ledger->getBalance($this->tenant->id, $otherCustomer->id);
+
+        $this->actingAs($this->user)
+            ->postJson("/api/customers/{$this->customer->id}/refund", [
+                'amount'   => 500,
+                'method'   => 'cash',
+                'order_id' => $orderId,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['order_id']);
+
+        $this->assertDatabaseHas('payments', ['id' => $payment->id, 'refunded_amount' => 0]);
+        $this->assertDatabaseMissing('ledger_entries', ['type' => 'REFUND']);
+        $this->assertEquals($balanceBefore, $ledger->getBalance($this->tenant->id, $this->customer->id));
+        $this->assertEquals($otherBalanceBefore, $ledger->getBalance($this->tenant->id, $otherCustomer->id));
     }
 }
