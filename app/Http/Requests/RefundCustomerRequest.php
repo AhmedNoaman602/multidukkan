@@ -81,6 +81,11 @@ public function withValidator($validator): void
                 return;
             }
 
+            if ((int) $order->customer_id !== (int) $customerId) {
+                $validator->errors()->add('order_id', __('messages.customer_order_mismatch'));
+                return;
+            }
+
             if ($storeId !== null && (int) $order->store_id !== (int) $storeId) {
                 $validator->errors()->add('order_id', __('messages.order_not_in_store'));
                 return;
