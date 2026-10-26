@@ -183,13 +183,12 @@ class OrderService
 
             $mergedItems = [];
 foreach ($validatedItems as $v) {
-    // Only merges truly identical rows: same product, unit and conversion factor
-    $key = $v['product']->id . '_' . $v['unitType'] . '_' . $v['conversionFactor'];
-    
+    // Only merges truly identical rows: same product, unit, conversion factor and unit price
+    $key = $v['product']->id . '_' . $v['unitType'] . '_' . $v['conversionFactor'] . '_' . $this->priceKey($v['unitPrice']);
+
     if (isset($mergedItems[$key])) {
         $mergedItems[$key]['quantity'] += $v['quantity'];
         $mergedItems[$key]['stockQty'] += $v['stockQty'];
-        // unitPrice stays — same product + same unit type = same price
     } else {
         $mergedItems[$key] = $v;
     }
@@ -398,6 +397,11 @@ if (!empty($data['pay_immediately'])) {
         return $value;
     }
 
+    private function priceKey(float $price): string
+    {
+        return number_format(round($price, 2), 2, '.', '');
+    }
+
     private function recalculateTotal(Order $order): float
     {
         $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
@@ -444,6 +448,7 @@ if (!empty($data['pay_immediately'])) {
         ->where('warehouse_id', $shelf->id)
         ->where('unit_type', $unitType)
         ->where('conversion_factor', $conversionFactor)
+        ->where('unit_price', $this->priceKey((float) $unitPrice))
         ->first();
 
     if ($existingItem) {
