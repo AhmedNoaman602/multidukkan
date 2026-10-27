@@ -291,10 +291,14 @@ hours of every Cairo morning.
 
 `src/lib/format.js` owns all rendering. Two decisions worth knowing:
 - Arabic screens show **Arabic digits** with the Arabic thousands and decimal marks (`١٬٢٥٠٫٥٠`,
-  locale `ar-EG`), like the shop's previous system. Identifiers (invoice numbers, SKUs, phones)
-  get Arabic digits too, through `toDisplayDigits`. English stays Western (`en-US`). This is
-  display only: state, API payloads and date-picker values (`en-CA`) stay Western. Decided
-  2026-10-20, replacing the earlier Western-numerals rule.
+  locale `ar-EG`), like the shop's previous system. Invoice numbers get Arabic digits too, through
+  `formatIdentifier`. English stays Western (`en-US`). This is display only: state, API payloads
+  and date-picker values (`en-CA`) stay Western. Decided 2026-10-20, replacing the earlier
+  Western-numerals rule.
+- **SKUs, customer and supplier codes, and phones always show Western digits**, on Arabic screens
+  too: `formatCode` on display, and the code/phone boxes (`lib/identifierInput.js`) show and save
+  Western digits, converting Arabic digits as they are typed. The owner's choice, 2026-10-27;
+  invoice numbers were deliberately left Arabic for now.
 - `hour12: true` is set explicitly, because `en-GB` defaults to 24-hour and `ar-EG` to 12-hour, so
   without it the same screen would read differently in each language.
 
