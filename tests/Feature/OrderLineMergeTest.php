@@ -215,6 +215,43 @@ class OrderLineMergeTest extends TestCase
         $this->assertEquals(77, $this->balance());
     }
 
+    public function test_add_item_box_without_a_price_uses_the_tier_price_times_the_factor(): void
+    {
+        $this->product->update(['price_a' => 9]);
+        $this->customer->update(['price_tier' => 'a']);
+        $order = $this->createOrder([['quantity' => 1, 'unit_type' => 'secondary']]);
+
+        $this->addItem($order, ['quantity' => 1, 'unit_type' => 'secondary']);
+
+        $this->assertEquals(1, $order->items()->count());
+        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'unit_type' => 'secondary', 'quantity' => 2, 'unit_price' => 108]);
+        $this->assertEquals(216, (float) $order->fresh()->total);
+        $this->assertEquals(216, $this->balance());
+        $this->assertEquals(76, $this->stock());
+    }
+
+    public function test_add_item_box_falls_back_to_the_default_price_when_the_tier_price_is_empty(): void
+    {
+        $this->customer->update(['price_tier' => 'b']);
+        $order = $this->createOrder([['quantity' => 1]]);
+
+        $this->addItem($order, ['quantity' => 1, 'unit_type' => 'secondary']);
+
+        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'unit_type' => 'secondary', 'quantity' => 1, 'unit_price' => 120]);
+        $this->assertEquals(130, (float) $order->fresh()->total);
+    }
+
+    public function test_order_response_includes_the_customer_price_tier(): void
+    {
+        $this->customer->update(['price_tier' => 'c']);
+        $order = $this->createOrder([['quantity' => 1]]);
+
+        $this->actingAs($this->admin)
+            ->getJson("/api/orders/{$order->id}")
+            ->assertOk()
+            ->assertJsonPath('customer_price_tier', 'c');
+    }
+
     public function test_add_item_picks_the_line_whose_price_matches(): void
     {
         $order = $this->createOrder([

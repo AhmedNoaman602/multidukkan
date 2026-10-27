@@ -55,6 +55,7 @@ class OrderResource extends JsonResource
         'total'      => $total,
         'paid' => $displayPaid,
         'customer_phone' => $this->customer?->phone ?? '',
+        'customer_price_tier' => $this->customer?->price_tier ?? 'default',
         'payments_count' => $this->payments->count(),
         'payments' => $this->payments
                 ->filter(fn($p) => !$p->is_auto_reversible)
