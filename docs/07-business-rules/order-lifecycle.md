@@ -10,7 +10,7 @@ flowchart TD
     B --> C[Convert every line to base units<br/>sum the base need per product]
     C --> E[Resolve price per line:<br/>manual unit_price > tier a-e > base price<br/>secondary lines: price × conversion_factor]
     E --> F[Create order: invoice YYYY-NNN,<br/>customer_name_snapshot, optional backdated order_date]
-    F --> G[Merge identical lines - product+unit_type+factor<br/>create order_items, all at the shelf]
+    F --> G[Merge identical lines - product+unit_type+factor+unit price<br/>create order_items, all at the shelf]
     G --> S[StockFulfillmentService::fulfill<br/>lock shelf + storage rows in id order]
     S --> D{Shelf + store storage<br/>cover every product?}
     D -- no --> X[422 insufficient_store_stock - full rollback]
