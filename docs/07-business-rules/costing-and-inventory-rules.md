@@ -40,7 +40,7 @@ current_stock = runningStock[product] ?? pre-PO total stock across ALL warehouse
 current_cost  = runningCost[product]  ?? product.cost_price ?? line price
 new_avg       = (current_stock × current_cost + line_qty × line_price) / (current_stock + line_qty)
               (fallback: line_price when denominator ≤ 0)
-product.cost_price = round(new_avg, 2); update running maps
+product.cost_price = round(new_avg, 4); update running maps     (4 decimals: ADR-011)
 ```
 
 Consequences to remember:
@@ -48,7 +48,8 @@ Consequences to remember:
 - Lines *without* a warehouse still move the average (they represent purchased goods even if untracked).
 - PO cancellation does **not** rewind the average ([ADR-008](../01-architecture/decisions/ADR-008-weighted-average-costing.md)).
 - Sales never change cost. Only purchases do.
-- `supplier_products.last_purchase_price` records the per-supplier raw price separately — negotiation data, not costing input.
+- `supplier_products.last_purchase_price` records the per-supplier price per base unit separately (rounded to 4 decimals) — negotiation data, not costing input.
+- The line price per base unit is `round(unit_price / conversion_factor, 4)`: a box of 1000 for 48.50 is 0.0485 a piece. With 2 decimals it was 0.05, and a piece under 0.005 became a cost of 0.
 
 ## Rule 5 — Profit
 

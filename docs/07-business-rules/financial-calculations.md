@@ -2,6 +2,10 @@
 
 Every money formula in the system, with its single authoritative implementation. If you need one of these numbers, **call the listed method** — reimplementing any formula below is the project's cardinal sin (it shipped a production bug once; see [ADR-003](../01-architecture/decisions/ADR-003-ledger-single-source-of-truth.md)).
 
+## Precision ([ADR-011](../01-architecture/decisions/ADR-011-money-precision.md))
+
+Prices and costs keep **4 decimals** (`unit_price`, product prices, `cost_price`, `last_purchase_price`). Everything charged, paid or owed is in **piasters (2 decimals)**: order and purchase totals, discount, `manual_total`, payments, refunds, ledger entries, expenses, supplier payments. A total is computed from unrounded line amounts, then rounded **once to the nearest piaster**; the fraction is dropped and never becomes a credit or a debt. Example: 3 × 1.2345 = 3.7035 → total **3.70**; paying 3.70 settles it with balance 0.
+
 ## Balances (implementation: `LedgerService`)
 
 | Number | Formula | Method |
@@ -16,7 +20,7 @@ Sign convention: **positive customer balance = customer owes the store**; negati
 
 | Number | Formula | Where |
 |---|---|---|
-| Items subtotal | `Σ(unit_price × quantity)` over order_items | `OrderService` / SQL `SUM(unit_price * quantity)` |
+| Items subtotal | `Σ(unit_price × quantity)` over order_items — not rounded (up to 4 decimals) | `OrderService` / SQL `SUM(unit_price * quantity)` |
 | Effective discount | `max(0, min(discount, subtotal))`; forced to `0` when `manual_total` is set | `OrderService::createOrder` / `updateOrder` |
 | Charge amount (order total) | `manual_total` if set, else `round(subtotal − discount, 2)` | `OrderService::createOrder` / `updateOrder`; later changes only via `adjustOrderCharge` |
 | Payment net value | `amount − COALESCE(refunded_amount, 0)` | everywhere payments are summed |
@@ -44,7 +48,7 @@ Sign convention: **positive customer balance = customer owes the store**; negati
 ## Costing
 
 Weighted average per PO line, base units, running per-product chain within a PO:
-`new_avg = (stock × current_cost + purchased_qty × line_price) / (stock + purchased_qty)`; zero-denominator fallback → `line_price`. Details + rejected alternatives: [ADR-008](../01-architecture/decisions/ADR-008-weighted-average-costing.md). **Profit** is therefore as-of-now (`price − cost_price`); historical per-order profit is not yet computable (cost isn't snapshotted on order items — known limitation).
+`new_avg = (stock × current_cost + purchased_qty × line_price) / (stock + purchased_qty)`; zero-denominator fallback → `line_price`; stored `round(new_avg, 4)`. Purchase line totals and the PO total (what the supplier is owed) are rounded to piasters. Details + rejected alternatives: [ADR-008](../01-architecture/decisions/ADR-008-weighted-average-costing.md). **Profit** is therefore as-of-now (`price − cost_price`); historical per-order profit is not yet computable (cost isn't snapshotted on order items — known limitation).
 
 ## Expenses & Net Profit (implementations: `ExpenseService`, `ReportController`)
 

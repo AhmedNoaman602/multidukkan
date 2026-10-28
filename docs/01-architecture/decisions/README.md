@@ -18,6 +18,7 @@ If you are an AI session and a change you're planning contradicts an `Accepted` 
 | [ADR-008](ADR-008-weighted-average-costing.md) | Weighted-average cost on `products.cost_price` | Accepted |
 | [ADR-009](ADR-009-capability-gates.md) | Named capability Gates for cross-cutting role rules | Accepted — closes ADR-002's open question |
 | [ADR-010](ADR-010-stock-locations-and-shelf-fulfillment.md) | Stock locations, the store shelf, and shelf-first fulfillment | Accepted — supersedes ADR-007 |
+| [ADR-011](ADR-011-money-precision.md) | Prices keep 4 decimals, totals are rounded to piasters | Accepted |
 
 ## Template
 

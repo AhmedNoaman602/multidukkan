@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\LocalDateRange;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -399,7 +400,7 @@ if (!empty($data['pay_immediately'])) {
 
     private function priceKey(float $price): string
     {
-        return number_format(round($price, 2), 2, '.', '');
+        return number_format(round($price, Money::PRICE_SCALE), Money::PRICE_SCALE, '.', '');
     }
 
     private function recalculateTotal(Order $order): float

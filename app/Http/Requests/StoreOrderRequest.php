@@ -33,7 +33,7 @@ class StoreOrderRequest extends FormRequest
             'items.*.warehouse_id' => 'prohibited',
             'items.*.quantity'     => 'required|integer|min:1',
             'items.*.unit_type' => 'nullable|in:base,secondary',
-            'items.*.unit_price' => 'nullable|numeric|min:0|max:99999999.99|decimal:0,2',
+            'items.*.unit_price' => 'nullable|numeric|min:0|max:99999999.9999|decimal:0,4',
             'discount_type' => ['nullable', 'in:amount,percent'],
             'discount' => [
                 'nullable', 'numeric', 'min:0', 'decimal:0,2',

@@ -10,6 +10,7 @@ use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\LocalDateRange;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -97,7 +98,7 @@ class PurchaseOrderService
                 $stockQuantity = $itemData['quantity'] * $conversionFactor;
 
                 $unitPrice = $itemData['unit_price'];
-                $costPerBaseUnit = $unitPrice / $conversionFactor;
+                $costPerBaseUnit = round($unitPrice / $conversionFactor, Money::PRICE_SCALE);
 
                 $validatedItems[] = [
                     'product' => $product,
@@ -155,7 +156,7 @@ class PurchaseOrderService
                     'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
                     'warehouse_id' => $v['warehouseId'],
-                    'total' => $v['unitPrice'] * $v['quantity'],
+                    'total' => round($v['unitPrice'] * $v['quantity'], Money::TOTAL_SCALE),
                 ]);
 
               
@@ -169,9 +170,9 @@ class PurchaseOrderService
                 } else {
                     $newAvg = $v['costPerBaseUnit'];
                 }
-                $v['product']->update(['cost_price' => round($newAvg, 2)]);
+                $v['product']->update(['cost_price' => round($newAvg, Money::PRICE_SCALE)]);
                 $runningStock[$v['product']->id] = $effectiveStock + $v['stockQty'];
-                $runningCost[$v['product']->id] = round($newAvg, 2);
+                $runningCost[$v['product']->id] = round($newAvg, Money::PRICE_SCALE);
                 
                 $this->inventory->ensureStockRow(
                     $v['product']->id,
@@ -193,7 +194,7 @@ class PurchaseOrderService
             }
 
             $supplier->syncProducts($syncData);
-            $purchaseOrder->update(['total' => round($totalAmount, 2)]);
+            $purchaseOrder->update(['total' => round($totalAmount, Money::TOTAL_SCALE)]);
 
             $this->ledger->purchaseCharge([
                 'tenant_id' => $purchaseOrder->tenant_id,

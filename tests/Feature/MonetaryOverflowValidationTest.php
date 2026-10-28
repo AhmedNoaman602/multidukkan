@@ -103,7 +103,8 @@ class MonetaryOverflowValidationTest extends TestCase
 
     public function test_price_with_too_many_decimals_returns_422(): void
     {
-        $this->createProduct(['price' => 10.555])
+        // Prices keep up to 4 decimals (ADR-011); a fifth is rejected.
+        $this->createProduct(['price' => 10.55555])
             ->assertStatus(422)
             ->assertJsonValidationErrors('price');
     }
@@ -114,7 +115,7 @@ class MonetaryOverflowValidationTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('price_a');
 
-        $this->createProduct(['price' => 100, 'cost_price' => 10.999])
+        $this->createProduct(['price' => 100, 'cost_price' => 10.99999])
             ->assertStatus(422)
             ->assertJsonValidationErrors('cost_price');
     }
