@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 /**
@@ -49,7 +50,7 @@ class OrderResource extends JsonResource
         'customer_name' => $this->customer_name_snapshot ?? $this->customer?->name ?? __('messages.deleted_customer'),
         'created_by' => $this->created_by,
         'notes'      => $this->notes,
-        'subtotal'       => round($subtotal, 2),  
+        'subtotal'       => Money::total($subtotal),
         'discount'       => $discount,
         'manual_total'   => $this->manual_total !== null ? (float) $this->manual_total : null,
         'total'      => $total,

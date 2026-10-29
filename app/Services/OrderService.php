@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\LocalDateRange;
+use App\Support\Money;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -212,6 +213,8 @@ foreach ($validatedItems as $v) {
 
                 $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
             }
+            // Same exact subtotal as MySQL's SUM in recalculateTotal, so a percent discount matches.
+            $totalAmount = round($totalAmount, Money::PRICE_SCALE);
 
             $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
 
@@ -229,7 +232,7 @@ foreach ($validatedItems as $v) {
                 $chargeAmount = $manualTotal;
             } else {
                 $discount = $this->resolveDiscount($data, $totalAmount, $user);
-                $chargeAmount = round($totalAmount - $discount, 2);
+                $chargeAmount = Money::total($totalAmount - $discount);
             }
 
             // Update the order with its final total cost. The discount column carries the
@@ -399,7 +402,7 @@ if (!empty($data['pay_immediately'])) {
 
     private function priceKey(float $price): string
     {
-        return number_format(round($price, 2), 2, '.', '');
+        return number_format(round($price, Money::PRICE_SCALE), Money::PRICE_SCALE, '.', '');
     }
 
     private function recalculateTotal(Order $order): float
@@ -407,7 +410,7 @@ if (!empty($data['pay_immediately'])) {
         $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
         $discount = (float) ($order->discount ?? 0);
 
-        return max(0, round($subtotal - $discount, 2));
+        return max(0, Money::total($subtotal - $discount));
     }
 
     private function resetToCalculatedTotal(Order $order): void

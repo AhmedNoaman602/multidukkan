@@ -32,7 +32,7 @@ These are the conventions the codebase already follows plus the gaps that keep c
 
 **Services receive `User $user` as a parameter** (pattern: `PaymentService`). Anti-pattern for new code: `auth()->user()` inside services (legacy instances exist in `OrderService`/`PurchaseOrderService`).
 
-**Rounding**: money is `round(x, 2)` at every computation boundary and `decimal:2` cast on models. Never compare floats with `===`; compare rounded values or use `>=` thresholds like `Order::isSettled()`.
+**Rounding** ([ADR-011](../01-architecture/decisions/ADR-011-money-precision.md)): two scales in `App\Support\Money`. Prices and costs (per piece) use `Money::PRICE_SCALE` (4 decimals, `decimal:0,4` rules); totals, payments and ledger amounts use `Money::TOTAL_SCALE` (2 decimals, `decimal:0,2`), rounded at every computation boundary. Never round a line before summing — round the total once. Never compare floats with `===`; compare rounded values or use `>=` thresholds like `Order::isSettled()`.
 
 ## Comments
 

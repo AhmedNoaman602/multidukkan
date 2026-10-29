@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Support\Money;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 class PurchaseOrderResource extends JsonResource
@@ -26,7 +27,7 @@ class PurchaseOrderResource extends JsonResource
         'supplier_name'  => $this->supplier_name_snapshot ?? $this->supplier?->name ?? __('messages.deleted_supplier'),
         'supplier_phone' => $this->supplier->phone ?? '',
         'notes'          => $this->notes,
-        'subtotal'       => round($subtotal, 2), 
+        'subtotal'       => Money::total($subtotal),
         'total'          => $total,
         'status'         => $this->resolveStatus($totalPaid, $total),
         'items_count'    => $this->items->count(),

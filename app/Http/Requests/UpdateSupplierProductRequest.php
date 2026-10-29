@@ -14,7 +14,7 @@ class UpdateSupplierProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'cost_price'   => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.99', 'decimal:0,2'],
+            'cost_price'   => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
             'is_preferred' => ['sometimes', 'boolean'],
             'notes'        => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
