@@ -65,14 +65,14 @@ class PricePrecisionTest extends TestCase
         ]);
     }
 
-    private function createOrder(array $items): Order
+    private function createOrder(array $items, array $extra = []): Order
     {
         $id = $this->actingAs($this->admin)->postJson('/api/orders', [
             'store_id'    => $this->store->id,
             'customer_id' => $this->customer->id,
             'order_date'  => now()->toDateString(),
             'items'       => array_map(fn ($item) => $item + ['product_id' => $this->nails->id], $items),
-        ])->assertStatus(201)->json('id');
+        ] + $extra)->assertStatus(201)->json('id');
 
         return Order::findOrFail($id);
     }
@@ -248,5 +248,87 @@ class PricePrecisionTest extends TestCase
         $this->assertDatabaseHas('purchase_order_items', ['product_id' => $this->nails->id, 'unit_price' => 1.2345, 'total' => 3.70]);
         $this->assertDatabaseHas('purchase_orders', ['supplier_id' => $this->supplier->id, 'total' => 3.70]);
         $this->assertEquals(3.70, $this->supplierBalance());
+    }
+
+    public function test_creating_and_recalculating_an_order_agree_on_a_total_that_lands_on_half_a_piaster(): void
+    {
+        // 4.1022 × 3 + 3.8014 × 6 = 35.1150 exactly; summed as floats it is 35.11499…, which PHP 8.4 rounded to 35.11.
+        $order = $this->createOrder([
+            ['quantity' => 3, 'unit_price' => 4.1022],
+            ['quantity' => 6, 'unit_price' => 3.8014],
+        ]);
+
+        $this->assertSame('35.12', $order->total);
+        $this->assertEquals(35.12, $this->balance());
+        $this->actingAs($this->admin)->getJson("/api/orders/{$order->id}")
+            ->assertOk()->assertJsonPath('subtotal', 35.12);
+
+        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}", ['discount' => 0])->assertOk();
+
+        $this->assertSame('35.12', $order->fresh()->total);
+        $this->assertEquals(35.12, $this->balance());
+    }
+
+    public function test_a_percent_discount_is_rounded_to_piasters_before_it_is_subtracted(): void
+    {
+        // 1.4114 × 12.5% = 0.176425 → 0.18; 1.4114 − 0.18 = 1.2314 → 1.23.
+        // Subtracting the unrounded 0.176425 would give 1.234975, which rounds twice to 1.24.
+        $order = $this->createOrder([['quantity' => 1, 'unit_price' => 1.4114]], ['discount' => 12.5, 'discount_type' => 'percent']);
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'discount' => 0.18, 'total' => 1.23]);
+        $this->assertEquals(1.23, $this->balance());
+
+        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}", ['discount' => 12.5, 'discount_type' => 'percent'])->assertOk();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'discount' => 0.18, 'total' => 1.23]);
+        $this->assertEquals(1.23, $this->balance());
+    }
+
+    public function test_a_percent_discount_on_a_float_summed_subtotal_matches_the_policy(): void
+    {
+        // 8.0247 × 4 + 4.6689 × 8 = 69.45, summed as floats 69.44999…; 10% = 6.945 → 6.95, not PHP 8.4's 6.94.
+        $order = $this->createOrder([
+            ['quantity' => 4, 'unit_price' => 8.0247],
+            ['quantity' => 8, 'unit_price' => 4.6689],
+        ], ['discount' => 10, 'discount_type' => 'percent']);
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'discount' => 6.95, 'total' => 62.50]);
+
+        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}", ['discount' => 10, 'discount_type' => 'percent'])->assertOk();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'discount' => 6.95, 'total' => 62.50]);
+        $this->assertEquals(62.50, $this->balance());
+    }
+
+    public function test_a_fixed_discount_that_leaves_half_a_piaster_rounds_up(): void
+    {
+        // 2.885 − 0.92 = 1.965, but as floats it is 1.96499…, which PHP 8.4 rounded to 1.96.
+        $order = $this->createOrder([['quantity' => 1, 'unit_price' => 2.885]], ['discount' => 0.92]);
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'discount' => 0.92, 'total' => 1.97]);
+
+        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}", ['discount' => 0.92])->assertOk();
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'total' => 1.97]);
+        $this->assertEquals(1.97, $this->balance());
+    }
+
+    public function test_a_large_fixed_discount_that_leaves_half_a_piaster_rounds_up(): void
+    {
+        // 34108.615 − 33275.47 = 833.145; as floats 833.14499…, which PHP 8.3 (production) also rounded to 833.14.
+        $order = $this->createOrder([['quantity' => 1, 'unit_price' => 34108.615]], ['discount' => 33275.47]);
+
+        $this->assertDatabaseHas('orders', ['id' => $order->id, 'discount' => 33275.47, 'total' => 833.15]);
+        $this->assertEquals(833.15, $this->balance());
+    }
+
+    public function test_a_purchase_line_that_lands_on_half_a_piaster_rounds_up(): void
+    {
+        // 1.0125 × 6 = 6.075 exactly; as a float it is 6.07499…, which PHP 8.4 rounded to 6.07.
+        $this->buy(6, 1.0125, 'base')->assertCreated();
+
+        $this->assertDatabaseHas('purchase_order_items', ['product_id' => $this->nails->id, 'total' => 6.08]);
+        $this->assertDatabaseHas('purchase_orders', ['supplier_id' => $this->supplier->id, 'total' => 6.08]);
+        $this->assertEquals(6.08, $this->supplierBalance());
     }
 }

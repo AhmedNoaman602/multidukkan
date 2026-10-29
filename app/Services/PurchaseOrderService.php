@@ -156,7 +156,7 @@ class PurchaseOrderService
                     'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
                     'warehouse_id' => $v['warehouseId'],
-                    'total' => round($v['unitPrice'] * $v['quantity'], Money::TOTAL_SCALE),
+                    'total' => Money::total($v['unitPrice'] * $v['quantity']),
                 ]);
 
               
@@ -194,7 +194,7 @@ class PurchaseOrderService
             }
 
             $supplier->syncProducts($syncData);
-            $purchaseOrder->update(['total' => round($totalAmount, Money::TOTAL_SCALE)]);
+            $purchaseOrder->update(['total' => Money::total($totalAmount)]);
 
             $this->ledger->purchaseCharge([
                 'tenant_id' => $purchaseOrder->tenant_id,
