@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Http\Resources\CustomerResource;
+use App\Http\Resources\CustomerLookupResource;
 use App\Services\LedgerService;
+use App\Http\Requests\LookupRequest;
 use App\Http\Requests\RefundCustomerRequest;
 use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
@@ -64,6 +66,35 @@ class CustomerController extends Controller
         ],
     ]);
 }
+
+    // Pickers search here a page at a time (MUL2-53); no balances, so typing stays cheap.
+    public function lookup(LookupRequest $request)
+    {
+        $this->authorize('viewAny', Customer::class);
+
+        $search = $request->validated('search');
+
+        $customers = Customer::where('tenant_id', auth()->user()->tenant_id)
+            ->where('is_walk_in', false)
+            ->when($search, fn ($q) => $q->where(fn ($q) => $q
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%")
+                ->orWhere('code', 'like', "%{$search}%")
+            ))
+            ->orderByRaw("CASE WHEN code LIKE 'C-%' THEN 0 ELSE 1 END ASC")
+            ->orderByRaw("CAST(SUBSTRING(code, 3) AS UNSIGNED) ASC")
+            ->orderBy('id')
+            ->paginate(20, ['id', 'code', 'name', 'phone', 'price_tier']);
+
+        return response()->json([
+            'data' => CustomerLookupResource::collection($customers)->resolve(),
+            'meta' => [
+                'current_page' => $customers->currentPage(),
+                'last_page'    => $customers->lastPage(),
+                'total'        => $customers->total(),
+            ],
+        ]);
+    }
 
     private function generateCustomerCode(int $tenantId): string
 {

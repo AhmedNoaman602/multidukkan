@@ -58,6 +58,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::patch('/payments/{payment}', [PaymentController::class, 'update']);
 
     Route::get('/customers', [CustomerController::class, 'index']);
+    Route::get('/customers/lookup', [CustomerController::class, 'lookup']);
     Route::get('/customers/{customer}', [CustomerController::class, 'show']);
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::put('/customers/{customer}', [CustomerController::class, 'update']);
@@ -117,6 +118,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     Route::get('/suppliers', [SupplierController::class, 'index']);
     Route::post('/suppliers', [SupplierController::class, 'store']);
+    Route::get('/suppliers/lookup', [SupplierController::class, 'lookup']);
     Route::get('/suppliers/{supplier}', [SupplierController::class, 'show']);
     Route::put('/suppliers/{supplier}', [SupplierController::class, 'update']);
     Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy'])->withTrashed();
