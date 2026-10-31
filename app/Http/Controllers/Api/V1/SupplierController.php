@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\LookupRequest;
 use App\Http\Requests\StoreSupplierRequest;
 use App\Http\Requests\UpdateSupplierRequest;
 use App\Models\Supplier;
 use App\Models\Product;
 use App\Models\SupplierPayment;
 use App\Http\Resources\SupplierResource;
+use App\Http\Resources\SupplierLookupResource;
 use App\Http\Resources\PurchaseOrderResource; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,6 +66,34 @@ class SupplierController extends Controller
         ],
     ]);
 }
+
+    // Pickers search here a page at a time; no balances, so typing stays cheap.
+    public function lookup(LookupRequest $request)
+    {
+        $this->authorize('viewAny', Supplier::class);
+
+        $search = $request->validated('search');
+
+        $suppliers = Supplier::where('tenant_id', auth()->user()->tenant_id)
+            ->when($search, fn ($q) => $q->where(fn ($q) => $q
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%")
+                ->orWhere('code', 'like', "%{$search}%")
+            ))
+            ->orderByRaw("CASE WHEN code LIKE 'S-%' THEN 0 ELSE 1 END ASC")
+            ->orderByRaw("CAST(SUBSTRING(code, 3) AS UNSIGNED) ASC")
+            ->orderBy('id')
+            ->paginate(20, ['id', 'code', 'name', 'phone']);
+
+        return response()->json([
+            'data' => SupplierLookupResource::collection($suppliers)->resolve(),
+            'meta' => [
+                'current_page' => $suppliers->currentPage(),
+                'last_page'    => $suppliers->lastPage(),
+                'total'        => $suppliers->total(),
+            ],
+        ]);
+    }
 
     public function store(StoreSupplierRequest $request)
     {
