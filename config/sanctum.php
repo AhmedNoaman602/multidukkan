@@ -47,7 +47,8 @@ return [
     |
     */
 
-    'expiration' => null,
+    // A login lasts 12 hours (one working day); then the app asks the user to log in again.
+    'expiration' => (int) env('SANCTUM_EXPIRATION', 720),
 
     /*
     |--------------------------------------------------------------------------
