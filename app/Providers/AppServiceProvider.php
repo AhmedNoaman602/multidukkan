@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Product;
@@ -87,6 +88,12 @@ class AppServiceProvider extends ServiceProvider
 
         RateLimiter::for('ai', function (Request $request) {
             return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
+        });
+
+        RateLimiter::for('login', function (Request $request) {
+            return Limit::perMinute(5)
+                ->by(Str::lower((string) $request->input('email')).'|'.$request->ip())
+                ->after(fn ($response) => ! $response->isSuccessful());
         });
     }
 }
