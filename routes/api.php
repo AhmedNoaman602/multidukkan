@@ -24,7 +24,7 @@ use App\Http\Controllers\Api\V1\AuditLogController;
 use App\Http\Controllers\Api\V1\SearchController;
 use App\Http\Controllers\Api\V1\DashboardController;
 
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1'); 
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {

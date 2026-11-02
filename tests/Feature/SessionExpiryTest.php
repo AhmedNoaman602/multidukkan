@@ -40,6 +40,22 @@ class SessionExpiryTest extends TestCase
         $this->assertSame(720, config('sanctum.expiration'));
     }
 
+    public function test_a_blank_zero_or_non_number_setting_falls_back_to_twelve_hours(): void
+    {
+        try {
+            foreach (['', '0', '12h', 'abc'] as $value) {
+                $_SERVER['SANCTUM_EXPIRATION'] = $_ENV['SANCTUM_EXPIRATION'] = $value;
+                $expected = $value === '12h' ? 12 : 720;
+                $this->assertSame($expected, (require config_path('sanctum.php'))['expiration'], "SANCTUM_EXPIRATION={$value}");
+            }
+
+            $_SERVER['SANCTUM_EXPIRATION'] = $_ENV['SANCTUM_EXPIRATION'] = '60';
+            $this->assertSame(60, (require config_path('sanctum.php'))['expiration']);
+        } finally {
+            unset($_SERVER['SANCTUM_EXPIRATION'], $_ENV['SANCTUM_EXPIRATION']);
+        }
+    }
+
     public function test_a_fresh_login_works(): void
     {
         $token = $this->login();
