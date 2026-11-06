@@ -279,7 +279,7 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
     }
 
     /**
-     * Fetch chronological ledger entry history for a customer or a supplier under the specified tenant.
+     * Fetch ledger entry history, newest first, for a customer or a supplier under the specified tenant.
      */
     public function getHistory(int $tenantId, ?int $customerId = null, ?int $supplierId = null): \Illuminate\Support\Collection
     {
@@ -294,7 +294,8 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
         }
 
         // Return the sorted list of ledger columns.
-        return $query->orderBy('created_at', 'asc')
+        return $query->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->get(['id', 'type', 'amount', 'description', 'reference_type', 'reference_id', 'created_at']);
     }
 
