@@ -359,9 +359,10 @@ class LedgerTest extends TestCase
         ]);
     }
 
-    public function test_ledger_history_returns_entries_in_order(): void
+    public function test_ledger_history_returns_newest_entries_first(): void
     {
         $this->createOrder(quantity: 2);
+        $this->travel(1)->minutes();
         $this->createPayment(200)->assertStatus(201);
 
         $response = $this->actingAs($this->user)
@@ -371,10 +372,29 @@ class LedgerTest extends TestCase
         $history = $response->json('history');
 
         $this->assertCount(2, $history);
-        $this->assertEquals('ORDER_CHARGE', $history[0]['type']);
+        $this->assertEquals('PAYMENT', $history[0]['type']);
         $this->assertEquals(200.00, $history[0]['amount']);
-        $this->assertEquals('PAYMENT', $history[1]['type']);
+        $this->assertEquals('ORDER_CHARGE', $history[1]['type']);
         $this->assertEquals(200.00, $history[1]['amount']);
+    }
+
+    public function test_ledger_history_breaks_same_timestamp_ties_by_newest_id(): void
+    {
+        $this->freezeTime();
+
+        $this->createOrder(quantity: 2);
+        $this->createPayment(200)->assertStatus(201);
+
+        $history = $this->actingAs($this->user)
+            ->getJson("/api/customers/{$this->customer->id}/ledger")
+            ->assertStatus(200)
+            ->json('history');
+
+        $this->assertCount(2, $history);
+        $this->assertSame($history[0]['created_at'], $history[1]['created_at']);
+        $this->assertEquals('PAYMENT', $history[0]['type']);
+        $this->assertEquals('ORDER_CHARGE', $history[1]['type']);
+        $this->assertGreaterThan($history[1]['id'], $history[0]['id']);
     }
 
     public function test_manual_credit_reduces_balance(): void
