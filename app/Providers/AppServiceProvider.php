@@ -37,6 +37,7 @@ use App\Policies\StockTransferPolicy;
 use App\Observers\StoreObserver;
 use App\Observers\CustomerObserver;
 use App\Observers\OrderObserver;
+use App\Observers\PaymentObserver;
 use App\Observers\ProductObserver;
 use App\Observers\SupplierObserver;
 use App\Observers\PurchaseOrderObserver;
@@ -76,6 +77,7 @@ class AppServiceProvider extends ServiceProvider
         Store::observe(StoreObserver::class);
         Customer::observe(CustomerObserver::class);
         Order::observe(OrderObserver::class);
+        Payment::observe(PaymentObserver::class);
         Product::observe(ProductObserver::class);
         Supplier::observe(SupplierObserver::class);
         PurchaseOrder::observe(PurchaseOrderObserver::class);

@@ -69,11 +69,11 @@ class Order extends Model
 
     /**
      * How much real cash/card/transfer money has actually come in — excludes
-     * store-credit (is_auto_reversible) payments, which move no cash.
+     * non-cash payments (store credit, return offsets).
      */
     public function cashReceived(): float
     {
-        return round($this->payments->where('is_auto_reversible', false)
+        return round($this->payments->where('counts_as_cash', true)
             ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
     }
 

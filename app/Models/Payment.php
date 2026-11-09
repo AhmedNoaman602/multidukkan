@@ -18,7 +18,13 @@ class Payment extends Model
         'method',
         'paid_at',
         'is_auto_reversible',
+        'counts_as_cash',
         'payment_reference',
+    ];
+
+    protected $casts = [
+        'is_auto_reversible' => 'boolean',
+        'counts_as_cash'     => 'boolean',
     ];
 
     public function tenant()
@@ -38,7 +44,7 @@ class Payment extends Model
 
     public function scopeCashOnly($query)
     {
-        return $query->where('is_auto_reversible', false);
+        return $query->where('counts_as_cash', true);
     }
 
     public function scopeCreditOnly($query)

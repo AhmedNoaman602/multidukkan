@@ -368,8 +368,8 @@ public function restoreCredit(array $data): LedgerEntry
     }
 
     /**
-     * Cash refundable balance for a single payment. Credit (auto-reversible) payments
-     * are never cash-refundable — callers must check is_auto_reversible separately.
+     * Cash refundable balance for a single payment. Non-cash payments (store credit,
+     * return offsets) are never cash-refundable — callers must check counts_as_cash separately.
      */
     public function refundableForPayment(Payment $payment): float
     {
@@ -391,7 +391,7 @@ public function restoreCredit(array $data): LedgerEntry
             // this transaction commits, then re-reads the current refunded_amount instead
             // of racing against a stale value.
             $payment = Payment::lockForUpdate()->findOrFail($data['payment_id_target']);
-            if ($payment->is_auto_reversible) {
+            if (! $payment->counts_as_cash) {
                 throw ValidationException::withMessages([
                     'payment' => __('messages.credit_payment_no_cash_refund')
                 ]);

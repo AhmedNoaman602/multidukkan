@@ -59,7 +59,7 @@ class OrderResource extends JsonResource
         'customer_price_tier' => $this->customer?->price_tier ?? 'default',
         'payments_count' => $this->payments->count(),
         'payments' => $this->payments
-                ->filter(fn($p) => !$p->is_auto_reversible)
+                ->filter(fn($p) => $p->counts_as_cash)
                 ->map(fn($p) => [
                     'id'              => $p->id,
                     'order_id'        => $p->order_id,
@@ -69,7 +69,7 @@ class OrderResource extends JsonResource
                 ])
                 ->values(),
         'refundable_amount' => $this->payments
-                        ->filter(fn($p) => !$p->is_auto_reversible)
+                        ->filter(fn($p) => $p->counts_as_cash)
                         ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)), 
 
         'store_name'     => $this->store?->name ?? '',
