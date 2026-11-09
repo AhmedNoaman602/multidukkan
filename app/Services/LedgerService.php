@@ -7,6 +7,7 @@ use App\Models\Payment;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Database\Eloquent\Builder;
 /**
  * Service for managing the financial ledger of customers and tenants.
  * 
@@ -483,6 +484,26 @@ public function restoreCredit(array $data): LedgerEntry
             ->sum('amount');
 
         return max(0, round($credits - $consumed, 2));
+    }
+
+    public function orderPaymentTotals(Builder $orders): array
+    {
+        $settled = Payment::query()
+            ->selectRaw('order_id, SUM(amount - COALESCE(refunded_amount, 0)) as settled')
+            ->groupBy('order_id');
+
+        $row = $orders
+            ->leftJoinSub($settled, 's', 's.order_id', '=', 'orders.id')
+            ->selectRaw('COALESCE(SUM(orders.total), 0) as total,
+                COALESCE(SUM(LEAST(orders.total, COALESCE(s.settled, 0))), 0) as paid,
+                COALESCE(SUM(GREATEST(orders.total - COALESCE(s.settled, 0), 0)), 0) as unpaid')
+            ->first();
+
+        return [
+            'total'  => round((float) $row->total, 2),
+            'paid'   => round((float) $row->paid, 2),
+            'unpaid' => round((float) $row->unpaid, 2),
+        ];
     }
 
     /**
