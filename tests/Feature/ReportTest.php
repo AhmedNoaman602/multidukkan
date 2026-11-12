@@ -473,4 +473,96 @@ class ReportTest extends TestCase
         $this->assertSame('UTC', $shopOnUtc->json('business_timezone'));
         $this->assertEquals(250, $shopOnUtc->json('summary.total_collected'));
     }
+
+    private function orderSettledBy(float $total, ?string $state = null, array $payment = []): Order
+    {
+        $order = Order::factory()->create([
+            'tenant_id'   => $this->tenant->id,
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'total'       => $total,
+            'order_date'  => now()->toDateString(),
+        ]);
+
+        $factory = \App\Models\Payment::factory();
+        if ($state) {
+            $factory = $factory->{$state}();
+        }
+
+        $factory->create(array_merge([
+            'tenant_id'   => $this->tenant->id,
+            'order_id'    => $order->id,
+            'customer_id' => $this->customer->id,
+            'amount'      => $total,
+            'paid_at'     => now(),
+        ], $payment));
+
+        return $order;
+    }
+
+    public function test_an_order_paid_from_credit_is_settled_but_not_cash_collected(): void
+    {
+        $this->orderSettledBy(60, 'credit');
+
+        $summary = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl(now()->toDateString()))
+            ->assertOk()
+            ->json('summary');
+
+        $this->assertEquals(60, $summary['total_revenue']);
+        $this->assertEquals(0, $summary['total_collected']);
+        $this->assertEquals(60, $summary['total_credit_settlements']);
+        $this->assertEquals(0, $summary['total_return_offsets']);
+        $this->assertEquals(60, $summary['total_settled']);
+        $this->assertEquals(0, $summary['outstanding']);
+    }
+
+    public function test_an_order_settled_by_a_return_offset_is_settled_but_not_cash_collected(): void
+    {
+        $this->orderSettledBy(100, 'returnOffset');
+
+        $summary = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl(now()->toDateString()))
+            ->json('summary');
+
+        $this->assertEquals(0, $summary['total_collected']);
+        $this->assertEquals(100, $summary['total_return_offsets']);
+        $this->assertEquals(100, $summary['total_settled']);
+        $this->assertEquals(0, $summary['outstanding']);
+    }
+
+    public function test_settlement_breakdown_adds_up_and_cash_is_net_of_refunds(): void
+    {
+        $this->orderSettledBy(100, null, ['refunded_amount' => 40]);
+        $this->orderSettledBy(50, 'credit');
+        $this->orderSettledBy(30, 'returnOffset');
+
+        $summary = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl(now()->toDateString()))
+            ->json('summary');
+
+        $this->assertEquals(180, $summary['total_revenue']);
+        $this->assertEquals(60, $summary['total_collected']);
+        $this->assertEquals(50, $summary['total_credit_settlements']);
+        $this->assertEquals(30, $summary['total_return_offsets']);
+        $this->assertEquals(140, $summary['total_settled']);
+        $this->assertEquals(40, $summary['outstanding']);
+    }
+
+    public function test_payments_history_and_customer_collected_stay_cash_only(): void
+    {
+        $this->orderSettledBy(100);
+        $this->orderSettledBy(50, 'credit');
+        $this->orderSettledBy(30, 'returnOffset');
+
+        $response = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl(now()->toDateString()))
+            ->assertOk();
+
+        $history = $response->json('payments_history.data');
+        $this->assertCount(1, $history);
+        $this->assertSame('cash', $history[0]['method']);
+
+        $this->assertEquals(100, $response->json('orders_by_customer.data.0.collected'));
+    }
 }

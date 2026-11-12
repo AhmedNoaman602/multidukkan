@@ -8,6 +8,7 @@ use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 /**
  * Service for managing the financial ledger of customers and tenants.
  * 
@@ -503,6 +504,22 @@ public function restoreCredit(array $data): LedgerEntry
             'total'  => round((float) $row->total, 2),
             'paid'   => round((float) $row->paid, 2),
             'unpaid' => round((float) $row->unpaid, 2),
+        ];
+    }
+
+    public function settlementBreakdown(Collection $payments): array
+    {
+        $net = fn ($p) => $p->amount - ($p->refunded_amount ?? 0);
+
+        $cash          = round($payments->where('counts_as_cash', true)->sum($net), 2);
+        $credit        = round($payments->where('is_auto_reversible', true)->sum($net), 2);
+        $returnOffsets = round($payments->where('method', 'return_offset')->sum($net), 2);
+
+        return [
+            'cash'           => $cash,
+            'credit'         => $credit,
+            'return_offsets' => $returnOffsets,
+            'total'          => round($cash + $credit + $returnOffsets, 2),
         ];
     }
 
