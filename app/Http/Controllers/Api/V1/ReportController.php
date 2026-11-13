@@ -11,6 +11,7 @@ use App\Services\LedgerService;
 use App\Support\LocalDateRange;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
 class ReportController extends Controller
 {
@@ -32,6 +33,7 @@ class ReportController extends Controller
         $isPrint = $request->boolean('print', false);
 
         $orders   = $this->fetchOrders($tenantId, $from, $to);
+        $unpaid = $this->ledger->orderPaymentTotals($this->ordersQuery($tenantId, $from, $to))['unpaid'];
         $payments = $this->fetchPayments($tenantId, $from, $to, $timezone);
         $cashPayments = $payments->where('counts_as_cash', true);
         $totalExpenses = $this->expenseService->getTotalForPeriod($tenantId, $from, $to);
@@ -43,7 +45,7 @@ class ReportController extends Controller
             // times in the same day the totals were calculated for, instead of each
             // side deciding independently.
             'business_timezone'   => $timezone,
-            'summary'             => $this->buildSummary($orders, $payments, $totalExpenses),
+            'summary'             => $this->buildSummary($orders, $unpaid, $payments, $totalExpenses),
             'missing_cost_prices' => $this->countMissingCostPrices($orders),
             'profit_by_order'     => $this->paginate($this->buildProfitByOrder($orders),            $request->order_page    ?? 1, $perPage),
             'payments_history'    => $this->paginate($this->buildPaymentsHistory($cashPayments),        $request->payment_page  ?? 1, $perPage),
@@ -69,19 +71,22 @@ private function fetchPayments(int $tenantId, string $from, string $to, string $
     ->get();
 }
 
+private function ordersQuery(int $tenantId, string $from, string $to) : Builder {
+    return Order::where('tenant_id', $tenantId)->whereBetween(DB::raw('DATE(order_date)'), [$from, $to]);
+}
+
 private function fetchOrders(int $tenantId, string $from, string $to): Collection
 {
     // order_date is a calendar DATE column with no instant behind it — compared as
     // plain local dates, never timezone-converted.
-    return Order::where('tenant_id', $tenantId)
-        ->whereBetween(DB::raw('DATE(order_date)'), [$from, $to])
+    return $this->ordersQuery($tenantId, $from, $to)
         ->with(['items.product', 'customer'])
         ->get();
 }
 
     // ─── Builders ─────────────────────────────────────────────────────────────
 
-private function buildSummary(Collection $orders, Collection $payments, float $totalExpenses): array {
+private function buildSummary(Collection $orders, float $unpaid, Collection $payments, float $totalExpenses): array {
     $totalRevenue   = $orders->sum(fn($o) => $this->calcOrderTotal($o));
     $settlement     = $this->ledger->settlementBreakdown($payments);
     // Same per-order profit as buildProfitByOrder, so the summary always equals the sum of
@@ -94,7 +99,7 @@ private function buildSummary(Collection $orders, Collection $payments, float $t
             'total_credit_settlements' => $settlement['credit'],
             'total_return_offsets'     => $settlement['return_offsets'],
             'total_settled'            => $settlement['total'],
-            'outstanding'              => round($totalRevenue - $settlement['total'], 2),
+            'outstanding'              => $unpaid,
             'gross_profit'    => round($grossProfit, 2),
             'total_expenses'  => round($totalExpenses, 2),
             'net_profit'      => round($grossProfit - $totalExpenses, 2),

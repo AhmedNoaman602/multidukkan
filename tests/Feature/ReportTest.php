@@ -565,4 +565,61 @@ class ReportTest extends TestCase
 
         $this->assertEquals(100, $response->json('orders_by_customer.data.0.collected'));
     }
+
+    private function orderOn(string $orderDate, float $total, float $paidNow = 0): Order
+    {
+        $order = Order::factory()->create([
+            'tenant_id'   => $this->tenant->id,
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'total'       => $total,
+            'order_date'  => $orderDate,
+        ]);
+
+        if ($paidNow > 0) {
+            \App\Models\Payment::factory()->create([
+                'tenant_id'   => $this->tenant->id,
+                'order_id'    => $order->id,
+                'customer_id' => $this->customer->id,
+                'amount'      => $paidNow,
+                'paid_at'     => now(),
+            ]);
+        }
+
+        return $order;
+    }
+
+    public function test_paying_an_old_invoice_today_does_not_lower_outstanding_on_todays_sales(): void
+    {
+        $today     = now()->toDateString();
+        $yesterday = now()->subDay()->toDateString();
+
+        $this->orderOn($yesterday, 100, paidNow: 100);
+        $this->orderOn($today, 60, paidNow: 20);
+
+        $summary = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl($today))
+            ->assertOk()
+            ->json('summary');
+
+        $this->assertEquals(60, $summary['total_revenue']);
+        $this->assertEquals(120, $summary['total_collected']);
+        $this->assertEquals(40, $summary['outstanding']);
+    }
+
+    public function test_outstanding_for_a_past_day_counts_payments_made_after_it(): void
+    {
+        $yesterday = now()->subDay()->toDateString();
+
+        $this->orderOn($yesterday, 100, paidNow: 70);
+
+        $summary = $this->actingAs($this->admin)
+            ->getJson($this->reportUrl($yesterday, $yesterday))
+            ->assertOk()
+            ->json('summary');
+
+        $this->assertEquals(100, $summary['total_revenue']);
+        $this->assertEquals(0, $summary['total_collected']);
+        $this->assertEquals(30, $summary['outstanding']);
+    }
 }
