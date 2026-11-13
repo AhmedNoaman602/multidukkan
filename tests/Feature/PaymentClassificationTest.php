@@ -325,4 +325,75 @@ class PaymentClassificationTest extends TestCase
         $this->assertFalse($payments[0]['counts_as_cash']);
         $this->assertFalse($payments[0]['is_auto_reversible']);
     }
+
+    private function balance(): float
+    {
+        return app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id);
+    }
+
+    public function test_credit_payment_cannot_be_edited(): void
+    {
+        $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/credit", [
+            'amount' => 100,
+        ])->assertStatus(201);
+        $orderId = $this->sell()->assertStatus(201)->json('id');
+        $payment = Payment::where('order_id', $orderId)->where('method', 'credit')->firstOrFail();
+        $balanceBefore = $this->balance();
+
+        $this->actingAs($this->user)->patchJson("/api/payments/{$payment->id}", [
+            'amount' => 30,
+            'method' => 'cash',
+        ])->assertStatus(422)->assertJsonValidationErrors(['payment']);
+
+        $payment->refresh();
+        $this->assertEquals(60, $payment->amount);
+        $this->assertSame('credit', $payment->method);
+        $this->assertDatabaseHas('ledger_entries', [
+            'reference_type' => 'payment',
+            'reference_id'   => $payment->id,
+            'type'           => 'PAYMENT',
+            'amount'         => 60,
+        ]);
+        $this->assertEquals($balanceBefore, $this->balance());
+    }
+
+    public function test_return_offset_payment_cannot_be_edited(): void
+    {
+        $order   = $this->unpaidOrder(100);
+        $payment = $this->offsetPayment($order, 30);
+
+        $this->actingAs($this->user)->patchJson("/api/payments/{$payment->id}", [
+            'amount' => 10,
+            'method' => 'cash',
+        ])->assertStatus(422)->assertJsonValidationErrors(['payment']);
+
+        $payment->refresh();
+        $this->assertEquals(30, $payment->amount);
+        $this->assertSame('return_offset', $payment->method);
+    }
+
+    public function test_cash_payment_can_still_be_edited(): void
+    {
+        $orderId = $this->sell([
+            'pay_immediately' => true,
+            'payment_method'  => 'cash',
+        ])->assertStatus(201)->json('id');
+        $payment = Payment::where('order_id', $orderId)->firstOrFail();
+
+        $this->actingAs($this->user)->patchJson("/api/payments/{$payment->id}", [
+            'amount' => 50,
+            'method' => 'bank_transfer',
+        ])->assertOk();
+
+        $payment->refresh();
+        $this->assertEquals(50, $payment->amount);
+        $this->assertSame('bank_transfer', $payment->method);
+        $this->assertDatabaseHas('ledger_entries', [
+            'reference_type' => 'payment',
+            'reference_id'   => $payment->id,
+            'type'           => 'PAYMENT',
+            'amount'         => 50,
+        ]);
+        $this->assertEquals(10, $this->balance());
+    }
 }

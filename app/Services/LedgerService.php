@@ -529,6 +529,11 @@ public function restoreCredit(array $data): LedgerEntry
      */
     public function adjustPayment(Payment $payment, float $newAmount, string $newMethod): void
     {
+        if(!$payment->counts_as_cash || $payment->is_auto_reversible){
+            throw ValidationException::withMessages([
+                'payment' => __('messages.payment_not_adjustable')
+            ]);
+        }
         // Block adjustment if the payment has already been refunded.
         if ($payment->refunded_amount > 0) {
             throw ValidationException::withMessages([
