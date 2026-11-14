@@ -397,7 +397,7 @@ class LedgerTest extends TestCase
         $this->assertGreaterThan($history[1]['id'], $history[0]['id']);
     }
 
-    public function test_manual_credit_reduces_balance(): void
+    public function test_add_credit_endpoint_is_removed(): void
     {
         $this->createOrder(quantity: 1); // owes 100
 
@@ -405,19 +405,16 @@ class LedgerTest extends TestCase
             ->postJson("/api/customers/{$this->customer->id}/credit", [
                 'amount'      => 40.00,
                 'description' => 'Advance payment',
-            ])->assertStatus(201);
+            ])->assertStatus(404);
 
+        $this->assertDatabaseMissing('ledger_entries', [
+            'type'        => 'CREDIT_APPLY',
+            'customer_id' => $this->customer->id,
+        ]);
         $this->actingAs($this->user)
             ->getJson("/api/customers/{$this->customer->id}/balance")
             ->assertStatus(200)
-            ->assertJson(['balance' => 60.00]);
-
-        $this->assertDatabaseHas('ledger_entries', [
-            'type'        => 'CREDIT_APPLY',
-            'amount'      => 40.00,
-            'customer_id' => $this->customer->id,
-            'description' => 'Advance payment',
-        ]);
+            ->assertJson(['balance' => 100.00]);
     }
 
     public function test_cannot_get_balance_for_nonexistent_customer(): void
@@ -475,25 +472,6 @@ class LedgerTest extends TestCase
     public function test_order_status_is_unpaid_after_partial_payment(): void
     {
         $this->createPayment(50)->assertStatus(201);
-    }
-
-    // ─────────────────────────────────────────
-    // CREDIT VALIDATION TESTS
-    // ─────────────────────────────────────────
-    public function test_cannot_add_credit_with_zero_amount(): void
-    {
-        $this->actingAs($this->user)
-            ->postJson("/api/customers/{$this->customer->id}/credit", [
-                'amount' => 0,
-            ])->assertStatus(422);
-    }
-
-    public function test_cannot_add_credit_with_negative_amount(): void
-    {
-        $this->actingAs($this->user)
-            ->postJson("/api/customers/{$this->customer->id}/credit", [
-                'amount' => -100,
-            ])->assertStatus(422);
     }
 
     // ─────────────────────────────────────────

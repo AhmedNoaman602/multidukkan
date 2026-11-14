@@ -6,7 +6,7 @@ Everything under `/api`, auth via `Authorization: Bearer <sanctum-token>` except
 
 - Plural resources: `/orders`, `/customers`, `/purchase-orders` (kebab-case for multi-word).
 - Sub-resources for owned collections and computed views: `/customers/{customer}/balance`, `/customers/{customer}/ledger`, `/orders/{order}/items`, `/suppliers/{supplier}/products`.
-- Actions that aren't CRUD are verbs as sub-paths: `/inventory/{inventory}/adjust`, `/payments/auto`, `/customers/{customer}/refund`, `/customers/{customer}/credit`. Keep these rare and named after the business action.
+- Actions that aren't CRUD are verbs as sub-paths: `/inventory/{inventory}/adjust`, `/payments/auto`, `/customers/{customer}/refund`. Keep these rare and named after the business action.
 - Deletes on soft-deleted resources bind `->withTrashed()` so a double-delete 404s meaningfully rather than silently.
 
 ## HTTP verbs

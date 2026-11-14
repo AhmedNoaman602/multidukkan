@@ -193,8 +193,10 @@ class OrderMoneyTest extends TestCase
     public function test_refund_validator_excludes_credit_payments_from_the_order_level_cap(): void
     {
         // Give the customer enough credit to fully cover the order via a credit (is_auto_reversible) payment.
-        $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/credit", [
-            'amount' => 300,
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
+            'customer_id' => $this->customer->id,
+            'amount'      => 300,
+            'method'      => 'cash',
         ])->assertStatus(201);
 
         $response = $this->createOrder([
