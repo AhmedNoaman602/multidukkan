@@ -328,6 +328,9 @@ if (!empty($data['pay_immediately'])) {
     public function adjustItem(Order $order, OrderItem $item, array $data): void
     {
         DB::transaction(function () use ($order, $item, $data) {
+        $order = Order::lockForUpdate()->findOrFail($order->id);
+        $item  = OrderItem::lockForUpdate()->findOrFail($item->id);
+
         $this->ensureOrderIsEditable($order);
 
         $oldQty = $item->quantity;
@@ -355,7 +358,7 @@ if (!empty($data['pay_immediately'])) {
         ]);
 
         $this->resetToCalculatedTotal($order);
-        });
+        }, attempts:3);
     }
 
     private function ensureOrderIsEditable(Order $order): void
