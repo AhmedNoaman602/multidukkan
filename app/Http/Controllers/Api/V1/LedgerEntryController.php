@@ -133,6 +133,7 @@ $unpaidOrders = $orders->filter(fn ($o) => $o->settledAmount() < $o->total)->cou
             'invoice_number' => $p->order?->invoice_number ?? '—',
             'order_id'       => $p->order_id,
             'is_auto_reversible' => (bool) $p->is_auto_reversible,
+            'counts_as_cash'     => (bool) $p->counts_as_cash,
         ]);
 
     return response()->json([

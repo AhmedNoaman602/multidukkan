@@ -28,15 +28,16 @@ class PaymentController extends Controller
         ->tap(fn($q) => LocalDateRange::apply($q, $request->merge([
             'date_exact' => $request->input('date'),
         ]), 'created_at', LocalDateRange::businessTimezone()))
-        ->where('method' , '!=', 'credit')
+        ->cashOnly()
         ->with('customer:id,name', 'order:id,store_id')
         ->orderBy('created_at', 'desc')
         ->get();
 
     return response()->json([
-        'data'  => $payments,
-        'total' => $payments->sum('amount'),
-        'count' => $payments->count(),
+        'data'        => $payments,
+        'total'       => round($payments->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2),
+        'gross_total' => round($payments->sum('amount'), 2),
+        'count'       => $payments->count(),
     ]);
 }
 

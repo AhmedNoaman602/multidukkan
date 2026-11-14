@@ -264,6 +264,7 @@ foreach ($validatedItems as $v) {
                     'customer_id' => $order->customer_id,
                     'amount' => $applyAmount,
                     'method' => 'credit',
+                    'counts_as_cash' => false,
                     'is_auto_reversible' => true,
                     'paid_at' => now(),
                 ]);
@@ -302,6 +303,7 @@ if (!empty($data['pay_immediately'])) {
             'customer_id'        => $order->customer_id,
             'amount'             => $cashAmount,
             'method'             => $data['payment_method'] ?? 'cash',
+            'counts_as_cash'     => true,
             'is_auto_reversible' => false,
             'paid_at'            => now(),
         ]);

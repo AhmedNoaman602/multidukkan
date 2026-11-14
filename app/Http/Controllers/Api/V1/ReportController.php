@@ -7,13 +7,18 @@ use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Services\ExpenseService;
+use App\Services\LedgerService;
 use App\Support\LocalDateRange;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Builder;
 
 class ReportController extends Controller
 {
-    public function __construct(protected ExpenseService $expenseService) {}
+    public function __construct(
+        protected ExpenseService $expenseService,
+        protected LedgerService $ledger,
+    ) {}
 
     public function daily(Request $request)
     {
@@ -28,7 +33,9 @@ class ReportController extends Controller
         $isPrint = $request->boolean('print', false);
 
         $orders   = $this->fetchOrders($tenantId, $from, $to);
+        $unpaid = $this->ledger->orderPaymentTotals($this->ordersQuery($tenantId, $from, $to))['unpaid'];
         $payments = $this->fetchPayments($tenantId, $from, $to, $timezone);
+        $cashPayments = $payments->where('counts_as_cash', true);
         $totalExpenses = $this->expenseService->getTotalForPeriod($tenantId, $from, $to);
         $perPage = $isPrint ? PHP_INT_MAX : ($request->per_page ?? 10);
 
@@ -38,11 +45,11 @@ class ReportController extends Controller
             // times in the same day the totals were calculated for, instead of each
             // side deciding independently.
             'business_timezone'   => $timezone,
-            'summary'             => $this->buildSummary($orders, $payments, $totalExpenses),
+            'summary'             => $this->buildSummary($orders, $unpaid, $payments, $totalExpenses),
             'missing_cost_prices' => $this->countMissingCostPrices($orders),
             'profit_by_order'     => $this->paginate($this->buildProfitByOrder($orders),            $request->order_page    ?? 1, $perPage),
-            'payments_history'    => $this->paginate($this->buildPaymentsHistory($payments),        $request->payment_page  ?? 1, $perPage),
-            'orders_by_customer'  => $this->paginate($this->buildOrdersByCustomer($orders, $payments), $request->customer_page ?? 1, $perPage),
+            'payments_history'    => $this->paginate($this->buildPaymentsHistory($cashPayments),        $request->payment_page  ?? 1, $perPage),
+            'orders_by_customer'  => $this->paginate($this->buildOrdersByCustomer($orders, $cashPayments), $request->customer_page ?? 1, $perPage),
             'daily_breakdown'     => $this->paginate($this->buildDailyBreakdown($orders),           $request->daily_page    ?? 1, $perPage),
             'products_sold'       => $this->buildProductsSold($orders),
             'expenses_by_category' => $this->expenseService->getCategoryBreakdownForPeriod($tenantId, $from, $to),
@@ -56,7 +63,6 @@ private function fetchPayments(int $tenantId, string $from, string $to, string $
     // paid_at is a stored UTC instant, so the local from/to dates become the UTC
     // instants bounding those local days rather than a DATE() comparison.
     return Payment::whereHas('order', fn($q) => $q->where('tenant_id', $tenantId))
-    ->cashOnly()
     ->whereBetween('paid_at', [
         LocalDateRange::startOfDay($from, $timezone),
         LocalDateRange::endOfDay($to, $timezone),
@@ -65,29 +71,35 @@ private function fetchPayments(int $tenantId, string $from, string $to, string $
     ->get();
 }
 
+private function ordersQuery(int $tenantId, string $from, string $to) : Builder {
+    return Order::where('tenant_id', $tenantId)->whereBetween(DB::raw('DATE(order_date)'), [$from, $to]);
+}
+
 private function fetchOrders(int $tenantId, string $from, string $to): Collection
 {
     // order_date is a calendar DATE column with no instant behind it — compared as
     // plain local dates, never timezone-converted.
-    return Order::where('tenant_id', $tenantId)
-        ->whereBetween(DB::raw('DATE(order_date)'), [$from, $to])
+    return $this->ordersQuery($tenantId, $from, $to)
         ->with(['items.product', 'customer'])
         ->get();
 }
 
     // ─── Builders ─────────────────────────────────────────────────────────────
 
-private function buildSummary(Collection $orders, Collection $payments, float $totalExpenses): array {
+private function buildSummary(Collection $orders, float $unpaid, Collection $payments, float $totalExpenses): array {
     $totalRevenue   = $orders->sum(fn($o) => $this->calcOrderTotal($o));
-    $totalCollected = $payments->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0));
+    $settlement     = $this->ledger->settlementBreakdown($payments);
     // Same per-order profit as buildProfitByOrder, so the summary always equals the sum of
     // the orders: the charged total (after discount / manual_total) minus cost.
     $grossProfit    = $orders->sum(fn($o) => $this->calcOrderTotal($o) - $this->orderCost($o));
 
            return [
             'total_revenue'   => round($totalRevenue, 2),
-            'total_collected' => round($totalCollected, 2),
-            'outstanding'     => round($totalRevenue - $totalCollected, 2),
+            'total_collected'          => $settlement['cash'],
+            'total_credit_settlements' => $settlement['credit'],
+            'total_return_offsets'     => $settlement['return_offsets'],
+            'total_settled'            => $settlement['total'],
+            'outstanding'              => $unpaid,
             'gross_profit'    => round($grossProfit, 2),
             'total_expenses'  => round($totalExpenses, 2),
             'net_profit'      => round($grossProfit - $totalExpenses, 2),

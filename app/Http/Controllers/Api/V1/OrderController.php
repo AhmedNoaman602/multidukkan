@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
@@ -12,15 +13,14 @@ use App\Http\Requests\UpdateOrderItemRequest;
 use App\Http\Requests\StoreOrderItemRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Models\Payment;
 use App\Support\LocalDateRange;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
     public function __construct(
-        protected OrderService $order
+        protected OrderService $order,
+        protected LedgerService $ledger,
     ) {}
 
     public function index(Request $request)
@@ -57,12 +57,7 @@ class OrderController extends Controller
     ->tap(fn($q) => LocalDateRange::applyCalendarDate($q, $request, 'order_date', LocalDateRange::businessTimezone()));
 
 
-    $totalRevenue = (clone $query)->sum('total');
-    $paidAmount = Payment::whereIn('order_id', (clone $query)->select('id'))
-        ->cashOnly()
-        ->sum(DB::raw('amount - COALESCE(refunded_amount, 0)'));
-
-    $unpaidAmount = round($totalRevenue - $paidAmount, 2);
+    $totals = $this->ledger->orderPaymentTotals(clone $query);
 
     $orders = $query->with('items.product', 'payments', 'customer')
         ->orderBy('id', 'desc')
@@ -79,9 +74,9 @@ class OrderController extends Controller
         'years' => $years,
         'stats' => [
             'total_orders'  => $orders->total(),
-            'total_revenue' => round($totalRevenue, 2),
-            'unpaid_amount' => round($unpaidAmount, 2),
-            'paid_amount'   => round($paidAmount, 2),
+            'total_revenue' => $totals['total'],
+            'unpaid_amount' => $totals['unpaid'],
+            'paid_amount'   => $totals['paid'],
         ],
     ]);
 }

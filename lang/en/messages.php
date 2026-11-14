@@ -90,6 +90,7 @@ return [
     'refund_select_order_or_payment' => 'Please select a specific order or payment to refund from',
     'cannot_edit_refunded_payment' => 'Cannot edit a refunded payment. Reverse the refund first',
     'amount_below_refunded' => 'Cannot set amount below refunded amount',
+    'payment_not_adjustable' => 'Only cash payments can be edited. This payment was settled from credit or a return',
     'order_fully_paid_locked' => 'This order is fully paid and locked. Create a new order or invoice for additional items',
     'order_partial_payments_manager_only' => 'This order has partial payments — only a manager can modify it',
     'refund_before_cancel' => 'Please refund all payments before cancelling this order',

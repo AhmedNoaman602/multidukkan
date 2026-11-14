@@ -57,7 +57,7 @@ public function withValidator($validator): void
                 return;
             }
 
-            if ($payment->is_auto_reversible) {
+            if (! $payment->counts_as_cash) {
                 $validator->errors()->add('payment_id_target', __('messages.credit_payment_not_refundable'));
                 return;
             }

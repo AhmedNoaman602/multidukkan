@@ -67,6 +67,8 @@ class PaymentService
                 'customer_id' => $data['customer_id'],
                 'amount'      => $appliedAmount,
                 'method'      => $data['method'],
+                'counts_as_cash'     => true,
+                'is_auto_reversible' => false,
                 'payment_reference'  => $data['payment_reference'] ?? null,
                 'paid_at'     => now(),
             ]);
@@ -162,6 +164,8 @@ class PaymentService
                     'customer_id' => $customerId,
                     'amount'      => $applyAmount,
                     'method'      => $method,
+                    'counts_as_cash'     => true,
+                    'is_auto_reversible' => false,
                     'payment_reference'  => $data['payment_reference'] ?? null,
                     'paid_at'     => now(),
                 ]);
@@ -248,6 +252,8 @@ class PaymentService
                 'customer_id' => $customerId,
                 'amount'      => $applyAmount,
                 'method'      => $method,
+                'counts_as_cash'     => true,
+                'is_auto_reversible' => false,
                 'payment_reference'  => $paymentReference,
                 'paid_at'     => now(),
             ]);

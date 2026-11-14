@@ -7,6 +7,8 @@ use App\Models\Payment;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 /**
  * Service for managing the financial ledger of customers and tenants.
  * 
@@ -368,8 +370,8 @@ public function restoreCredit(array $data): LedgerEntry
     }
 
     /**
-     * Cash refundable balance for a single payment. Credit (auto-reversible) payments
-     * are never cash-refundable — callers must check is_auto_reversible separately.
+     * Cash refundable balance for a single payment. Non-cash payments (store credit,
+     * return offsets) are never cash-refundable — callers must check counts_as_cash separately.
      */
     public function refundableForPayment(Payment $payment): float
     {
@@ -391,7 +393,7 @@ public function restoreCredit(array $data): LedgerEntry
             // this transaction commits, then re-reads the current refunded_amount instead
             // of racing against a stale value.
             $payment = Payment::lockForUpdate()->findOrFail($data['payment_id_target']);
-            if ($payment->is_auto_reversible) {
+            if (! $payment->counts_as_cash) {
                 throw ValidationException::withMessages([
                     'payment' => __('messages.credit_payment_no_cash_refund')
                 ]);
@@ -485,12 +487,53 @@ public function restoreCredit(array $data): LedgerEntry
         return max(0, round($credits - $consumed, 2));
     }
 
+    public function orderPaymentTotals(Builder $orders): array
+    {
+        $settled = Payment::query()
+            ->selectRaw('order_id, SUM(amount - COALESCE(refunded_amount, 0)) as settled')
+            ->groupBy('order_id');
+
+        $row = $orders
+            ->leftJoinSub($settled, 's', 's.order_id', '=', 'orders.id')
+            ->selectRaw('COALESCE(SUM(orders.total), 0) as total,
+                COALESCE(SUM(LEAST(orders.total, COALESCE(s.settled, 0))), 0) as paid,
+                COALESCE(SUM(GREATEST(orders.total - COALESCE(s.settled, 0), 0)), 0) as unpaid')
+            ->first();
+
+        return [
+            'total'  => round((float) $row->total, 2),
+            'paid'   => round((float) $row->paid, 2),
+            'unpaid' => round((float) $row->unpaid, 2),
+        ];
+    }
+
+    public function settlementBreakdown(Collection $payments): array
+    {
+        $net = fn ($p) => $p->amount - ($p->refunded_amount ?? 0);
+
+        $cash          = round($payments->where('counts_as_cash', true)->sum($net), 2);
+        $credit        = round($payments->where('is_auto_reversible', true)->sum($net), 2);
+        $returnOffsets = round($payments->where('method', 'return_offset')->sum($net), 2);
+
+        return [
+            'cash'           => $cash,
+            'credit'         => $credit,
+            'return_offsets' => $returnOffsets,
+            'total'          => round($cash + $credit + $returnOffsets, 2),
+        ];
+    }
+
     /**
      * Adjust a payment amount and method.
      * Validates that the payment hasn't already been refunded, updates the payment record, and modifies the ledger payment amount.
      */
     public function adjustPayment(Payment $payment, float $newAmount, string $newMethod): void
     {
+        if(!$payment->counts_as_cash || $payment->is_auto_reversible){
+            throw ValidationException::withMessages([
+                'payment' => __('messages.payment_not_adjustable')
+            ]);
+        }
         // Block adjustment if the payment has already been refunded.
         if ($payment->refunded_amount > 0) {
             throw ValidationException::withMessages([
