@@ -151,7 +151,7 @@ does not prove the invariant at the model layer.
 | `CREDIT_CONSUMED` | debit | `OrderService::createOrder` when credit is spent |
 | `REFUND` | debit | `LedgerService::issueRefund` |
 | `PAYMENT` | credit | `OrderService`, `PaymentService` (direct, auto, FIFO) |
-| `CREDIT_APPLY` | credit | overpayment leftover, manual credit, credit restored on cancel |
+| `CREDIT_APPLY` | credit | overpayment leftover (direct or auto-payment), credit restored on cancel; older rows may be manual credit (removed, D23) |
 | `REVERSAL` | credit | `OrderService::cancelOrder` |
 | `PURCHASE_CHARGE` | supplier debit | `PurchaseOrderService::createPurchaseOrder` |
 | `PURCHASE_REVERSAL` | supplier credit | `PurchaseOrderService::cancelPurchaseOrder` |

@@ -131,11 +131,18 @@ class PaymentClassificationTest extends TestCase
         ]);
     }
 
+    private function giveCredit(float $amount): void
+    {
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
+            'customer_id' => $this->customer->id,
+            'amount'      => $amount,
+            'method'      => 'cash',
+        ])->assertStatus(201);
+    }
+
     public function test_sale_paid_from_credit_is_stored_as_non_cash_and_auto_reversible(): void
     {
-        $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/credit", [
-            'amount' => 100,
-        ])->assertStatus(201);
+        $this->giveCredit(100);
 
         $orderId = $this->sell()->assertStatus(201)->json('id');
 
@@ -333,9 +340,7 @@ class PaymentClassificationTest extends TestCase
 
     public function test_credit_payment_cannot_be_edited(): void
     {
-        $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/credit", [
-            'amount' => 100,
-        ])->assertStatus(201);
+        $this->giveCredit(100);
         $orderId = $this->sell()->assertStatus(201)->json('id');
         $payment = Payment::where('order_id', $orderId)->where('method', 'credit')->firstOrFail();
         $balanceBefore = $this->balance();

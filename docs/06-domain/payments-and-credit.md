@@ -27,7 +27,7 @@ FIFO ordering is `created_at asc` — combined with backdated `order_date`, paym
 
 ## Credit
 
-Credit = the store owes the customer. Enters via: overpayment leftovers, manual `POST /customers/{c}/credit`, restored credit on cancellation. Leaves via: auto-consumption at order creation (`PAYMENT` + `CREDIT_CONSUMED` pair). Balance: `LedgerService::getCreditBalance()`. Credit payments **cannot be refunded as cash** — cancel the order instead (enforced in `issueRefund`).
+Credit = the store owes the customer. Enters via: overpayment leftovers (direct or auto-payment), restored credit on cancellation. There is no manual "add credit": it was removed (D23) because it lowered the balance without paying any invoice, so unpaid invoices stayed unpaid; money handed over goes through auto-payment instead (debt first, excess → credit). Past manual `CREDIT_APPLY` rows stay. Leaves via: auto-consumption at order creation (`PAYMENT` + `CREDIT_CONSUMED` pair). Balance: `LedgerService::getCreditBalance()`. Credit payments **cannot be refunded as cash** — cancel the order instead (enforced in `issueRefund`).
 
 ## Refunds (`LedgerService::issueRefund`, `POST /customers/{c}/refund`)
 

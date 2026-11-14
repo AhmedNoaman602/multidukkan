@@ -57,7 +57,6 @@ return [
     'payment_adjusted' => 'تم تعديل الدفعة بنجاح',
     'payment_reversed' => 'تم عكس الدفعة بنجاح',
     'payment_distributed' => 'تم توزيع الدفعة على :count طلب',
-    'credit_added' => 'تمت إضافة الرصيد بنجاح',
 
     'customer_deleted' => 'تم حذف العميل بنجاح',
     'refund_issued' => 'تم إصدار الاسترجاع بنجاح',

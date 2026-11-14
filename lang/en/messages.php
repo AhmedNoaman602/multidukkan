@@ -57,7 +57,6 @@ return [
     'payment_adjusted' => 'Payment adjusted successfully',
     'payment_reversed' => 'Payment reversed successfully',
     'payment_distributed' => 'Payment distributed across :count order(s)',
-    'credit_added' => 'Credit added successfully',
 
     'customer_deleted' => 'Customer deleted successfully',
     'refund_issued' => 'Refund issued successfully',

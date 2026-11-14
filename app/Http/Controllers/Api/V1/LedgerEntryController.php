@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Services\LedgerService;
-use App\Http\Requests\StoreCreditRequest;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Supplier;
 use App\Models\Order;
@@ -74,30 +73,6 @@ class LedgerEntryController extends Controller
         'history'       => $history,
     ]);
 }
-
-    public function addCredit(Customer $customer, StoreCreditRequest $request)
-{
-    $this->authorize('addCredit', $customer);    
-
-    $user = auth()->user();
-    $entry = $this->ledger->addCredit([
-        'tenant_id'   => $user->tenant_id,
-        'customer_id' => $customer->id,
-        'store_id'    => $user->store_id,
-        'amount'      => $request->amount,
-        'description' => $request->description,
-        'user_id'     => $user->id,
-    ]);
-
-    $balance = $this->ledger->getBalance($user->tenant_id, $customer->id);
-
-    return response()->json([
-        'message'     => __('messages.credit_added'),
-        'entry'       => $entry,
-        'new_balance' => $balance,
-    ], 201);
-}
-
 
 public function summary(Customer $customer)
 {

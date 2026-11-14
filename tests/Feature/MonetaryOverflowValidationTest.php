@@ -183,12 +183,4 @@ class MonetaryOverflowValidationTest extends TestCase
         $response->assertStatus(422)->assertJsonValidationErrors('amount');
         $this->assertDatabaseCount('payments', 0);
     }
-
-    public function test_customer_credit_overflow_returns_422(): void
-    {
-        $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/credit", [
-            'amount'      => 100000000, // overflows decimal(10,2)
-            'description' => 'Overpayment',
-        ])->assertStatus(422)->assertJsonValidationErrors('amount');
-    }
 }

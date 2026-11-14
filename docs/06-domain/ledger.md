@@ -20,7 +20,7 @@ Do not mix idioms: customer entries don't use `direction`; supplier math doesn't
 |---|---|---|---|
 | `ORDER_CHARGE` | debit | `chargeOrder` | Customer owes for an order |
 | `PAYMENT` | credit | `applyAmount` | Money (or applied credit) reduced the debt |
-| `CREDIT_APPLY` | credit | `applyCreditOverPayment`, `addCredit`, `restoreCredit` | Store now owes customer (overpayment / manual / restored on cancel) |
+| `CREDIT_APPLY` | credit | `applyCreditOverPayment`, `addCredit` (auto-payment leftover only), `restoreCredit` | Store now owes customer (overpayment / restored on cancel; older rows may be the removed manual credit, D23) |
 | `CREDIT_CONSUMED` | debit | `consumeCredit` | Customer's credit was spent on an order (pairs with a `PAYMENT` of equal amount) |
 | `REVERSAL` | credit | `reverseOrder` | Order cancelled — cash portion of the charge undone |
 | `REFUND` | debit | `issueRefund` | Cash handed back to the customer |

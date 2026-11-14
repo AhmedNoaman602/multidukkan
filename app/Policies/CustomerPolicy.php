@@ -49,9 +49,4 @@ public function create(User $user): bool
         return $user->tenant_id === $customer->tenant_id && $user->role === 'tenant_admin';
     } 
 
-    public function addCredit(User $user, Customer $customer): bool
-{
-    return $user->tenant_id === $customer->tenant_id && in_array($user->role, ['tenant_admin', 'store_manager']);
-}
-
 }

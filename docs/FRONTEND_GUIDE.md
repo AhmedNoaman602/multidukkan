@@ -316,7 +316,6 @@ hours of every Cairo morning.
 |---|---|---|
 | `QuickSaleModal` | `POST /orders` with `pay_immediately: true` + walk-in customer | **The whole of Quick Sale.** There is no separate backend flow. |
 | `RefundModal` | `POST /customers/{id}/refund` | Chooses between payment-target and order-level refund |
-| `AddCreditModal` | `POST /customers/{id}/credit` | Manager+ only |
 | `AddItemModal` | `POST /orders/{id}/items` | Subject to `ensureOrderIsEditable` |
 | `ExpenseModal` | `POST`/`PATCH /expenses` | |
 | `ReverseSupplierPaymentModal` | `DELETE /supplier-payments/{id}` | Full void, no partial |

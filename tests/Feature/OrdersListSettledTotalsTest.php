@@ -91,8 +91,10 @@ class OrdersListSettledTotalsTest extends TestCase
 
     public function test_an_order_paid_from_credit_counts_as_settled_not_unpaid(): void
     {
-        $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/credit", [
-            'amount' => 100,
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
+            'customer_id' => $this->customer->id,
+            'amount'      => 100,
+            'method'      => 'cash',
         ])->assertStatus(201);
 
         $this->actingAs($this->user)->postJson('/api/orders', [

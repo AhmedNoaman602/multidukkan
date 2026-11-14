@@ -65,7 +65,6 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::delete('/customers/{customer}', [CustomerController::class, 'destroy'])->withTrashed();
     Route::get('/customers/{customer}/balance', [LedgerEntryController::class, 'balance']);
     Route::get('/customers/{customer}/ledger', [LedgerEntryController::class, 'history']);
-    Route::post('/customers/{customer}/credit', [LedgerEntryController::class, 'addCredit']);
     Route::post('/customers/{customer}/refund', [CustomerController::class, 'refund']);
     Route::get('/customers/{customer}/summary', [LedgerEntryController::class, 'summary']);
 

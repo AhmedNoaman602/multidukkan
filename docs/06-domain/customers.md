@@ -23,7 +23,7 @@ Anti-pattern (the original production bug): computing customer debt from orders 
 
 ## Key endpoints
 
-`GET/POST/PUT/DELETE /customers`, plus financial sub-resources: `/customers/{c}/balance`, `/ledger` (history), `/summary`, `/credit` (manual credit add → `CREDIT_APPLY`), `/refund` (cash out → `REFUND`, see [payments-and-credit.md](payments-and-credit.md#refunds)).
+`GET/POST/PUT/DELETE /customers`, plus financial sub-resources: `/customers/{c}/balance`, `/ledger` (history), `/summary`, `/refund` (cash out → `REFUND`, see [payments-and-credit.md](payments-and-credit.md#refunds)).
 
 ## Business rules
 
