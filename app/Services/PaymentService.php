@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\OrderItem;
 use App\Models\User;
 use App\Models\Order;
+use App\Models\Customer;
 use Illuminate\Validation\ValidationException;
 /**
  * Service for processing payments and managing their impact on the ledger.
@@ -31,10 +32,8 @@ class PaymentService
         // Wrap the entire direct payment flow in a database transaction to guarantee data integrity.
         // If any step fails, all db updates (payment record, ledger entries, FIFO distribution) will roll back.
         return DB::transaction(function () use ($data , $user) {
-            // Must be the first query in this transaction: a locking read always returns the
-            // latest committed row, letting a request that was blocked on this lock see the
-            // other transaction's newly-inserted payment once it unblocks. An earlier plain
-            // read here would pin an older REPEATABLE READ snapshot and hide it.
+            Customer::where('tenant_id' , $user->tenant_id)->whereKey($data['customer_id'])->lockForUpdate()->firstOrFail();
+            
             $order = Order::lockForUpdate()->findOrFail($data['order_id']);
 
             // orders.total is the authoritative charge amount (ADR-004) — the sum of
@@ -120,7 +119,8 @@ class PaymentService
     {
         // Wrap the auto-payment flow in a transaction to make sure all created payments are saved together.
         return DB::transaction(function () use ($data, $user) {
-            $customerId = $data['customer_id'];
+            $customer = Customer::where('tenant_id' , $user->tenant_id)->whereKey($data['customer_id'])->lockForUpdate()->firstOrFail();
+            $customerId = $customer->id;
             $remaining  = round((float) $data['amount'], 2);
             $method     = $data['method'];
 
