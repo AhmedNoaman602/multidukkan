@@ -514,9 +514,15 @@ public function updateOrder(Order $order, array $data, User $user): Order
     return $order->load('items', 'payments', 'customer');
 }
   
-   public function cancelOrder(Order $order, \App\Models\User $user): void
+   public function cancelOrder(Order $order, User $user): void
 {
     DB::transaction(function () use ($order, $user) {
+        $order = Order::withTrashed()->lockForUpdate()->findOrFail($order->id);
+        if($order->trashed()){
+             throw ValidationException::withMessages([
+                'order' => __('messages.order_already_cancelled')
+            ]);
+        }
         $chargeAmount = $order->total;
 
         $hasUnrefundedPayments = $order->payments()
@@ -536,8 +542,8 @@ public function updateOrder(Order $order, array $data, User $user): Order
 
     $creditPaymentsTotal = $creditPayments->sum('amount');
 
-foreach ($creditPayments as $payment) {
-    $this->ledger->restoreCredit([
+    foreach ($creditPayments as $payment) {
+        $this->ledger->restoreCredit([
         'tenant_id'      => $order->tenant_id,
         'customer_id'    => $order->customer_id,
         'store_id'       => $order->store_id,
@@ -546,8 +552,8 @@ foreach ($creditPayments as $payment) {
         'amount'         => $payment->amount,
         'invoice_number' => $order->invoice_number,
         'user_id'        => $user->id,
-    ]);
-}
+        ]);
+    }
 
         $batchId = (string) Str::uuid();
         foreach ($order->items as $item) {
@@ -562,8 +568,8 @@ foreach ($creditPayments as $payment) {
             );
         }
 
-$reversalAmount = $chargeAmount - $creditPaymentsTotal;
-if ($reversalAmount > 0) {
+    $reversalAmount = $chargeAmount - $creditPaymentsTotal;
+    if ($reversalAmount > 0) {
     $this->ledger->reverseOrder([
         'tenant_id'      => $order->tenant_id,
         'customer_id'    => $order->customer_id,
@@ -573,12 +579,12 @@ if ($reversalAmount > 0) {
         'invoice_number' => $order->invoice_number,
         'user_id'        => $user->id,
     ]);
-}
-$order->payments()
+    }
+    $order->payments()
       ->whereIn('id', $creditPayments->pluck('id'))
       ->delete(); 
 
     $order->delete();
-    });
+    }, attempts:3);
 }
 }

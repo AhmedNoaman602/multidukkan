@@ -2,12 +2,13 @@
 
 // Runs money operations on its own MySQL connection for ConcurrencyTest, all inside
 // one transaction:
-//   1. the first step, then prints READY;
+//   1. the first step, then creates ready_file;
 //   2. waits pause_seconds, then runs the remaining steps;
 //   3. holds the transaction (and every lock it took) for hold_seconds, then commits.
 //
 // Usage: php tests/Concurrency/child.php <base64 json job>
 
+use App\Models\Order;
 use App\Models\User;
 use App\Services\OrderService;
 use App\Services\PaymentService;
@@ -30,6 +31,7 @@ $run = fn (array $step) => match ($step['op']) {
     'sale'           => app(OrderService::class)->createOrder($step['data']),
     'auto_payment'   => app(PaymentService::class)->processAutoPayment($step['data'], $user),
     'direct_payment' => app(PaymentService::class)->processDirectPayment($step['data'], $user),
+    'cancel'         => app(OrderService::class)->cancelOrder(Order::findOrFail($step['data']['order_id']), $user),
 };
 
 DB::beginTransaction();
@@ -38,8 +40,10 @@ try {
     $steps = $job['steps'];
 
     $run(array_shift($steps));
+    // A file, not stdout: on Windows the parent can read stdout late, after this
+    // process has already committed, and then nothing would run concurrently.
+    file_put_contents($job['ready_file'], 'ready');
     fwrite(STDOUT, "READY\n");
-    fflush(STDOUT);
 
     sleep($job['pause_seconds'] ?? 0);
     foreach ($steps as $step) {

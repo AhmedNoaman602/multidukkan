@@ -92,11 +92,14 @@ class ConcurrencyTest extends TestCase
     /** Starts the child, waits until its first step ran inside its open transaction. */
     private function startChild(array $steps, int $pauseSeconds = 0, int $holdSeconds = 0): Process
     {
+        $readyFile = sys_get_temp_dir().DIRECTORY_SEPARATOR.'concurrency-ready-'.uniqid();
+
         $job = base64_encode(json_encode([
             'user_id'       => $this->user->id,
             'steps'         => $steps,
             'pause_seconds' => $pauseSeconds,
             'hold_seconds'  => $holdSeconds,
+            'ready_file'    => $readyFile,
         ]));
 
         $process = new Process(
@@ -112,8 +115,16 @@ class ConcurrencyTest extends TestCase
         );
         $process->start();
 
-        $process->waitUntil(fn ($type, $output) => str_contains($output, 'READY'));
-        $this->assertTrue($process->isRunning(), 'Child stopped before holding its transaction: '.$process->getErrorOutput());
+        $deadline = microtime(true) + 30;
+        while (!file_exists($readyFile) && $process->isRunning() && microtime(true) < $deadline) {
+            usleep(20_000);
+        }
+        @unlink($readyFile);
+
+        $this->assertTrue($process->isRunning(), sprintf(
+            "Child stopped before holding its transaction (exit %s).\nstdout: %s\nstderr: %s",
+            var_export($process->getExitCode(), true), $process->getOutput(), $process->getErrorOutput()
+        ));
 
         return $process;
     }
@@ -220,5 +231,34 @@ class ConcurrencyTest extends TestCase
         $this->assertEquals(200, DB::table('payments')->sum('amount'));
         $this->assertEquals(100, DB::table('ledger_entries')->where('type', 'CREDIT_APPLY')->sum('amount'));
         $this->assertEquals(-100, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    /**
+     * Two cancels of one unpaid order at the same moment (a double click). The child's
+     * cancel has run but not committed when this one arrives; both passed the
+     * controller's "already cancelled?" check before either transaction began.
+     * Correct result: stock and charge are reversed once; the second cancel is refused.
+     */
+    public function test_two_simultaneous_cancels_reverse_the_order_only_once(): void
+    {
+        $orderId = $this->actingAs($this->user)->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
+            'items'       => [['product_id' => $this->productA->id, 'quantity' => 5]],
+        ])->assertStatus(201)->json('id');
+
+        $child = $this->startChild([['op' => 'cancel', 'data' => ['order_id' => $orderId]]], holdSeconds: 3);
+
+        $second = $this->actingAs($this->user)->deleteJson("/api/orders/{$orderId}");
+
+        $this->finish($child);
+
+        $stock = DB::table('inventory')->where('product_id', $this->productA->id)->value('quantity');
+        $this->assertEquals(100, $stock, 'Stock must be restored once: 100 - 5 + 5.');
+        $this->assertSame(1, DB::table('ledger_entries')->where('type', 'REVERSAL')->count());
+        $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+
+        $second->assertStatus(422)->assertJsonPath('message', __('messages.order_already_cancelled'));
     }
 }
