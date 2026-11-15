@@ -466,7 +466,7 @@ public function restoreCredit(array $data): LedgerEntry
             'reference_type' => $refType,
             'reference_id'   => $refId,
         ]);
-        });
+        }, attempts: 3);
     }
 
     /**
@@ -529,6 +529,9 @@ public function restoreCredit(array $data): LedgerEntry
      */
     public function adjustPayment(Payment $payment, float $newAmount, string $newMethod): void
     {
+        DB::transaction(function() use ($payment,$newAmount,$newMethod){
+         $payment = Payment::lockForUpdate()->findOrFail($payment->id);
+               
         if(!$payment->counts_as_cash || $payment->is_auto_reversible){
             throw ValidationException::withMessages([
                 'payment' => __('messages.payment_not_adjustable')
@@ -552,8 +555,6 @@ public function restoreCredit(array $data): LedgerEntry
                 'amount' => __('messages.amount_below_refunded')
             ]);
         }
-
-         DB::transaction(function() use ($payment,$newAmount,$newMethod){
  // Update the payment ledger entry to match the new payment amount.
         LedgerEntry::where('reference_type', 'payment')
             ->where('reference_id', $payment->id)
@@ -565,7 +566,7 @@ public function restoreCredit(array $data): LedgerEntry
             'amount' => $newAmount,
             'method' => $newMethod,
         ]);
-        });
+        }, attempts: 3);
 
        
     }

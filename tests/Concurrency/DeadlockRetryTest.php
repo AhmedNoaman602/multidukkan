@@ -112,4 +112,75 @@ class DeadlockRetryTest extends TestCase
         $this->assertEquals(92, $this->stock->fresh()->quantity, 'Stock must drop by 3 more: 100 - 5 - 3.');
         $this->assertEquals(480, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
     }
+
+    private function sell(int $quantity, bool $payNow = false): array
+    {
+        return $this->actingAs($this->user)->postJson('/api/orders', array_merge([
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
+            'items'       => [['product_id' => $this->product->id, 'quantity' => $quantity]],
+        ], $payNow ? ['pay_immediately' => true, 'payment_method' => 'cash'] : []))
+            ->assertStatus(201)->json();
+    }
+
+    /**
+     * Order of 60 with a manual total of 50; one more unit is added, which drops the
+     * manual total. Attempt 1 has already saved manual_total = null in memory when the
+     * deadlock hits, so a retry that trusts the in-memory order skips that save.
+     */
+    public function test_add_item_retried_after_a_deadlock_clears_the_manual_total(): void
+    {
+        $order = $this->sell(1);
+        $this->actingAs($this->user)->patchJson("/api/orders/{$order['id']}", ['manual_total' => 50])->assertOk();
+
+        $this->deadlockOnce('update `ledger_entries`');
+
+        $this->actingAs($this->user)
+            ->postJson("/api/orders/{$order['id']}/items", ['product_id' => $this->product->id, 'quantity' => 1])
+            ->assertSuccessful()
+            ->assertJsonPath('total', 120);
+
+        $this->assertDatabaseHas('orders', ['id' => $order['id'], 'manual_total' => null, 'total' => 120]);
+        $this->assertEquals(98, $this->stock->fresh()->quantity);
+        $this->assertEquals(120, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    /**
+     * A discount of 10 on an order of 60. Attempt 1 has already saved discount = 10 in
+     * memory when the deadlock hits; a retry that trusts it skips the save and
+     * re-totals from the database's old discount of 0.
+     */
+    public function test_discount_retried_after_a_deadlock_is_kept(): void
+    {
+        $order = $this->sell(1);
+
+        $this->deadlockOnce('update `ledger_entries`');
+
+        $this->actingAs($this->user)
+            ->patchJson("/api/orders/{$order['id']}", ['discount' => 10, 'discount_type' => 'amount'])
+            ->assertOk()
+            ->assertJsonPath('total', 50);
+
+        $this->assertDatabaseHas('orders', ['id' => $order['id'], 'discount' => 10, 'total' => 50]);
+        $this->assertEquals(50, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    public function test_cash_refund_retried_after_a_deadlock_is_recorded_once(): void
+    {
+        $order     = $this->sell(1, payNow: true);
+        $paymentId = DB::table('payments')->where('order_id', $order['id'])->value('id');
+
+        $this->deadlockOnce('insert into `ledger_entries`');
+
+        $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/refund", [
+            'amount'            => 20,
+            'method'            => 'cash',
+            'payment_id_target' => $paymentId,
+        ])->assertSuccessful();
+
+        $this->assertEquals(20, DB::table('payments')->where('id', $paymentId)->value('refunded_amount'));
+        $this->assertSame(1, DB::table('ledger_entries')->where('type', 'REFUND')->count());
+        $this->assertEquals(20, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
 }

@@ -261,4 +261,44 @@ class ConcurrencyTest extends TestCase
 
         $second->assertStatus(422)->assertJsonPath('message', __('messages.order_already_cancelled'));
     }
+
+    /**
+     * A cash payment of 60. The child refunds 30 and holds its transaction; meanwhile the
+     * payment is edited down to 40. adjustPayment checks "already refunded?" before its
+     * transaction, so it reads 0 and lets the edit through. (40, not lower: below 30 the
+     * database's refunded <= amount check would stop it — with a raw SQL 500.)
+     * Correct result: the edit is refused (a refunded payment can't be edited); 60 stays.
+     */
+    public function test_editing_a_payment_while_it_is_being_refunded_is_refused(): void
+    {
+        $orderId = $this->actingAs($this->user)->postJson('/api/orders', $this->saleData($this->productA) + [
+            'pay_immediately' => true,
+            'payment_method'  => 'cash',
+        ])->assertStatus(201)->json('id');
+        $paymentId = DB::table('payments')->where('order_id', $orderId)->value('id');
+
+        $child = $this->startChild([['op' => 'refund', 'data' => [
+            'customer_id'       => $this->customer->id,
+            'store_id'          => $this->store->id,
+            'amount'            => 30,
+            'method'            => 'cash',
+            'payment_id_target' => $paymentId,
+        ]]], holdSeconds: 3);
+
+        $edit = $this->actingAs($this->user)->patchJson("/api/payments/{$paymentId}", [
+            'amount' => 40,
+            'method' => 'cash',
+        ]);
+
+        $this->finish($child);
+
+        $payment = DB::table('payments')->where('id', $paymentId)->first();
+        $this->assertEquals(60, $payment->amount, 'A refunded payment must not be edited.');
+        $this->assertEquals(30, $payment->refunded_amount);
+        $this->assertEquals(60, DB::table('ledger_entries')
+            ->where('reference_type', 'payment')->where('reference_id', $paymentId)
+            ->where('type', 'PAYMENT')->value('amount'));
+
+        $this->assertSame(422, $edit->status(), 'Edit response: '.$edit->getContent());
+    }
 }

@@ -10,6 +10,7 @@
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Services\PaymentService;
 use Illuminate\Support\Facades\Auth;
@@ -32,6 +33,7 @@ $run = fn (array $step) => match ($step['op']) {
     'auto_payment'   => app(PaymentService::class)->processAutoPayment($step['data'], $user),
     'direct_payment' => app(PaymentService::class)->processDirectPayment($step['data'], $user),
     'cancel'         => app(OrderService::class)->cancelOrder(Order::findOrFail($step['data']['order_id']), $user),
+    'refund'         => app(LedgerService::class)->issueRefund($step['data'] + ['tenant_id' => $user->tenant_id, 'user_id' => $user->id]),
 };
 
 DB::beginTransaction();

@@ -428,6 +428,8 @@ if (!empty($data['pay_immediately'])) {
     public function addItem(Order $order, array $data)
     {
         return DB::transaction(function () use ($order, $data) {
+        $order = Order::lockForUpdate()->findOrFail($order->id);
+
         $this->ensureOrderIsEditable($order);
 
         $product = Product::findOrFail($data['product_id']);
@@ -481,13 +483,15 @@ if (!empty($data['pay_immediately'])) {
         );
 
       $this->resetToCalculatedTotal($order);
-    });
+    }, attempts: 3);
 }
 
     // OrderService@updateOrder
 public function updateOrder(Order $order, array $data, User $user): Order
 {
-    DB::transaction(function () use ($order, $data, $user) {
+    $order = DB::transaction(function () use ($order, $data, $user) {
+        $order = Order::lockForUpdate()->findOrFail($order->id);
+
         $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
         $hasDiscount = isset($data['discount']);
         $fields = array_diff_key($data, array_flip(['discount', 'discount_type', 'manual_total']));
@@ -509,7 +513,9 @@ public function updateOrder(Order $order, array $data, User $user): Order
         } else {
             $order->update($fields);
         }
-    });
+
+        return $order;
+    }, attempts: 3);
 
     return $order->load('items', 'payments', 'customer');
 }
