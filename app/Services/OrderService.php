@@ -322,12 +322,15 @@ if (!empty($data['pay_immediately'])) {
 }
 
             return $order;
-        });
+        }, attempts: 3);
     }
 
     public function adjustItem(Order $order, OrderItem $item, array $data): void
     {
         DB::transaction(function () use ($order, $item, $data) {
+        $order = Order::lockForUpdate()->findOrFail($order->id);
+        $item  = OrderItem::lockForUpdate()->findOrFail($item->id);
+
         $this->ensureOrderIsEditable($order);
 
         $oldQty = $item->quantity;
@@ -355,7 +358,7 @@ if (!empty($data['pay_immediately'])) {
         ]);
 
         $this->resetToCalculatedTotal($order);
-        });
+        }, attempts:3);
     }
 
     private function ensureOrderIsEditable(Order $order): void
@@ -425,6 +428,8 @@ if (!empty($data['pay_immediately'])) {
     public function addItem(Order $order, array $data)
     {
         return DB::transaction(function () use ($order, $data) {
+        $order = Order::lockForUpdate()->findOrFail($order->id);
+
         $this->ensureOrderIsEditable($order);
 
         $product = Product::findOrFail($data['product_id']);
@@ -478,13 +483,15 @@ if (!empty($data['pay_immediately'])) {
         );
 
       $this->resetToCalculatedTotal($order);
-    });
+    }, attempts: 3);
 }
 
     // OrderService@updateOrder
 public function updateOrder(Order $order, array $data, User $user): Order
 {
-    DB::transaction(function () use ($order, $data, $user) {
+    $order = DB::transaction(function () use ($order, $data, $user) {
+        $order = Order::lockForUpdate()->findOrFail($order->id);
+
         $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
         $hasDiscount = isset($data['discount']);
         $fields = array_diff_key($data, array_flip(['discount', 'discount_type', 'manual_total']));
@@ -506,14 +513,22 @@ public function updateOrder(Order $order, array $data, User $user): Order
         } else {
             $order->update($fields);
         }
-    });
+
+        return $order;
+    }, attempts: 3);
 
     return $order->load('items', 'payments', 'customer');
 }
   
-   public function cancelOrder(Order $order, \App\Models\User $user): void
+   public function cancelOrder(Order $order, User $user): void
 {
     DB::transaction(function () use ($order, $user) {
+        $order = Order::withTrashed()->lockForUpdate()->findOrFail($order->id);
+        if($order->trashed()){
+             throw ValidationException::withMessages([
+                'order' => __('messages.order_already_cancelled')
+            ]);
+        }
         $chargeAmount = $order->total;
 
         $hasUnrefundedPayments = $order->payments()
@@ -533,8 +548,8 @@ public function updateOrder(Order $order, array $data, User $user): Order
 
     $creditPaymentsTotal = $creditPayments->sum('amount');
 
-foreach ($creditPayments as $payment) {
-    $this->ledger->restoreCredit([
+    foreach ($creditPayments as $payment) {
+        $this->ledger->restoreCredit([
         'tenant_id'      => $order->tenant_id,
         'customer_id'    => $order->customer_id,
         'store_id'       => $order->store_id,
@@ -543,8 +558,8 @@ foreach ($creditPayments as $payment) {
         'amount'         => $payment->amount,
         'invoice_number' => $order->invoice_number,
         'user_id'        => $user->id,
-    ]);
-}
+        ]);
+    }
 
         $batchId = (string) Str::uuid();
         foreach ($order->items as $item) {
@@ -559,8 +574,8 @@ foreach ($creditPayments as $payment) {
             );
         }
 
-$reversalAmount = $chargeAmount - $creditPaymentsTotal;
-if ($reversalAmount > 0) {
+    $reversalAmount = $chargeAmount - $creditPaymentsTotal;
+    if ($reversalAmount > 0) {
     $this->ledger->reverseOrder([
         'tenant_id'      => $order->tenant_id,
         'customer_id'    => $order->customer_id,
@@ -570,12 +585,12 @@ if ($reversalAmount > 0) {
         'invoice_number' => $order->invoice_number,
         'user_id'        => $user->id,
     ]);
-}
-$order->payments()
+    }
+    $order->payments()
       ->whereIn('id', $creditPayments->pluck('id'))
       ->delete(); 
 
     $order->delete();
-    });
+    }, attempts:3);
 }
 }

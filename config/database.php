@@ -66,6 +66,10 @@ return [
             'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+                // MySQL's default is 50s. Money transactions retry a lock timeout up to 3
+                // times, so the default could hold a request for minutes.
+                (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_INIT_COMMAND : \PDO::MYSQL_ATTR_INIT_COMMAND)
+                    => 'SET SESSION innodb_lock_wait_timeout = '.(int) env('DB_LOCK_WAIT_TIMEOUT', 10),
             ]) : [],
         ],
 

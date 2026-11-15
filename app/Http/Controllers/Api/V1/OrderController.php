@@ -162,7 +162,7 @@ class OrderController extends Controller
         }
 
          $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
-        return new OrderResource($order->load('items.product', 'payments', 'customer'));
+        return new OrderResource($order->refresh()->load('items.product', 'payments', 'customer'));
     }
 
 
@@ -176,7 +176,7 @@ class OrderController extends Controller
         }
 
         $this->order->addItem($order, $request->validated());
-        return new OrderResource($order->load('items.product', 'payments', 'customer'));
+        return new OrderResource($order->refresh()->load('items.product', 'payments', 'customer'));
     }
     
 }
