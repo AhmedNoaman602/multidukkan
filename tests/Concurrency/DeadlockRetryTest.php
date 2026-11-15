@@ -166,6 +166,56 @@ class DeadlockRetryTest extends TestCase
         $this->assertEquals(50, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
     }
 
+    public function test_every_connection_waits_at_most_10_seconds_for_a_lock(): void
+    {
+        $this->assertEquals(10, DB::selectOne('SELECT @@SESSION.innodb_lock_wait_timeout AS t')->t);
+    }
+
+    public function test_sale_retried_after_a_deadlock_is_saved_once(): void
+    {
+        $this->deadlockOnce('insert into `ledger_entries`');
+
+        $this->sell(1, payNow: true);
+
+        $this->assertSame(1, DB::table('orders')->count());
+        $this->assertSame(1, DB::table('payments')->count());
+        $this->assertEquals(99, $this->stock->fresh()->quantity);
+        $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    public function test_direct_payment_retried_after_a_deadlock_is_saved_once(): void
+    {
+        $order = $this->sell(1);
+
+        $this->deadlockOnce('insert into `ledger_entries`');
+
+        $this->actingAs($this->user)->postJson('/api/payments', [
+            'order_id'    => $order['id'],
+            'customer_id' => $this->customer->id,
+            'amount'      => 60,
+            'method'      => 'cash',
+        ])->assertStatus(201);
+
+        $this->assertSame(1, DB::table('payments')->count());
+        $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    public function test_auto_payment_retried_after_a_deadlock_is_saved_once(): void
+    {
+        $this->sell(1);
+
+        $this->deadlockOnce('insert into `ledger_entries`');
+
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
+            'customer_id' => $this->customer->id,
+            'amount'      => 60,
+            'method'      => 'cash',
+        ])->assertStatus(201);
+
+        $this->assertSame(1, DB::table('payments')->count());
+        $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
     public function test_cash_refund_retried_after_a_deadlock_is_recorded_once(): void
     {
         $order     = $this->sell(1, payNow: true);

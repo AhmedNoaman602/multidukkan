@@ -112,7 +112,7 @@ class PaymentService
                 }
             }
             return $payment;
-        });
+        }, attempts: 3);
     }
 
     public function processAutoPayment(array $data, User $user): array
@@ -201,7 +201,7 @@ class PaymentService
             }
 
             return $payments;
-        });
+        }, attempts: 3);
     }
 
 

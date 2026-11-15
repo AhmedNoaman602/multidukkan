@@ -23,8 +23,6 @@ $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 $job = json_decode(base64_decode($argv[1]), true);
 
-DB::statement('SET SESSION innodb_lock_wait_timeout = 10');
-
 $user = User::findOrFail($job['user_id']);
 Auth::setUser($user);
 

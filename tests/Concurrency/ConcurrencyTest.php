@@ -37,8 +37,6 @@ class ConcurrencyTest extends TestCase
     {
         parent::setUp();
 
-        DB::statement('SET SESSION innodb_lock_wait_timeout = 10');
-
         $this->tenant   = Tenant::factory()->create();
         $this->store    = Store::factory()->create(['tenant_id' => $this->tenant->id]);
         $this->customer = Customer::factory()->create(['tenant_id' => $this->tenant->id]);

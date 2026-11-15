@@ -322,7 +322,7 @@ if (!empty($data['pay_immediately'])) {
 }
 
             return $order;
-        });
+        }, attempts: 3);
     }
 
     public function adjustItem(Order $order, OrderItem $item, array $data): void
