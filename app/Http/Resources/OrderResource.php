@@ -96,11 +96,12 @@ class OrderResource extends JsonResource
 }
 private function profitFields(float $total): array
 {
-    $cost = round($this->costOfGoods(), 2);
+    $cost = $this->costOfGoods();
 
     return [
-        'cost'         => $cost,
-        'gross_profit' => round($total - $cost, 2),
+        'cost'               => $cost === null ? null : round($cost, 2),
+        'gross_profit'       => $cost === null ? null : round($total - $cost, 2),
+        'unknown_cost_lines' => $this->unknownCostLines(),
     ];
 }
 

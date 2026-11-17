@@ -32,7 +32,7 @@ class UpdateProductRequest extends FormRequest
             'name'               => ['required', 'string', 'max:255'],
             'sku'                => ['required', 'string', Rule::unique('products')->where('tenant_id', $tenantId)->ignore($productId)],
             'price'              => ['required', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
-            'cost_price'         => ['nullable', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
+            'cost_price'         => [Rule::requiredIf(fn () => $this->route('product')->cost_price !== null), 'nullable', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
             'unit'               => ['nullable', 'string'],
             'price_a'            => ['nullable', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
             'price_b'            => ['nullable', 'numeric', 'min:0', 'max:99999999.9999', 'decimal:0,4'],
@@ -57,5 +57,10 @@ class UpdateProductRequest extends FormRequest
             // "2 box + 7 pcs": loose base units on top of a secondary-unit quantity. Input only.
             'stocks.*.loose_quantity' => ['nullable', 'integer', 'min:0', 'prohibited_unless:stocks.*.unit_type,secondary'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['cost_price.required' => __('messages.cost_price_required')];
     }
 }

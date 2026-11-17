@@ -243,6 +243,8 @@ class PricePrecisionTest extends TestCase
 
     public function test_a_purchase_line_with_a_four_decimal_price_rounds_its_total_to_piasters(): void
     {
+        $this->nails->update(['cost_price' => 0.0485]);
+
         $this->buy(3, 1.2345, 'base')->assertCreated();
 
         $this->assertDatabaseHas('purchase_order_items', ['product_id' => $this->nails->id, 'unit_price' => 1.2345, 'total' => 3.70]);
@@ -325,6 +327,8 @@ class PricePrecisionTest extends TestCase
     public function test_a_purchase_line_that_lands_on_half_a_piaster_rounds_up(): void
     {
         // 1.0125 × 6 = 6.075 exactly; as a float it is 6.07499…, which PHP 8.4 rounded to 6.07.
+        $this->nails->update(['cost_price' => 0.0485]);
+
         $this->buy(6, 1.0125, 'base')->assertCreated();
 
         $this->assertDatabaseHas('purchase_order_items', ['product_id' => $this->nails->id, 'total' => 6.08]);

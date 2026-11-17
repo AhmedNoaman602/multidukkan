@@ -161,7 +161,15 @@ class PurchaseOrderService
 
               
                 $currentStock = $runningStock[$v['product']->id] ?? $stockMap[$v['product']->id] ?? 0;
-                $currentCost = $runningCost[$v['product']->id] ?? $v['product']->cost_price ?? $v['costPerBaseUnit'];
+                $knownCost = $runningCost[$v['product']->id] ?? $v['product']->cost_price;
+
+                if ($knownCost === null && $currentStock > 0) {
+                    throw ValidationException::withMessages([
+                        'items' => __('messages.purchase_unknown_cost_stock', ['product' => $v['product']->name]),
+                    ]);
+                }
+
+                $currentCost = $knownCost ?? $v['costPerBaseUnit'];
                 $effectiveStock = $currentStock;
 
                 if ($effectiveStock + $v['stockQty'] > 0) {

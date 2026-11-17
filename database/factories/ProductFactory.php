@@ -21,6 +21,7 @@ class ProductFactory extends Factory
             'name' => $this->faker->name,
             'sku' => $this->faker->unique()->numberBetween(1, 100),
             'price' => $this->faker->numberBetween(1, 100),
+            'cost_price' => fn (array $attributes) => round($attributes['price'] * 0.6, 2),
             'unit' => $this->faker->randomElement(['unit', 'kg', 'g', 'ml', 'l']),
         ];
     }

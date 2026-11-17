@@ -221,6 +221,7 @@ class DeletionPolicyTest extends TestCase
             'name' => 'Opening Balance Widget',
             'sku' => 'OBW-001',
             'price' => 50,
+            'cost_price' => 30,
             'stocks' => [
                 ['warehouse_id' => $this->warehouse->id, 'quantity' => 30, 'threshold' => 5],
             ],

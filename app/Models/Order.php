@@ -77,9 +77,19 @@ class Order extends Model
             ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
     }
 
-    // cost_price is per base unit, so cost uses base quantity (2 box × 12 = 24 pcs).
-    public function costOfGoods(): float
+    public function unknownCostLines(): int
     {
-        return (float) $this->items->sum(fn ($i) => ($i->product?->cost_price ?? 0) * $i->baseQuantity());
+        return $this->items->filter(fn ($i) => $i->product?->cost_price === null)->count();
+    }
+
+    // cost_price is per base unit, so cost uses base quantity (2 box × 12 = 24 pcs).
+    // Null when any line's cost is unknown: an unknown cost is never counted as zero.
+    public function costOfGoods(): ?float
+    {
+        if ($this->unknownCostLines() > 0) {
+            return null;
+        }
+
+        return (float) $this->items->sum(fn ($i) => $i->product->cost_price * $i->baseQuantity());
     }
 }

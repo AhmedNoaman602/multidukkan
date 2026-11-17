@@ -271,9 +271,10 @@ class CostDataVisibilityTest extends TestCase
     {
         $this->actingAs($this->manager)
             ->putJson("/api/products/{$this->product->id}", [
-                'name'  => 'Renamed',
-                'sku'   => (string) $this->product->sku,
-                'price' => 999,
+                'name'       => 'Renamed',
+                'sku'        => (string) $this->product->sku,
+                'price'      => 999,
+                'cost_price' => 1,
             ])->assertStatus(403);
 
         $this->actingAs($this->staff)

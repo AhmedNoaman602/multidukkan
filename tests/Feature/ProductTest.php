@@ -43,6 +43,7 @@ private function updateFactor(User $user, Product $product, int $factor)
         'name'              => $product->name,
         'sku'               => $product->sku,
         'price'             => $product->price,
+        'cost_price'        => $product->cost_price,
         'unit'              => 'pcs',
         'secondary_unit'    => 'box',
         'conversion_factor' => $factor,
@@ -87,6 +88,7 @@ public function test_can_update_product_without_changing_sku(): void
         'name' => 'Updated Name',
         'sku' => 'TEST-001',
         'price' => 100,
+        'cost_price' => $product->cost_price,
         'unit' => 'حبة',
     ]);
 
@@ -257,6 +259,7 @@ public function test_increasing_stock_via_product_edit_logs_inventory_transactio
         'name' => $product->name,
         'sku' => (string) $product->sku,
         'price' => $product->price,
+        'cost_price' => $product->cost_price,
         'unit' => $product->unit,
         'stocks' => [
             ['warehouse_id' => $warehouse->id, 'quantity' => 65],
@@ -299,6 +302,7 @@ public function test_decreasing_stock_via_product_edit_logs_inventory_transactio
         'name' => $product->name,
         'sku' => (string) $product->sku,
         'price' => $product->price,
+        'cost_price' => $product->cost_price,
         'unit' => $product->unit,
         'stocks' => [
             ['warehouse_id' => $warehouse->id, 'quantity' => 30],
@@ -336,6 +340,7 @@ public function test_adding_new_warehouse_stock_via_product_edit_logs_inventory_
         'name' => $product->name,
         'sku' => (string) $product->sku,
         'price' => $product->price,
+        'cost_price' => $product->cost_price,
         'unit' => $product->unit,
         'stocks' => [
             ['warehouse_id' => $warehouse->id, 'quantity' => 20, 'threshold' => 5],
@@ -380,6 +385,7 @@ public function test_editing_product_stocks_without_quantity_only_updates_thresh
         'name' => $product->name,
         'sku' => (string) $product->sku,
         'price' => $product->price,
+        'cost_price' => $product->cost_price,
         'unit' => $product->unit,
         'stocks' => [
             ['warehouse_id' => $warehouse->id, 'threshold' => 25],

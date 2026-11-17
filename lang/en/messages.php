@@ -124,6 +124,8 @@ return [
     'too_many_requests' => 'Too many requests. Please try again in :seconds second.|Too many requests. Please try again in :seconds seconds.',
     'server_error' => 'Something went wrong. Please try again, and contact support if it keeps happening.',
     'product_not_found' => 'Product not found.',
+    'cost_price_required' => 'Enter the cost. Use 0 only if it truly costs nothing.',
+    'purchase_unknown_cost_stock' => ':product has stock with an unknown cost. Set its current value per piece on the product, then receive this purchase.',
     'order_item_update_requires_field' => 'Provide quantity or unit_price to update.',
 
     'description_required_for_misc_expense' => 'A description is required for MISCELLANEOUS expenses',

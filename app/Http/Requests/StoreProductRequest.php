@@ -52,7 +52,7 @@ class StoreProductRequest extends FormRequest
             'price_c'     => 'nullable|numeric|min:0|max:99999999.9999|decimal:0,4',
             'price_d'     => 'nullable|numeric|min:0|max:99999999.9999|decimal:0,4',
             'price_e'     => 'nullable|numeric|min:0|max:99999999.9999|decimal:0,4',
-            'cost_price' => 'nullable|numeric|min:0|max:99999999.9999|decimal:0,4',
+            'cost_price' => 'required|numeric|min:0|max:99999999.9999|decimal:0,4',
             // Initial stock is entered per location through stocks[].
             'opening_quantity' => 'prohibited',
             'unit'      => 'nullable|string|max:20',
@@ -70,5 +70,10 @@ class StoreProductRequest extends FormRequest
                       'stocks.*.loose_quantity' => 'nullable|integer|min:0|prohibited_unless:stocks.*.unit_type,secondary',
                       'stocks.*.threshold'      => 'nullable|integer|min:0',
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['cost_price.required' => __('messages.cost_price_required')];
     }
 }

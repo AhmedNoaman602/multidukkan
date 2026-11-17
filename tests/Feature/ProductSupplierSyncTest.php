@@ -55,6 +55,7 @@ class ProductSupplierSyncTest extends TestCase
                 'name'         => 'Drill',
                 'sku'          => 'DRL-1',
                 'price'        => 100,
+                'cost_price'   => 60,
                 'supplier_ids' => [$this->supplierA->id, $this->supplierB->id],
             ])->assertStatus(201);
 
@@ -78,6 +79,7 @@ class ProductSupplierSyncTest extends TestCase
                 'name'         => 'Hammer',
                 'sku'          => 'HMR-1',
                 'price'        => 50,
+                'cost_price'   => 30,
                 'supplier_ids' => [$this->supplierA->id, $this->supplierA->id, (string) $this->supplierA->id],
             ])->assertStatus(201);
 
@@ -90,9 +92,10 @@ class ProductSupplierSyncTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->postJson('/api/products', [
-                'name'  => 'Nails',
-                'sku'   => 'NLS-1',
-                'price' => 5,
+                'name'       => 'Nails',
+                'sku'        => 'NLS-1',
+                'price'      => 5,
+                'cost_price' => 3,
             ])->assertStatus(201);
 
         $product = Product::where('sku', 'NLS-1')->firstOrFail();
@@ -131,6 +134,7 @@ class ProductSupplierSyncTest extends TestCase
                 'name'         => $product->name,
                 'sku'          => (string) $product->sku,
                 'price'        => $product->price,
+                'cost_price'   => $product->cost_price,
                 'supplier_ids' => [$this->supplierB->id],
             ])->assertStatus(200);
 
@@ -144,9 +148,10 @@ class ProductSupplierSyncTest extends TestCase
 
         $this->actingAs($this->admin)
             ->putJson("/api/products/{$product->id}", [
-                'name'  => 'Renamed',
-                'sku'   => (string) $product->sku,
-                'price' => 999,
+                'name'       => 'Renamed',
+                'sku'        => (string) $product->sku,
+                'price'      => 999,
+                'cost_price' => $product->cost_price,
             ])->assertStatus(200);
 
         $this->assertEqualsCanonicalizing(
@@ -165,6 +170,7 @@ class ProductSupplierSyncTest extends TestCase
                 'name'         => $product->name,
                 'sku'          => (string) $product->sku,
                 'price'        => $product->price,
+                'cost_price'   => $product->cost_price,
                 'supplier_ids' => [],
             ])->assertStatus(200);
 
