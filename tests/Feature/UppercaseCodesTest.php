@@ -35,7 +35,7 @@ class UppercaseCodesTest extends TestCase
     public function test_a_new_product_sku_is_saved_in_capitals(): void
     {
         $this->actingAs($this->admin)->postJson('/api/products', [
-            'name' => 'Nails', 'sku' => 'tn-1000a', 'price' => 10,
+            'name' => 'Nails', 'sku' => 'tn-1000a', 'price' => 10, 'cost_price' => 6,
         ])->assertStatus(201)->assertJsonPath('data.sku', 'TN-1000A');
 
         $this->assertDatabaseHas('products', ['tenant_id' => $this->tenant->id, 'sku' => 'TN-1000A']);
@@ -46,7 +46,7 @@ class UppercaseCodesTest extends TestCase
         $product = Product::factory()->create(['tenant_id' => $this->tenant->id, 'sku' => 'OLD-1']);
 
         $this->actingAs($this->admin)->putJson("/api/products/{$product->id}", [
-            'name' => $product->name, 'sku' => 'hm-200', 'price' => 10,
+            'name' => $product->name, 'sku' => 'hm-200', 'price' => 10, 'cost_price' => $product->cost_price,
         ])->assertOk();
 
         $this->assertSame('HM-200', $product->fresh()->sku);
@@ -66,7 +66,7 @@ class UppercaseCodesTest extends TestCase
     public function test_arabic_letters_and_digits_in_a_sku_are_left_alone(): void
     {
         $this->actingAs($this->admin)->postJson('/api/products', [
-            'name' => 'مسامير', 'sku' => 'مسمار-ab12', 'price' => 10,
+            'name' => 'مسامير', 'sku' => 'مسمار-ab12', 'price' => 10, 'cost_price' => 6,
         ])->assertStatus(201);
 
         $this->assertDatabaseHas('products', ['tenant_id' => $this->tenant->id, 'sku' => 'مسمار-AB12']);

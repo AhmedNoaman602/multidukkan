@@ -104,10 +104,11 @@ class RoleTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->postJson('/api/products', [
-                'name'  => 'New Product',
-                'sku'   => 'SKU-002',
-                'price' => 50,
-                'unit'  => 'pcs',
+                'name'       => 'New Product',
+                'sku'        => 'SKU-002',
+                'price'      => 50,
+                'cost_price' => 30,
+                'unit'       => 'pcs',
             ])->assertStatus(201);
     }
 
@@ -115,10 +116,11 @@ class RoleTest extends TestCase
     {
         $this->actingAs($this->manager)
             ->postJson('/api/products', [
-                'name'  => 'New Product',
-                'sku'   => 'SKU-002',
-                'price' => 50,
-                'unit'  => 'pcs',
+                'name'       => 'New Product',
+                'sku'        => 'SKU-002',
+                'price'      => 50,
+                'cost_price' => 30,
+                'unit'       => 'pcs',
             ])->assertStatus(403);
     }
 
@@ -633,10 +635,11 @@ public function test_staff_cannot_create_product(): void
 {
     $this->actingAs($this->staff)
         ->postJson('/api/products', [
-            'name'  => 'New Product',
-            'sku'   => 'SKU-STAFF',
-            'price' => 50,
-            'unit'  => 'pcs',
+            'name'       => 'New Product',
+            'sku'        => 'SKU-STAFF',
+            'price'      => 50,
+            'cost_price' => 30,
+            'unit'       => 'pcs',
         ])->assertStatus(403);
 }
 
@@ -663,9 +666,10 @@ public function test_staff_cannot_duplicate_an_existing_product(): void
     $this->actingAs($this->staff)
         ->postJson('/api/products', [
             'name'  => $this->product->name,
-            'sku'   => $this->product->sku . '-COPY',
-            'price' => $this->product->price,
-            'unit'  => $this->product->unit,
+            'sku'        => $this->product->sku . '-COPY',
+            'price'      => $this->product->price,
+            'cost_price' => 30,
+            'unit'       => $this->product->unit,
         ])->assertStatus(403);
 
     $this->assertDatabaseCount('products', 1);

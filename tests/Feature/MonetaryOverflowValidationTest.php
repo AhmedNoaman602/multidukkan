@@ -62,9 +62,10 @@ class MonetaryOverflowValidationTest extends TestCase
     private function createProduct(array $overrides = []): \Illuminate\Testing\TestResponse
     {
         return $this->actingAs($this->user)->postJson('/api/products', array_merge([
-            'name'  => 'Widget',
-            'sku'   => 'SKU-' . uniqid(),
-            'price' => 100,
+            'name'       => 'Widget',
+            'sku'        => 'SKU-' . uniqid(),
+            'price'      => 100,
+            'cost_price' => 60,
         ], $overrides));
     }
 

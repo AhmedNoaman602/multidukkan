@@ -90,8 +90,11 @@ private function buildSummary(Collection $orders, float $unpaid, Collection $pay
     $totalRevenue   = $orders->sum(fn($o) => $this->calcOrderTotal($o));
     $settlement     = $this->ledger->settlementBreakdown($payments);
     // Same per-order profit as buildProfitByOrder, so the summary always equals the sum of
-    // the orders: the charged total (after discount / manual_total) minus cost.
-    $grossProfit    = $orders->sum(fn($o) => $this->calcOrderTotal($o) - $this->orderCost($o));
+    // the orders: the charged total (after discount / manual_total) minus cost. Orders with an
+    // unknown cost stay in revenue but are left out of profit and reported on their own.
+    $costs = $orders->mapWithKeys(fn($o) => [$o->id => $this->orderCost($o)]);
+    [$costKnown, $costUnknown] = $orders->partition(fn($o) => $costs[$o->id] !== null);
+    $grossProfit    = $costKnown->sum(fn($o) => $this->calcOrderTotal($o) - $costs[$o->id]);
 
            return [
             'total_revenue'   => round($totalRevenue, 2),
@@ -101,6 +104,8 @@ private function buildSummary(Collection $orders, float $unpaid, Collection $pay
             'total_settled'            => $settlement['total'],
             'outstanding'              => $unpaid,
             'gross_profit'    => round($grossProfit, 2),
+            'sales_excluded_from_profit'  => round($costUnknown->sum(fn($o) => $this->calcOrderTotal($o)), 2),
+            'orders_excluded_from_profit' => $costUnknown->count(),
             'total_expenses'  => round($totalExpenses, 2),
             'net_profit'      => round($grossProfit - $totalExpenses, 2),
             'order_count'     => $orders->count(),
@@ -111,16 +116,16 @@ private function buildSummary(Collection $orders, float $unpaid, Collection $pay
     {
         return $orders->map(function ($o) {
             $revenue = round($this->calcOrderTotal($o), 2);
-            $cost    = round($this->orderCost($o), 2);
-            $profit  = round($revenue - $cost, 2);
+            $cost    = $this->orderCost($o);
+            $profit  = $cost === null ? null : round($revenue - $cost, 2);
 
             return [
                 'invoice_number' => $o->invoice_number,
                 'customer_name'  => $o->customer_name_snapshot ?? __('messages.walk_in_label'),
                 'revenue'        => $revenue,
-                'cost'           => $cost,
+                'cost'           => $cost === null ? null : round($cost, 2),
                 'profit'         => $profit,
-                'margin'         => $revenue > 0 ? round($profit / $revenue * 100, 1) : 0,
+                'margin'         => $profit === null ? null : ($revenue > 0 ? round($profit / $revenue * 100, 1) : 0),
             ];
         })->sortByDesc('profit')->values();
     }
@@ -190,7 +195,7 @@ private function buildSummary(Collection $orders, float $unpaid, Collection $pay
         return (float) $order->total;
     }
 
-    private function orderCost($order): float
+    private function orderCost($order): ?float
     {
         return $order->costOfGoods();
     }

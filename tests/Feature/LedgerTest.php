@@ -506,10 +506,11 @@ class LedgerTest extends TestCase
         ]);
 
         $this->actingAs($otherUser)->postJson('/api/products', [
-            'name'  => 'Another Product',
-            'sku'   => 'SAME-SKU',
-            'price' => 50,
-            'unit'  => 'pcs',
+            'name'       => 'Another Product',
+            'sku'        => 'SAME-SKU',
+            'price'      => 50,
+            'cost_price' => 30,
+            'unit'       => 'pcs',
         ])->assertStatus(201);
     }
 }
