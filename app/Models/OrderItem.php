@@ -47,4 +47,15 @@ class OrderItem extends Model
     {
         return $this->hasMany(OrderItemCost::class);
     }
+
+    // Saved sale cost of the line, from its allocations (already in base units).
+    // Null when any allocation's cost is unknown, or the line has none: never counted as zero.
+    public function costOfGoods(): ?float
+    {
+        if ($this->costs->isEmpty() || $this->costs->contains(fn ($c) => $c->unit_cost === null)) {
+            return null;
+        }
+
+        return (float) $this->costs->sum(fn ($c) => $c->base_quantity * $c->unit_cost);
+    }
 }

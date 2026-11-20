@@ -278,6 +278,40 @@ class OrderItemCostTest extends TestCase
         $this->assertNull($this->orderCost($order));
     }
 
+    /**
+     * A line sold while its cost was unknown, increased later at a known cost: the line holds
+     * one unknown and one known allocation. 4b/D27: the whole line, and so the whole order, is
+     * left out of profit — the known part is stored as-is (never 0) but not counted on its own.
+     */
+    public function test_a_line_with_an_unknown_and_a_known_allocation_stays_out_of_profit(): void
+    {
+        $mixed = $this->product(null, 20);
+        $order = $this->sell($mixed, 2);
+        $itemId = $this->onlyItemId($order);
+        DB::table('products')->where('id', $mixed->id)->update(['cost_price' => 12]);
+        $this->setQuantity($order, $itemId, 4)->assertSuccessful();
+
+        $known = $this->product(10, 20);
+        $this->sell($known, 1);
+
+        $this->assertSame([[2, null, null, 0], [2, 12.0, 'average_at_sale', 0]], $this->allocations($itemId));
+
+        $shown = $this->actingAs($this->admin)->getJson("/api/orders/{$order->id}")->assertOk();
+        $this->assertNull($shown->json('cost'));
+        $this->assertNull($shown->json('gross_profit'));
+        $this->assertSame(1, $shown->json('unknown_cost_lines'));
+        $this->assertNull($shown->json('items.0.cost_price'));
+
+        $summary = $this->actingAs($this->admin)
+            ->getJson("/api/reports/daily?from={$this->today()}&to={$this->today()}")
+            ->assertOk()
+            ->json('summary');
+        $this->assertEquals(100, $summary['total_revenue'], 'Both orders stay in revenue: 4 × 20 + 1 × 20.');
+        $this->assertEquals(10, $summary['gross_profit'], 'Only the fully known order counts: 20 − 10.');
+        $this->assertSame(1, $summary['orders_excluded_from_profit']);
+        $this->assertEquals(80, $summary['sales_excluded_from_profit']);
+    }
+
     // ─── Decrease (P1) and cancel (P2), restored through the shared helper (P3) ─
 
     public function test_decreasing_takes_from_the_newest_allocation_and_restores_its_cost(): void

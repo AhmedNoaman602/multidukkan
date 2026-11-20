@@ -80,7 +80,7 @@ private function fetchOrders(int $tenantId, string $from, string $to): Collectio
     // order_date is a calendar DATE column with no instant behind it — compared as
     // plain local dates, never timezone-converted.
     return $this->ordersQuery($tenantId, $from, $to)
-        ->with(['items.product', 'customer'])
+        ->with(['items.costs', 'items.product', 'customer'])
         ->get();
 }
 

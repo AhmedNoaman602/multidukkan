@@ -546,7 +546,7 @@ public function updateOrder(Order $order, array $data, User $user): Order
         return $order;
     }, attempts: 3);
 
-    return $order->load('items', 'payments', 'customer');
+    return $order->load('items.costs', 'payments', 'customer');
 }
   
    public function cancelOrder(Order $order, User $user): void

@@ -79,10 +79,10 @@ class Order extends Model
 
     public function unknownCostLines(): int
     {
-        return $this->items->filter(fn ($i) => $i->product?->cost_price === null)->count();
+        return $this->items->filter(fn ($i) => $i->costOfGoods() === null)->count();
     }
 
-    // cost_price is per base unit, so cost uses base quantity (2 box × 12 = 24 pcs).
+    // Saved sale costs (order_item_costs), never today's product cost (D30).
     // Null when any line's cost is unknown: an unknown cost is never counted as zero.
     public function costOfGoods(): ?float
     {
@@ -90,6 +90,6 @@ class Order extends Model
             return null;
         }
 
-        return (float) $this->items->sum(fn ($i) => $i->product->cost_price * $i->baseQuantity());
+        return (float) $this->items->sum(fn ($i) => $i->costOfGoods());
     }
 }

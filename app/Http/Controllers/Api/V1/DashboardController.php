@@ -73,7 +73,7 @@ class DashboardController extends Controller
             ->tap($storeScope)
             ->orderByDesc('id')
             ->limit(5)
-            ->with(['payments', 'items', 'customer'])
+            ->with(['payments', 'items.costs', 'customer'])
             ->get();
 
         $orderStats = Order::where('tenant_id', $tenantId)

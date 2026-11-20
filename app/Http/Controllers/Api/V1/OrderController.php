@@ -59,7 +59,7 @@ class OrderController extends Controller
 
     $totals = $this->ledger->orderPaymentTotals(clone $query);
 
-    $orders = $query->with('items.product', 'payments', 'customer')
+    $orders = $query->with('items.costs', 'payments', 'customer')
         ->orderBy('id', 'desc')
         ->paginate(10);
 
@@ -87,7 +87,7 @@ class OrderController extends Controller
         $this->authorize('create', Order::class);
         
         $order = $this->order->createOrder($request->validated());
-        return (new OrderResource($order->load('items', 'payments', 'customer')))
+        return (new OrderResource($order->load('items.costs', 'payments', 'customer')))
             ->response()
             ->setStatusCode(201);
     } catch (ValidationException $e) {
@@ -102,10 +102,10 @@ class OrderController extends Controller
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => __('messages.unauthorized')], 403);
     }
-        return new OrderResource($order->load('items.product', 'payments', 'customer'));
+        return new OrderResource($order->load('items.costs', 'payments', 'customer'));
     }
 
-    
+
     public function update(UpdateOrderRequest $request, Order $order)
     {
         $this->authorize('update', $order);
@@ -162,7 +162,7 @@ class OrderController extends Controller
         }
 
          $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
-        return new OrderResource($order->refresh()->load('items.product', 'payments', 'customer'));
+        return new OrderResource($order->refresh()->load('items.costs', 'payments', 'customer'));
     }
 
 
@@ -176,7 +176,7 @@ class OrderController extends Controller
         }
 
         $this->order->addItem($order, $request->validated());
-        return new OrderResource($order->refresh()->load('items.product', 'payments', 'customer'));
+        return new OrderResource($order->refresh()->load('items.costs', 'payments', 'customer'));
     }
     
 }
