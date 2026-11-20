@@ -10,6 +10,7 @@
 
 use App\Models\Order;
 use App\Models\User;
+use App\Services\InventoryService;
 use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Services\PaymentService;
@@ -34,6 +35,7 @@ $run = fn (array $step) => match ($step['op']) {
     'cancel'         => app(OrderService::class)->cancelOrder(Order::findOrFail($step['data']['order_id']), $user),
     'refund'         => app(LedgerService::class)->issueRefund($step['data'] + ['tenant_id' => $user->tenant_id, 'user_id' => $user->id]),
     'purchase'       => app(PurchaseOrderService::class)->createPurchaseOrder($step['data']),
+    'lock_stock'     => app(InventoryService::class)->lockRows($step['data']['product_ids'], $step['data']['warehouse_ids']),
 };
 
 DB::beginTransaction();

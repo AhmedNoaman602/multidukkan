@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\OrderItemCost;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\User;
@@ -195,9 +196,12 @@ foreach ($validatedItems as $v) {
     }
 }
 
-            // --- ORDER ITEMS & STOCK BLOCK ---
-            // Every line is recorded at the shelf; fulfill() then refills the shelf from storage
-            // if needed and deducts the sale, all inside this transaction.
+            // --- STOCK, THEN ORDER ITEMS ---
+            // fulfill() locks stock, then products, before anything references them (D31/P4),
+            // refills the shelf from storage if needed and deducts the sale. Lines are inserted
+            // afterwards, each with an allocation at the cost read under that lock.
+            $costs = $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
+
             $totalAmount = 0;
             foreach ($mergedItems as $v) {
                 $orderItem = $order->items()->create([
@@ -211,12 +215,12 @@ foreach ($validatedItems as $v) {
                     'warehouse_id' => $shelf->id,
                 ]);
 
+                $this->recordCost($order, $orderItem, $v['stockQty'], $costs);
+
                 $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
             }
             // Same exact subtotal as MySQL's SUM in recalculateTotal, so a percent discount matches.
             $totalAmount = round($totalAmount, Money::PRICE_SCALE);
-
-            $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
 
             // --- LEDGER & CREDIT CHARGING BLOCK ---
             // Check the customer's current balance before processing this order.
@@ -338,10 +342,11 @@ if (!empty($data['pay_immediately'])) {
         $delta = $newQty - $oldQty;
 
         $stockDelta = $delta * $item->conversion_factor;
+        $costs = null;
 
         if ($stockDelta > 0) {
             // Taken from the line's recorded location; a shelf line refills from storage if short.
-            $this->fulfillment->fulfill(
+            $costs = $this->fulfillment->fulfill(
                 $order, $item->warehouse, [$item->product_id => $stockDelta],
                 auth()->user(), (string) Str::uuid()
             );
@@ -356,6 +361,10 @@ if (!empty($data['pay_immediately'])) {
             'quantity' => $newQty,
             'unit_price' => $data['unit_price'] ?? $item->unit_price,
         ]);
+
+        if ($costs !== null) {
+            $this->recordCost($order, $item, $stockDelta, $costs);
+        }
 
         $this->resetToCalculatedTotal($order);
         }, attempts:3);
@@ -405,6 +414,24 @@ if (!empty($data['pay_immediately'])) {
         return $value;
     }
 
+    /**
+     * One allocation for the base units just added to a line, at the cost fulfill() read under
+     * the product lock. An unknown cost stays unknown (D27, D30).
+     *
+     * @param array<int, ?string> $costs product_id => cost_price from fulfill()
+     */
+    private function recordCost(Order $order, OrderItem $item, int $baseQuantity, array $costs): void
+    {
+        $cost = $costs[$item->product_id];
+
+        $item->costs()->create([
+            'tenant_id'        => $order->tenant_id,
+            'base_quantity'    => $baseQuantity,
+            'unit_cost'        => $cost,
+            'unit_cost_source' => $cost === null ? null : OrderItemCost::SOURCE_AVERAGE_AT_SALE,
+        ]);
+    }
+
     private function priceKey(float $price): string
     {
         return number_format(round($price, Money::PRICE_SCALE), Money::PRICE_SCALE, '.', '');
@@ -451,7 +478,10 @@ if (!empty($data['pay_immediately'])) {
 
         $unitPrice = $data['unit_price'] ?? $price * $conversionFactor;
 
-
+        $costs = $this->fulfillment->fulfill(
+            $order, $shelf, [$product->id => $stockQuantity],
+            auth()->user(), (string) Str::uuid()
+        );
 
      $existingItem = $order->items()
         ->where('product_id', $product->id)
@@ -465,8 +495,9 @@ if (!empty($data['pay_immediately'])) {
         $existingItem->update([
             'quantity' => $existingItem->quantity + $data['quantity'],
         ]);
+        $item = $existingItem;
     } else {
-        $order->items()->create([
+        $item = $order->items()->create([
             'product_id'   => $product->id,
             'product_name' => $product->name,
             'warehouse_id' => $shelf->id,
@@ -477,10 +508,8 @@ if (!empty($data['pay_immediately'])) {
             'unit_name'    => $product->unitNameFor($unitType),
         ]);
     }
-        $this->fulfillment->fulfill(
-            $order, $shelf, [$product->id => $stockQuantity],
-            auth()->user(), (string) Str::uuid()
-        );
+
+        $this->recordCost($order, $item, $stockQuantity, $costs);
 
       $this->resetToCalculatedTotal($order);
     }, attempts: 3);

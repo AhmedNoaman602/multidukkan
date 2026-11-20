@@ -340,6 +340,48 @@ class CostLockingTest extends TestCase
         $this->assertEquals(23.3333, $this->costOf($product));
     }
 
+    /**
+     * First sale of a product in a store: its shelf row doesn't exist yet, so fulfill()
+     * inserts it (ensureStockRow) before taking any lock, and that insert holds a shared lock
+     * on the product (foreign-key check). The child is a purchase that has already locked the
+     * storage row, pauses, then goes on. The sale waits on the storage row while holding the
+     * shared product lock; the purchase then needs the product exclusively: a cycle. InnoDB
+     * rolls one back. The sale is retried (attempts: 3); a purchase is not retried on a
+     * deadlock today, so this passes only if the sale is the one rolled back.
+     * Correct: both succeed, in one serial order.
+     */
+    public function test_a_first_sale_in_a_store_during_a_purchase_ends_in_one_serial_order(): void
+    {
+        $product = Product::factory()->create([
+            'tenant_id'  => $this->tenant->id,
+            'sku'        => 'SKU-'.uniqid(),
+            'price'      => 60,
+            'cost_price' => 10,
+        ]);
+        Inventory::factory()->create([
+            'tenant_id'    => $this->tenant->id,
+            'warehouse_id' => $this->storage->id,
+            'product_id'   => $product->id,
+            'quantity'     => 10,
+        ]);
+        $deadlocks = $this->deadlocks();
+
+        $child = $this->startChild([
+            ['op' => 'lock_stock', 'data' => ['product_ids' => [$product->id], 'warehouse_ids' => [$this->storage->id]]],
+            ['op' => 'purchase', 'data' => $this->purchaseData([[$product, 10, 20]], $this->storage)],
+        ], pauseSeconds: 2);
+
+        $sale = $this->actingAs($this->user)->postJson('/api/orders', $this->saleData([[$product, 2]]));
+
+        $child->wait();
+
+        $note = sprintf(' (deadlocks during the test: %d)', $this->deadlocks() - $deadlocks);
+        $this->assertTrue($child->isSuccessful(), 'Purchase failed'.$note.': '.$child->getErrorOutput());
+        $this->assertSame(201, $sale->status(), 'Sale response'.$note.': '.$sale->getContent());
+        $this->assertSame(18, $this->stockOf($product));
+        $this->assertSerialOrder($product, saleFirst: [10.0, 15.5556], purchaseFirst: [15.0, 15.0]);
+    }
+
     // ─── 4. Several products: one lock order everywhere ─────────────────────────
 
     /**
