@@ -42,4 +42,9 @@ class OrderItem extends Model
     {
         return $this->belongsTo(Warehouse::class);
     }
+
+    public function costs()
+    {
+        return $this->hasMany(OrderItemCost::class);
+    }
 }
