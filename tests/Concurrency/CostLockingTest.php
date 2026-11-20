@@ -341,14 +341,12 @@ class CostLockingTest extends TestCase
     }
 
     /**
-     * First sale of a product in a store: its shelf row doesn't exist yet, so fulfill()
-     * inserts it (ensureStockRow) before taking any lock, and that insert holds a shared lock
-     * on the product (foreign-key check). The child is a purchase that has already locked the
-     * storage row, pauses, then goes on. The sale waits on the storage row while holding the
-     * shared product lock; the purchase then needs the product exclusively: a cycle. InnoDB
-     * rolls one back. The sale is retried (attempts: 3); a purchase is not retried on a
-     * deadlock today, so this passes only if the sale is the one rolled back.
-     * Correct: both succeed, in one serial order.
+     * First sale of a product in a store: its shelf row doesn't exist yet. Inserting a stock
+     * row takes a shared lock on the product (foreign-key check); inserted inside the sale's
+     * transaction before the stock locks, it deadlocked with a purchase that holds the storage
+     * row and then updates the product. Fixed by creating missing rows before the transaction
+     * (ensureStockRows), so nothing touches the product before the stock locks.
+     * Correct: both succeed, in one serial order, with no deadlock at all (not one a retry hid).
      */
     public function test_a_first_sale_in_a_store_during_a_purchase_ends_in_one_serial_order(): void
     {
@@ -378,6 +376,7 @@ class CostLockingTest extends TestCase
         $note = sprintf(' (deadlocks during the test: %d)', $this->deadlocks() - $deadlocks);
         $this->assertTrue($child->isSuccessful(), 'Purchase failed'.$note.': '.$child->getErrorOutput());
         $this->assertSame(201, $sale->status(), 'Sale response'.$note.': '.$sale->getContent());
+        $this->assertSame($deadlocks, $this->deadlocks(), 'A deadlock happened, even if a retry hid it.');
         $this->assertSame(18, $this->stockOf($product));
         $this->assertSerialOrder($product, saleFirst: [10.0, 15.5556], purchaseFirst: [15.0, 15.0]);
     }
@@ -445,6 +444,89 @@ class CostLockingTest extends TestCase
         $this->assertSame($deadlocks, $this->deadlocks(), 'A deadlock happened.');
         $this->assertSame(99, $this->stockOf($p1));
         $this->assertSame(99, $this->stockOf($p2));
+    }
+
+    // ─── 5. Manual transfers ────────────────────────────────────────────────
+
+    private function storageStock(Product $product, int $quantity): void
+    {
+        Inventory::factory()->create([
+            'tenant_id'    => $this->tenant->id,
+            'warehouse_id' => $this->storage->id,
+            'product_id'   => $product->id,
+            'quantity'     => $quantity,
+        ]);
+    }
+
+    /** @param array<int, array{0: Product, 1: int}> $lines [product, quantity] */
+    private function transferData(array $lines): array
+    {
+        return [
+            'from_warehouse_id' => $this->storage->id,
+            'to_warehouse_id'   => $this->shelf->id,
+            'items'             => array_map(fn ($l) => ['product_id' => $l[0]->id, 'quantity' => $l[1]], $lines),
+        ];
+    }
+
+    /**
+     * The child is a purchase that has already locked P's stock rows, pauses, then updates
+     * the product. This connection moves P from storage to the shelf. A transfer that inserts
+     * its lines (shared lock on P, foreign key) before locking stock waits on the child's rows
+     * while holding that shared lock; the purchase then needs P exclusively: a cycle.
+     * Planned: the transfer locks its stock rows first, so it waits holding nothing.
+     */
+    public function test_a_manual_transfer_does_not_deadlock_with_a_purchase(): void
+    {
+        $product = $this->product(10, 10);
+        $this->storageStock($product, 10);
+        $deadlocks = $this->deadlocks();
+
+        $child = $this->startChild([
+            ['op' => 'lock_stock', 'data' => ['product_ids' => [$product->id], 'warehouse_ids' => [$this->shelf->id, $this->storage->id]]],
+            ['op' => 'purchase', 'data' => $this->purchaseData([[$product, 10, 20]], $this->storage)],
+        ], pauseSeconds: 2);
+
+        $transfer = $this->actingAs($this->user)->postJson('/api/stock-transfers', $this->transferData([[$product, 4]]));
+
+        $child->wait();
+
+        $this->assertTrue($child->isSuccessful(), 'Purchase failed: '.$child->getErrorOutput());
+        $this->assertSame(201, $transfer->status(), 'Transfer response: '.$transfer->getContent());
+        $this->assertSame($deadlocks, $this->deadlocks(), 'A deadlock happened.');
+        $this->assertSame(30, $this->stockOf($product));
+        $this->assertSame(14, (int) DB::table('inventory')->where('product_id', $product->id)->where('warehouse_id', $this->shelf->id)->value('quantity'));
+        $this->assertEquals(13.3333, $this->costOf($product), '(20 × 10 + 10 × 20) / 30: a transfer doesn\'t change the average.');
+    }
+
+    /**
+     * P1 has the lower ids. The child sells P1 (locking its stock rows and product P1),
+     * pauses, then sells P2. This connection transfers [P2, P1]. A transfer that inserts its
+     * lines first holds a shared lock on P2 and waits for P1 (held exclusively by the child);
+     * the child's sale of P2 then needs P2 exclusively: a cycle. Planned: the transfer locks
+     * all its stock rows in id order before anything else, so it waits holding nothing.
+     */
+    public function test_a_transfer_listing_products_out_of_id_order_does_not_deadlock_with_a_sale(): void
+    {
+        $p1 = $this->product(10, 100);
+        $p2 = $this->product(10, 100);
+        $this->storageStock($p1, 50);
+        $this->storageStock($p2, 50);
+        $deadlocks = $this->deadlocks();
+
+        $child = $this->startChild([
+            ['op' => 'sale', 'data' => $this->saleData([[$p1, 1]])],
+            ['op' => 'sale', 'data' => $this->saleData([[$p2, 1]])],
+        ], pauseSeconds: 2);
+
+        $transfer = $this->actingAs($this->user)->postJson('/api/stock-transfers', $this->transferData([[$p2, 5], [$p1, 5]]));
+
+        $child->wait();
+
+        $this->assertTrue($child->isSuccessful(), 'Sales failed: '.$child->getErrorOutput());
+        $this->assertSame(201, $transfer->status(), 'Transfer response: '.$transfer->getContent());
+        $this->assertSame($deadlocks, $this->deadlocks(), 'A deadlock happened.');
+        $this->assertSame(149, $this->stockOf($p1));
+        $this->assertSame(149, $this->stockOf($p2));
     }
 
     /** Regression guard: sales already lock in id order whatever the line order (green today). */

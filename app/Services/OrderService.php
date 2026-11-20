@@ -76,6 +76,14 @@ class OrderService
 
     public function createOrder(array $data): Order
     {
+        $user = auth()->user();
+        $this->inventory->ensureStockRows(
+            collect($data['items'])->pluck('product_id')->unique()->values()->all(),
+            $this->shelfOf($user->tenant_id, $user->store_id ?? $data['store_id'])->id,
+            $user->tenant_id,
+            0
+        );
+
         // Unique index on (tenant_id, invoice_number) guards against a collision;
         // retry with a freshly generated number if one ever happens.
         $lastException = null;
@@ -454,6 +462,13 @@ if (!empty($data['pay_immediately'])) {
 
     public function addItem(Order $order, array $data)
     {
+        $this->inventory->ensureStockRows(
+            [$data['product_id']],
+            $this->shelfOf($order->tenant_id, $order->store_id)->id,
+            $order->tenant_id,
+            0
+        );
+
         return DB::transaction(function () use ($order, $data) {
         $order = Order::lockForUpdate()->findOrFail($order->id);
 

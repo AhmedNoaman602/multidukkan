@@ -91,6 +91,47 @@ class InventoryService
     }
 
     /**
+     * Create missing stock rows (quantity 0) before the caller's transaction starts. Inserting
+     * a stock row takes a shared lock on its product (foreign key), so doing it inside a
+     * transaction before the stock locks would touch products first (D31/P4). Safe when two
+     * requests create the same row at once.
+     *
+     * @param array<int, int> $productIds
+     */
+    public function ensureStockRows(array $productIds, int $warehouseId, int $tenantId, ?int $threshold = null): void
+    {
+        $existing = Inventory::withoutGlobalScopes()
+            ->where('warehouse_id', $warehouseId)
+            ->whereIn('product_id', $productIds)
+            ->pluck('product_id')
+            ->all();
+
+        foreach (array_diff($productIds, $existing) as $productId) {
+            Inventory::withoutGlobalScopes()->createOrFirst(
+                ['warehouse_id' => $warehouseId, 'product_id' => $productId],
+                ['tenant_id' => $tenantId, 'quantity' => 0, 'threshold' => $threshold ?? 10],
+            );
+        }
+    }
+
+    /**
+     * Lock every stock row of these products, at every location, in id order. Used by flows
+     * that recalculate the average and so need the true total stock (D31/P4).
+     *
+     * @param array<int, int> $productIds
+     * @return Collection<int, Inventory>
+     */
+    public function lockAllRowsOf(array $productIds): Collection
+    {
+        $ids = Inventory::whereIn('product_id', $productIds)->pluck('id');
+
+        return Inventory::whereIn('id', $ids)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
      * Lock every inventory row for these products at these locations, in id order, so
      * every sale and transfer touching overlapping rows queues the same way.
      *
