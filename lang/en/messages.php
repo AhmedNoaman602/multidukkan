@@ -28,7 +28,7 @@ return [
     'purchase_order_already_cancelled' => 'Order already cancelled',
     'purchase_order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_already_cancelled' => 'Order already cancelled',
-    'order_has_returns_locked' => 'This order has a customer return, so its quantities can no longer be decreased.',
+    'order_is_final' => 'This invoice is final and can no longer be edited. Create a new invoice for more products or quantities.',
     'order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_item_mismatch' => 'Item does not belong to this order',
 
@@ -91,8 +91,6 @@ return [
     'cannot_edit_refunded_payment' => 'Cannot edit a refunded payment. Reverse the refund first',
     'amount_below_refunded' => 'Cannot set amount below refunded amount',
     'payment_not_adjustable' => 'Only cash payments can be edited. This payment was settled from credit or a return',
-    'order_fully_paid_locked' => 'This order is fully paid and locked. Create a new order or invoice for additional items',
-    'order_partial_payments_manager_only' => 'This order has partial payments — only a manager can modify it',
     'refund_before_cancel' => 'Please refund all payments before cancelling this order',
     'order_already_fully_paid' => 'Order is already fully paid',
     'purchase_order_supplier_mismatch' => 'This purchase order does not belong to the selected supplier',
@@ -127,7 +125,6 @@ return [
     'product_not_found' => 'Product not found.',
     'cost_price_required' => 'Enter the cost. Use 0 only if it truly costs nothing.',
     'purchase_unknown_cost_stock' => ':product has stock with an unknown cost. Set its current value per piece on the product, then receive this purchase.',
-    'order_item_update_requires_field' => 'Provide quantity or unit_price to update.',
 
     'description_required_for_misc_expense' => 'A description is required for MISCELLANEOUS expenses',
     'field_not_tenant_owned' => 'The selected :attribute does not belong to this tenant',

@@ -15,6 +15,7 @@ class OrderItem extends Model
         'product_name',
         'quantity',
         'unit_price',
+        'unit_cost_at_sale',
         'warehouse_id',
         'unit_type',
         'conversion_factor',
@@ -43,19 +44,14 @@ class OrderItem extends Model
         return $this->belongsTo(Warehouse::class);
     }
 
-    public function costs()
-    {
-        return $this->hasMany(OrderItemCost::class);
-    }
-
-    // Saved sale cost of the line, from its allocations (already in base units).
-    // Null when any allocation's cost is unknown, or the line has none: never counted as zero.
+    // Historical cost of the line: unit_cost_at_sale is per base unit (D33).
+    // Null when the cost is unknown: never counted as zero (4b).
     public function costOfGoods(): ?float
     {
-        if ($this->costs->isEmpty() || $this->costs->contains(fn ($c) => $c->unit_cost === null)) {
+        if ($this->unit_cost_at_sale === null) {
             return null;
         }
 
-        return (float) $this->costs->sum(fn ($c) => $c->base_quantity * $c->unit_cost);
+        return (float) ($this->baseQuantity() * $this->unit_cost_at_sale);
     }
 }

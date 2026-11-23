@@ -760,53 +760,38 @@ public function test_staff_cannot_create_warehouse(): void
 }
 
 // ─────────────────────────────────────────
-// PAYMENT-LOCK TIERS — order edits by payment state
+// FINAL INVOICES — no role can change a line after creation (D32)
 // ─────────────────────────────────────────
 
-public function test_staff_cannot_modify_partially_paid_order(): void
+public function test_no_role_can_change_a_line_of_its_own_store_after_creation(): void
 {
-    $order = $this->actingAs($this->staff)->postJson('/api/orders', [
-        'store_id'    => $this->store->id,
-        'customer_id' => $this->customer->id,
-        'order_date'  => now()->toDateString(),
-        'items'       => [
-            ['product_id' => $this->product->id, 'quantity' => 2],
-        ],
-    ])->assertStatus(201)->json();
+    foreach ([$this->staff, $this->manager, $this->admin] as $user) {
+        $order = $this->actingAs($user)->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => now()->toDateString(),
+            'items'       => [
+                ['product_id' => $this->product->id, 'quantity' => 2],
+            ],
+        ])->assertStatus(201)->json();
 
-    // Partial payment: 50 of 200 owed
-    $this->actingAs($this->staff)->postJson('/api/payments', [
-        'order_id'    => $order['id'],
-        'customer_id' => $this->customer->id,
-        'amount'      => 50,
-        'method'      => 'cash',
-    ])->assertStatus(201);
+        // Partial payment: 50 of 200 owed
+        $this->actingAs($user)->postJson('/api/payments', [
+            'order_id'    => $order['id'],
+            'customer_id' => $this->customer->id,
+            'amount'      => 50,
+            'method'      => 'cash',
+        ])->assertStatus(201);
 
-    $this->actingAs($this->staff)
-        ->patchJson("/api/orders/{$order['id']}/items/{$order['items'][0]['id']}", ['quantity' => 3])
-        ->assertStatus(422);
+        // The policy allows each of them to update this order, so only D32 refuses it.
+        $this->actingAs($user)
+            ->patchJson("/api/orders/{$order['id']}/items/{$order['items'][0]['id']}", ['quantity' => 3])
+            ->assertStatus(422)
+            ->assertJsonPath('message', __('messages.order_is_final'));
+
+        $this->assertDatabaseHas('order_items', ['id' => $order['items'][0]['id'], 'quantity' => 2]);
+        $this->assertDatabaseHas('orders', ['id' => $order['id'], 'total' => 200]);
+    }
 }
 
-public function test_manager_can_modify_partially_paid_order(): void
-{
-    $order = $this->actingAs($this->manager)->postJson('/api/orders', [
-        'store_id'    => $this->store->id,
-        'customer_id' => $this->customer->id,
-        'order_date'  => now()->toDateString(),
-        'items'       => [
-            ['product_id' => $this->product->id, 'quantity' => 2],
-        ],
-    ])->assertStatus(201)->json();
-
-    $this->actingAs($this->manager)->postJson('/api/payments', [
-        'order_id'    => $order['id'],
-        'customer_id' => $this->customer->id,
-        'amount'      => 50,
-        'method'      => 'cash',
-    ])->assertStatus(201);
-
-    $this->actingAs($this->manager)
-        ->patchJson("/api/orders/{$order['id']}/items/{$order['items'][0]['id']}", ['quantity' => 3])
-        ->assertStatus(200);
-}
 }

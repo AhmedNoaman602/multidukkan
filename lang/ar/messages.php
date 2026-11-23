@@ -28,7 +28,7 @@ return [
     'purchase_order_already_cancelled' => 'تم إلغاء الطلب مسبقًا',
     'purchase_order_cancelled' => 'تم إلغاء الطلب وعكس القيد المحاسبي بنجاح',
     'order_already_cancelled' => 'تم إلغاء الطلب مسبقًا',
-    'order_has_returns_locked' => 'هذا الطلب عليه مرتجع، لذلك لا يمكن تقليل كمياته.',
+    'order_is_final' => 'هذه الفاتورة نهائية ولا يمكن تعديلها. أنشئ فاتورة جديدة لأي منتجات أو كميات إضافية.',
     'order_cancelled' => 'تم إلغاء الطلب وعكس القيد المحاسبي بنجاح',
     'order_item_mismatch' => 'هذا العنصر لا ينتمي لهذا الطلب',
 
@@ -91,8 +91,6 @@ return [
     'cannot_edit_refunded_payment' => 'لا يمكن تعديل دفعة تم استرجاعها. يرجى عكس الاسترجاع أولاً',
     'amount_below_refunded' => 'لا يمكن أن يكون المبلغ أقل من المبلغ المسترجع',
     'payment_not_adjustable' => 'لا يمكن تعديل إلا الدفعات النقدية. هذه الدفعة مسددة من رصيد أو مرتجع',
-    'order_fully_paid_locked' => 'هذا الطلب مسدد بالكامل ومغلق. يرجى إنشاء طلب أو فاتورة جديدة للعناصر الإضافية',
-    'order_partial_payments_manager_only' => 'هذا الطلب عليه دفعات جزئية — يمكن للمدير فقط تعديله',
     'refund_before_cancel' => 'يرجى استرجاع جميع الدفعات قبل إلغاء هذا الطلب',
     'order_already_fully_paid' => 'الطلب مسدد بالكامل مسبقًا',
     'purchase_order_supplier_mismatch' => 'طلب الشراء هذا لا ينتمي للمورد المحدد',
@@ -133,7 +131,6 @@ return [
     'product_not_found' => 'المنتج غير موجود.',
     'cost_price_required' => 'اكتب التكلفة. اكتب 0 فقط لو المنتج فعلًا ملوش تكلفة.',
     'purchase_unknown_cost_stock' => ':product عليه مخزون تكلفته غير معروفة. حدد قيمته الحالية للقطعة من صفحة المنتج، وبعدين استلم الفاتورة دي.',
-    'order_item_update_requires_field' => 'اكتب الكمية أو سعر الوحدة عشان تعدّل الصنف.',
 
     'description_required_for_misc_expense' => 'وصف المصروف مطلوب عند اختيار فئة "أخرى"',
     'field_not_tenant_owned' => 'قيمة :attribute المختارة لا تنتمي لهذه المنشأة',

@@ -89,9 +89,11 @@ Long-lived engineering docs live in [`docs/`](docs/README.md). **AI sessions mus
 
 - `tenant_id` on every table
 - Never store `order.status` — calculate from payments
-- `order.total` IS stored (superseded old rule — see ADR-004): written at creation, afterwards only via `LedgerService::adjustOrderCharge`, never directly
+- `order.total` IS stored (superseded old rule — see ADR-004): written once at creation and never changed afterwards
+- Invoices are final once created: no added items, no quantity, price, discount or `manual_total` changes (only `notes` and `order_date` stay editable). More products need a new invoice; mistakes are fixed by cancelling
+- `order_items.unit_cost_at_sale` is the line's historical cost per base unit, saved at creation under the product lock and never changed; COGS = `quantity × conversion_factor × unit_cost_at_sale` (NULL = unknown, excluded from profit)
 - Snapshot product name + price on order items at sale time
-- Ledger is append-only, with exactly two sanctioned edit paths (`adjustPayment`, `adjustOrderCharge` — see ADR-006); never delete entries, corrections otherwise append reversals
+- Ledger is append-only, with exactly one sanctioned edit path (`adjustPayment` — see ADR-006; `adjustOrderCharge` was removed when invoices became final); never delete entries, corrections otherwise append reversals
 - Inventory transactions are append-only
 - Business logic lives in Services — controllers stay thin
 - FormRequests are gatekeepers — all validation lives there

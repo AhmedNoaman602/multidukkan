@@ -244,36 +244,6 @@ class ShelfFulfillmentTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
-    // 11
-    public function test_adding_an_item_refills_a_short_shelf(): void
-    {
-        $orderId = $this->sell($this->admin, [$this->pcs(8)])->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)->postJson("/api/orders/{$orderId}/items", $this->pcs(5))->assertStatus(200);
-
-        $this->assertEquals([0, 25], [$this->qty($this->shelf), $this->qty($this->storageA)]);
-        $transfer = $this->replenishments()->sole();
-        $this->assertEquals([$orderId, 5], [$transfer->order_id, $transfer->items->sole()->quantity]);
-        $this->assertDatabaseHas('order_items', ['order_id' => $orderId, 'quantity' => 13, 'warehouse_id' => $this->shelf->id]);
-    }
-
-    // 12
-    public function test_increasing_a_line_by_a_box_refills_a_short_shelf(): void
-    {
-        $order = $this->sell($this->admin, [$this->boxes(1)])->assertStatus(201)->json();
-        // 12 needed, shelf 8 → 4 from A (A 26, B 30)
-        $this->assertEquals([0, 26, 30], [$this->qty($this->shelf), $this->qty($this->storageA), $this->qty($this->storageB)]);
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$order['id']}/items/{$order['items'][0]['id']}", ['quantity' => 2])
-            ->assertStatus(200);
-
-        // +12 needed, shelf 0 → B is now the fullest
-        $this->assertEquals([0, 26, 18], [$this->qty($this->shelf), $this->qty($this->storageA), $this->qty($this->storageB)]);
-        $last = $this->replenishments()->last();
-        $this->assertEquals([$this->storageB->id, 12, $order['id']], [$last->from_warehouse_id, $last->items->sole()->quantity, $last->order_id]);
-    }
-
     // 13
     public function test_order_payloads_cannot_choose_a_warehouse(): void
     {
@@ -281,15 +251,7 @@ class ShelfFulfillmentTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('items.0.warehouse_id');
         $this->assertDatabaseCount('orders', 0);
-
-        $orderId = $this->sell($this->admin, [$this->pcs(1)])->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)
-            ->postJson("/api/orders/{$orderId}/items", $this->pcs(1) + ['warehouse_id' => $this->storageA->id])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors('warehouse_id');
-        $this->assertDatabaseCount('order_items', 1);
-        $this->assertEquals(7, $this->qty($this->shelf));
+        $this->assertEquals(8, $this->qty($this->shelf));
     }
 
     // 14

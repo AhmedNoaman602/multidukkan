@@ -142,12 +142,11 @@ class CostLockingTest extends TestCase
         )->c;
     }
 
-    /** The cost saved for the newest order line of this product (Stage 1 allocations). */
+    /** The cost saved on the newest invoice line of this product (D33 unit_cost_at_sale). */
     private function allocationCostOf(Product $product): float
     {
-        $itemId = DB::table('order_items')->where('product_id', $product->id)->max('id');
-
-        return (float) DB::table('order_item_costs')->where('order_item_id', $itemId)->value('unit_cost');
+        return (float) DB::table('order_items')->where('product_id', $product->id)
+            ->orderByDesc('id')->value('unit_cost_at_sale');
     }
 
     /** Starts the child, waits until its first step ran inside its open transaction. */

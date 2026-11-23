@@ -9,8 +9,6 @@ use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
-use App\Http\Requests\UpdateOrderItemRequest;
-use App\Http\Requests\StoreOrderItemRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Support\LocalDateRange;
@@ -59,7 +57,7 @@ class OrderController extends Controller
 
     $totals = $this->ledger->orderPaymentTotals(clone $query);
 
-    $orders = $query->with('items.costs', 'payments', 'customer')
+    $orders = $query->with('items', 'payments', 'customer')
         ->orderBy('id', 'desc')
         ->paginate(10);
 
@@ -87,7 +85,7 @@ class OrderController extends Controller
         $this->authorize('create', Order::class);
         
         $order = $this->order->createOrder($request->validated());
-        return (new OrderResource($order->load('items.costs', 'payments', 'customer')))
+        return (new OrderResource($order->load('items', 'payments', 'customer')))
             ->response()
             ->setStatusCode(201);
     } catch (ValidationException $e) {
@@ -102,7 +100,7 @@ class OrderController extends Controller
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => __('messages.unauthorized')], 403);
     }
-        return new OrderResource($order->load('items.costs', 'payments', 'customer'));
+        return new OrderResource($order->load('items', 'payments', 'customer'));
     }
 
 
@@ -150,7 +148,8 @@ class OrderController extends Controller
 
 
 
-    public function updateItem(UpdateOrderItemRequest $request, Order $order, OrderItem $item){
+    // D32: a created invoice is final — no line quantity or price changes.
+    public function updateItem(Request $request, Order $order, OrderItem $item){
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
@@ -161,22 +160,18 @@ class OrderController extends Controller
             return response()->json(['message' => __('messages.order_item_mismatch')], 404);
         }
 
-         $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
-        return new OrderResource($order->refresh()->load('items.costs', 'payments', 'customer'));
+        return response()->json(['message' => __('messages.order_is_final')], 422);
     }
 
-
-
-
-    public function addItem(StoreOrderItemRequest $request, Order $order){
+    // D32: a created invoice is final — more products need a new invoice.
+    public function addItem(Request $request, Order $order){
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
-        $this->order->addItem($order, $request->validated());
-        return new OrderResource($order->refresh()->load('items.costs', 'payments', 'customer'));
+        return response()->json(['message' => __('messages.order_is_final')], 422);
     }
     
 }

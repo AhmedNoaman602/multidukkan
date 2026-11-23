@@ -235,18 +235,6 @@ class LedgerTest extends TestCase
         $this->assertNotSoftDeleted('orders', ['id' => $orderId]);
     }
 
-    public function test_cannot_modify_order_after_payment(): void
-{
-    // quantity 2 x price 100 = 200 total; paying 200 fully settles it — locked for everyone.
-    $order = $this->createOrder(quantity: 2)->json();
-    $itemId = $order['items'][0]['id'];
-    $this->createPayment(200)->assertStatus(201);
-
-    $this->actingAs($this->user)->patchJson("/api/orders/{$order['id']}/items/{$itemId}", [
-        'quantity' => 3,
-    ])->assertStatus(422);
-}
-
     // ─────────────────────────────────────────
     // LEDGER TESTS
     // ─────────────────────────────────────────

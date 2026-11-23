@@ -568,16 +568,6 @@ public function restoreCredit(array $data): LedgerEntry
         ]);
         }, attempts: 3);
 
-       
-    }
 
-    public function adjustOrderCharge(Order $order, float $newTotal): void
-    {
-        LedgerEntry::where('reference_type', 'order')
-            ->where('reference_id', $order->id)
-            ->where('type', 'ORDER_CHARGE')
-            ->update(['amount' => $newTotal]);
-        
-        $order->update(['total' => $newTotal]);
     }
 }

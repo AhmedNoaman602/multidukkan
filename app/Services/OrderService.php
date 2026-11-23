@@ -4,8 +4,6 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\OrderItemCost;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\User;
@@ -207,7 +205,7 @@ foreach ($validatedItems as $v) {
             // --- STOCK, THEN ORDER ITEMS ---
             // fulfill() locks stock, then products, before anything references them (D31/P4),
             // refills the shelf from storage if needed and deducts the sale. Lines are inserted
-            // afterwards, each with an allocation at the cost read under that lock.
+            // afterwards, each with the cost per base unit read under that lock (D33).
             $costs = $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
 
             $totalAmount = 0;
@@ -220,14 +218,13 @@ foreach ($validatedItems as $v) {
                     'conversion_factor' => $v['conversionFactor'],
                     'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
+                    'unit_cost_at_sale' => $costs[$v['product']->id],
                     'warehouse_id' => $shelf->id,
                 ]);
 
-                $this->recordCost($order, $orderItem, $v['stockQty'], $costs);
-
                 $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
             }
-            // Same exact subtotal as MySQL's SUM in recalculateTotal, so a percent discount matches.
+            // Rounded to the price scale so a percent discount is calculated on an exact subtotal.
             $totalAmount = round($totalAmount, Money::PRICE_SCALE);
 
             // --- LEDGER & CREDIT CHARGING BLOCK ---
@@ -337,106 +334,6 @@ if (!empty($data['pay_immediately'])) {
         }, attempts: 3);
     }
 
-    public function adjustItem(Order $order, OrderItem $item, array $data): void
-    {
-        DB::transaction(function () use ($order, $item, $data) {
-        $order = Order::lockForUpdate()->findOrFail($order->id);
-        $item  = OrderItem::lockForUpdate()->findOrFail($item->id);
-
-        $this->ensureOrderIsEditable($order);
-
-        $oldQty = $item->quantity;
-        $newQty = $data['quantity'] ?? $oldQty;
-        $delta = $newQty - $oldQty;
-
-        $stockDelta = $delta * $item->conversion_factor;
-        $costs = null;
-
-        if ($stockDelta > 0) {
-            // Taken from the line's recorded location; a shelf line refills from storage if short.
-            $costs = $this->fulfillment->fulfill(
-                $order, $item->warehouse, [$item->product_id => $stockDelta],
-                auth()->user(), (string) Str::uuid()
-            );
-        } elseif ($stockDelta < 0) {
-            $this->restoreDecrease($order, $item, -$stockDelta);
-        }
-
-        $item->update([
-            'quantity' => $newQty,
-            'unit_price' => $data['unit_price'] ?? $item->unit_price,
-        ]);
-
-        if ($costs !== null) {
-            $this->recordCost($order, $item, $stockDelta, $costs);
-        }
-
-        $this->resetToCalculatedTotal($order);
-        }, attempts:3);
-    }
-
-    /**
-     * D31/P1: a decrease takes from the newest allocation first and puts that stock back at
-     * the allocation's cost. Refused once the order has any return (D2), so a returned
-     * allocation is never reduced or skipped over.
-     */
-    private function restoreDecrease(Order $order, OrderItem $item, int $quantity): void
-    {
-        $allocations = OrderItemCost::whereIn('order_item_id', $order->items()->pluck('id'))
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get();
-
-        if ($allocations->contains(fn ($a) => $a->returned_quantity > 0)) {
-            throw ValidationException::withMessages([
-                'order' => __('messages.order_has_returns_locked'),
-            ]);
-        }
-
-        $parts = [];
-        $remaining = $quantity;
-        foreach ($allocations->where('order_item_id', $item->id)->reverse() as $allocation) {
-            if ($remaining === 0) {
-                break;
-            }
-
-            $take = min($remaining, $allocation->base_quantity);
-            $parts[] = [$take, $allocation->unit_cost];
-            $remaining -= $take;
-
-            $take === $allocation->base_quantity
-                ? $allocation->delete()
-                : $allocation->update(['base_quantity' => $allocation->base_quantity - $take]);
-        }
-
-        if ($remaining > 0) {
-            throw new \RuntimeException("Order line {$item->id}: allocations cover less than the {$quantity} units being removed.");
-        }
-
-        $this->inventory->restoreAtCost(
-            [['product_id' => $item->product_id, 'warehouse_id' => $item->warehouse_id, 'parts' => $parts]],
-            $order->id, Order::class, auth()->id()
-        );
-    }
-
-    private function ensureOrderIsEditable(Order $order): void
-    {
-        if ($order->isSettled()) {
-            throw ValidationException::withMessages([
-                'order' => __('messages.order_fully_paid_locked'),
-            ]);
-        }
-
-        $isPartiallyPaid = $order->settledAmount() > 0;
-        $isManagerOrAbove = in_array(auth()->user()->role, ['tenant_admin', 'store_manager'], true);
-
-        if ($isPartiallyPaid && !$isManagerOrAbove) {
-            throw ValidationException::withMessages([
-                'order' => __('messages.order_partial_payments_manager_only'),
-            ]);
-        }
-    }
-
     private function resolveDiscount(array $data, float $subtotal, User $user): float
     {
         $value = (float) ($data['discount'] ?? 0);
@@ -463,147 +360,32 @@ if (!empty($data['pay_immediately'])) {
         return $value;
     }
 
-    /**
-     * One allocation for the base units just added to a line, at the cost fulfill() read under
-     * the product lock. An unknown cost stays unknown (D27, D30).
-     *
-     * @param array<int, ?string> $costs product_id => cost_price from fulfill()
-     */
-    private function recordCost(Order $order, OrderItem $item, int $baseQuantity, array $costs): void
-    {
-        $cost = $costs[$item->product_id];
-
-        $item->costs()->create([
-            'tenant_id'        => $order->tenant_id,
-            'base_quantity'    => $baseQuantity,
-            'unit_cost'        => $cost,
-            'unit_cost_source' => $cost === null ? null : OrderItemCost::SOURCE_AVERAGE_AT_SALE,
-        ]);
-    }
-
     private function priceKey(float $price): string
     {
         return number_format(round($price, Money::PRICE_SCALE), Money::PRICE_SCALE, '.', '');
     }
 
-    private function recalculateTotal(Order $order): float
+    /**
+     * D32: a created invoice is final. Only notes and order_date can still change; anything
+     * that changes what the customer owes (discount, manual_total) is refused.
+     */
+    public function updateOrder(Order $order, array $data, User $user): Order
     {
-        $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
-        $discount = (float) ($order->discount ?? 0);
-
-        return max(0, Money::total($subtotal - $discount));
-    }
-
-    private function resetToCalculatedTotal(Order $order): void
-    {
-        $order->update(['manual_total' => null]);
-
-        $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
-    }
-
-    public function addItem(Order $order, array $data)
-    {
-        $this->inventory->ensureStockRows(
-            [$data['product_id']],
-            $this->shelfOf($order->tenant_id, $order->store_id)->id,
-            $order->tenant_id,
-            0
-        );
-
-        return DB::transaction(function () use ($order, $data) {
-        $order = Order::lockForUpdate()->findOrFail($order->id);
-
-        $this->ensureOrderIsEditable($order);
-
-        $product = Product::findOrFail($data['product_id']);
-        $shelf = $this->shelfOf($order->tenant_id, $order->store_id);
-        $unitType = $data['unit_type'] ?? 'base';
-        $customer = $order->customer;
-
-        $conversionFactor = $product->factorFor($unitType);
-        $stockQuantity = $data['quantity'] * $conversionFactor;
-
-       $price = match ($customer->price_tier) {
-                    'a' => $product->price_a ?? $product->price,
-                    'b' => $product->price_b ?? $product->price,
-                    'c' => $product->price_c ?? $product->price,
-                    'd' => $product->price_d ?? $product->price,
-                    'e' => $product->price_e ?? $product->price,
-                    default => $product->price,
-                };
-
-        $unitPrice = $data['unit_price'] ?? $price * $conversionFactor;
-
-        $costs = $this->fulfillment->fulfill(
-            $order, $shelf, [$product->id => $stockQuantity],
-            auth()->user(), (string) Str::uuid()
-        );
-
-     $existingItem = $order->items()
-        ->where('product_id', $product->id)
-        ->where('warehouse_id', $shelf->id)
-        ->where('unit_type', $unitType)
-        ->where('conversion_factor', $conversionFactor)
-        ->where('unit_price', $this->priceKey((float) $unitPrice))
-        ->first();
-
-    if ($existingItem) {
-        $existingItem->update([
-            'quantity' => $existingItem->quantity + $data['quantity'],
-        ]);
-        $item = $existingItem;
-    } else {
-        $item = $order->items()->create([
-            'product_id'   => $product->id,
-            'product_name' => $product->name,
-            'warehouse_id' => $shelf->id,
-            'quantity'     => $data['quantity'],
-            'unit_price'   => $unitPrice,
-            'unit_type'    => $unitType,
-            'conversion_factor' => $conversionFactor,
-            'unit_name'    => $product->unitNameFor($unitType),
-        ]);
-    }
-
-        $this->recordCost($order, $item, $stockQuantity, $costs);
-
-      $this->resetToCalculatedTotal($order);
-    }, attempts: 3);
-}
-
-    // OrderService@updateOrder
-public function updateOrder(Order $order, array $data, User $user): Order
-{
-    $order = DB::transaction(function () use ($order, $data, $user) {
-        $order = Order::lockForUpdate()->findOrFail($order->id);
-
-        $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
-        $hasDiscount = isset($data['discount']);
-        $fields = array_diff_key($data, array_flip(['discount', 'discount_type', 'manual_total']));
-
-        // Discount and manual_total change what the customer owes, so they go through the
-        // payment guard. Notes/order_date carry no money implications.
-        if ($manualTotal !== null) {
-            $this->ensureOrderIsEditable($order);
-
-            $order->update($fields + ['discount' => 0, 'manual_total' => $manualTotal]);
-            $this->ledger->adjustOrderCharge($order, $manualTotal);
-        } elseif ($hasDiscount) {
-            $this->ensureOrderIsEditable($order);
-
-            $subtotal = (float) $order->items()->sum(DB::raw('unit_price * quantity'));
-
-            $order->update($fields + ['discount' => $this->resolveDiscount($data, $subtotal, $user)]);
-            $this->resetToCalculatedTotal($order);
-        } else {
-            $order->update($fields);
+        if (array_intersect_key($data, array_flip(['discount', 'discount_type', 'manual_total'])) !== []) {
+            throw ValidationException::withMessages([
+                'order' => __('messages.order_is_final'),
+            ]);
         }
 
-        return $order;
-    }, attempts: 3);
+        $order = DB::transaction(function () use ($order, $data) {
+            $order = Order::lockForUpdate()->findOrFail($order->id);
+            $order->update($data);
 
-    return $order->load('items.costs', 'payments', 'customer');
-}
+            return $order;
+        }, attempts: 3);
+
+        return $order->load('items', 'payments', 'customer');
+    }
   
    public function cancelOrder(Order $order, User $user): void
 {
@@ -646,27 +428,15 @@ public function updateOrder(Order $order, array $data, User $user): Order
         ]);
     }
 
-        // D31/P2: each allocation goes back at its own cost; stock rows and products are locked
-        // together in id order by restoreAtCost (never line by line). A line without
-        // allocations goes back at today's average, as before (D27).
-        $items = $order->items()->get();
-        $allocations = OrderItemCost::whereIn('order_item_id', $items->pluck('id'))
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get()
-            ->groupBy('order_item_id');
-
-        $lines = $items->map(fn ($item) => [
-            'product_id'   => $item->product_id,
-            'warehouse_id' => $item->warehouse_id,
-            'parts'        => isset($allocations[$item->id])
-                ? $allocations[$item->id]
-                    ->map(fn ($a) => [$a->base_quantity - $a->returned_quantity, $a->unit_cost])
-                    ->filter(fn ($part) => $part[0] > 0)
-                    ->values()
-                    ->all()
-                : [[$item->baseQuantity(), null]],
-        ])->filter(fn ($line) => $line['parts'] !== [])->values()->all();
+        // P2: each line goes back at its own sale cost (unit_cost_at_sale); stock rows and
+        // products are locked together in id order by restoreAtCost (never line by line).
+        // An unknown cost goes back at today's average (D27).
+        $lines = $order->items()->get()->map(fn ($item) => [
+            'product_id'    => $item->product_id,
+            'warehouse_id'  => $item->warehouse_id,
+            'base_quantity' => $item->baseQuantity(),
+            'unit_cost'     => $item->unit_cost_at_sale,
+        ])->all();
 
         if ($lines !== []) {
             $this->inventory->restoreAtCost($lines, $order->id, Order::class, $user->id, (string) Str::uuid());

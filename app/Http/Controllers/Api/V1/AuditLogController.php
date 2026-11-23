@@ -54,7 +54,7 @@ class AuditLogController extends Controller
 
         // Grouped by batch_id so an order/PO's line-item stock movements show as one event
         // instead of one row per product — falls back to one group per row when batch_id is
-        // null (e.g. a single-item adjustItem edit, or data written before this column existed).
+        // null (e.g. an old single-item edit, or data written before this column existed).
         // A transfer writes an OUT and an IN row for the same stock, so only the OUT side is summed.
         $inventoryQuery = DB::table('inventory_transactions')
             ->selectRAW('COALESCE(batch_id, CAST(id AS CHAR)) as id, MAX(type) as type, null as amount, null as description, MAX(reference_type) as reference_type, MAX(reference_id) as reference_id, null as customer_id, "inventory" as source, SUM(CASE WHEN type = "TRANSFER_IN" THEN 0 ELSE quantity END) as quantity, MIN(product_id) as product_id, MIN(warehouse_id) as warehouse_id, MAX(user_id) as user_id, null as supplier_id, null as changes, MAX(created_at) as created_at, MAX(batch_id) as batch_id, COUNT(DISTINCT product_id) as item_count')

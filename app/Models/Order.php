@@ -82,7 +82,7 @@ class Order extends Model
         return $this->items->filter(fn ($i) => $i->costOfGoods() === null)->count();
     }
 
-    // Saved sale costs (order_item_costs), never today's product cost (D30).
+    // Historical line costs (order_items.unit_cost_at_sale), never today's product cost (D33).
     // Null when any line's cost is unknown: an unknown cost is never counted as zero.
     public function costOfGoods(): ?float
     {

@@ -119,29 +119,6 @@ class ReversalTest extends TestCase
         ]);
     }
 
-    public function test_decreasing_a_replenished_line_returns_only_the_difference_to_the_shelf(): void
-    {
-        $order = $this->sell(['quantity' => 20]);
-        $this->assertEquals([0, 18], [$this->qty($this->shelf), $this->qty($this->storage)]);
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$order['id']}/items/{$order['items'][0]['id']}", ['quantity' => 15])
-            ->assertStatus(200);
-
-        $this->assertEquals(5, $this->qty($this->shelf));    // only the 5 removed from the line
-        $this->assertEquals(18, $this->qty($this->storage)); // refill untouched
-
-        $transfer = $this->replenishments()->sole();
-        $this->assertEquals(12, $transfer->items->sole()->quantity);
-        $this->assertEquals(2, $this->transferRows());
-        $this->assertDatabaseHas('inventory_transactions', [
-            'type'         => InventoryTransaction::TYPE_RETURN,
-            'warehouse_id' => $this->shelf->id,
-            'quantity'     => 5,
-            'reference_id' => $order['id'],
-        ]);
-    }
-
     public function test_a_cancel_uses_the_saved_factor_after_the_product_factor_changes(): void
     {
         $this->stock($this->shelf, 50); // enough on the shelf: no refill in this case

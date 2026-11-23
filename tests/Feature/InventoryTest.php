@@ -312,22 +312,6 @@ public function test_cannot_create_order_with_warehouse_from_another_store(): vo
     $this->assertDatabaseCount('inventory_transactions', 0);
 }
 
-public function test_cannot_add_item_from_another_stores_warehouse(): void
-{
-    $warehouseB = $this->warehouseInAnotherStore();
-    $orderId = $this->createOrder()->assertStatus(201)->json('id');
-
-    $this->actingAs($this->user)->postJson("/api/orders/{$orderId}/items", [
-        'product_id'   => $this->product->id,
-        'warehouse_id' => $warehouseB->id,
-        'quantity'     => 1,
-    ])->assertStatus(422)
-      ->assertJsonValidationErrors('warehouse_id');
-
-    $this->assertDatabaseCount('order_items', 1);
-    $this->assertDatabaseHas('inventory', ['warehouse_id' => $warehouseB->id, 'product_id' => $this->product->id, 'quantity' => 50]);
-}
-
 public function test_order_with_warehouse_deducts_stock(): void
 {
     $this->createOrder(quantity: 10)

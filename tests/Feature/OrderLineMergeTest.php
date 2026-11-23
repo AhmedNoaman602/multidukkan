@@ -73,13 +73,6 @@ class OrderLineMergeTest extends TestCase
         return Order::findOrFail($id);
     }
 
-    private function addItem(Order $order, array $data): void
-    {
-        $this->actingAs($this->admin)
-            ->postJson("/api/orders/{$order->id}/items", $data + ['product_id' => $this->product->id])
-            ->assertSuccessful();
-    }
-
     private function balance(): float
     {
         return app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id);
@@ -145,102 +138,6 @@ class OrderLineMergeTest extends TestCase
         $this->assertEquals(86, $this->stock());
     }
 
-    public function test_add_item_merges_into_the_line_with_the_same_price(): void
-    {
-        $order = $this->createOrder([['quantity' => 5, 'unit_price' => 10]]);
-
-        $this->addItem($order, ['quantity' => 3, 'unit_price' => 10]);
-
-        $this->assertEquals(1, $order->items()->count());
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 8, 'unit_price' => 10]);
-        $this->assertEquals(80, (float) $order->fresh()->total);
-        $this->assertEquals(80, $this->balance());
-        $this->assertEquals(92, $this->stock());
-    }
-
-    public function test_add_item_with_a_different_price_creates_a_separate_line(): void
-    {
-        $order = $this->createOrder([['quantity' => 5, 'unit_price' => 10]]);
-
-        $this->addItem($order, ['quantity' => 3, 'unit_price' => 8]);
-
-        $this->assertEquals(2, $order->items()->count());
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 5, 'unit_price' => 10]);
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 3, 'unit_price' => 8]);
-        $this->assertEquals(74, (float) $order->fresh()->total);
-        $this->assertEquals(74, $this->balance());
-        $this->assertEquals(92, $this->stock());
-    }
-
-    public function test_add_item_without_a_price_merges_into_the_default_price_line(): void
-    {
-        $order = $this->createOrder([['quantity' => 5]]);
-
-        $this->addItem($order, ['quantity' => 3]);
-
-        $this->assertEquals(1, $order->items()->count());
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 8, 'unit_price' => 10]);
-        $this->assertEquals(80, (float) $order->fresh()->total);
-    }
-
-    public function test_add_item_after_a_price_change_snapshots_the_new_price_on_its_own_line(): void
-    {
-        $order = $this->createOrder([['quantity' => 5]]);
-
-        $this->product->update(['price' => 12]);
-
-        $this->addItem($order, ['quantity' => 3]);
-
-        $this->assertEquals(2, $order->items()->count());
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 5, 'unit_price' => 10]);
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 3, 'unit_price' => 12]);
-        $this->assertEquals(86, (float) $order->fresh()->total);
-        $this->assertEquals(86, $this->balance());
-        $this->assertEquals(92, $this->stock());
-    }
-
-    public function test_add_item_after_a_tier_change_snapshots_the_new_tier_price_on_its_own_line(): void
-    {
-        $this->product->update(['price_a' => 9]);
-        $order = $this->createOrder([['quantity' => 5]]);
-
-        $this->customer->update(['price_tier' => 'a']);
-
-        $this->addItem($order, ['quantity' => 3]);
-
-        $this->assertEquals(2, $order->items()->count());
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 5, 'unit_price' => 10]);
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 3, 'unit_price' => 9]);
-        $this->assertEquals(77, (float) $order->fresh()->total);
-        $this->assertEquals(77, $this->balance());
-    }
-
-    public function test_add_item_box_without_a_price_uses_the_tier_price_times_the_factor(): void
-    {
-        $this->product->update(['price_a' => 9]);
-        $this->customer->update(['price_tier' => 'a']);
-        $order = $this->createOrder([['quantity' => 1, 'unit_type' => 'secondary']]);
-
-        $this->addItem($order, ['quantity' => 1, 'unit_type' => 'secondary']);
-
-        $this->assertEquals(1, $order->items()->count());
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'unit_type' => 'secondary', 'quantity' => 2, 'unit_price' => 108]);
-        $this->assertEquals(216, (float) $order->fresh()->total);
-        $this->assertEquals(216, $this->balance());
-        $this->assertEquals(76, $this->stock());
-    }
-
-    public function test_add_item_box_falls_back_to_the_default_price_when_the_tier_price_is_empty(): void
-    {
-        $this->customer->update(['price_tier' => 'b']);
-        $order = $this->createOrder([['quantity' => 1]]);
-
-        $this->addItem($order, ['quantity' => 1, 'unit_type' => 'secondary']);
-
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'unit_type' => 'secondary', 'quantity' => 1, 'unit_price' => 120]);
-        $this->assertEquals(130, (float) $order->fresh()->total);
-    }
-
     public function test_order_response_includes_the_customer_price_tier(): void
     {
         $this->customer->update(['price_tier' => 'c']);
@@ -252,20 +149,4 @@ class OrderLineMergeTest extends TestCase
             ->assertJsonPath('customer_price_tier', 'c');
     }
 
-    public function test_add_item_picks_the_line_whose_price_matches(): void
-    {
-        $order = $this->createOrder([
-            ['quantity' => 5, 'unit_price' => 10],
-            ['quantity' => 3, 'unit_price' => 8],
-        ]);
-
-        $this->addItem($order, ['quantity' => 2, 'unit_price' => 8]);
-
-        $this->assertEquals(2, $order->items()->count());
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 5, 'unit_price' => 10]);
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 5, 'unit_price' => 8]);
-        $this->assertEquals(90, (float) $order->fresh()->total);
-        $this->assertEquals(90, $this->balance());
-        $this->assertEquals(90, $this->stock());
-    }
 }

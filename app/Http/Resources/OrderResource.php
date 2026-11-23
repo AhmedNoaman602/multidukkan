@@ -86,7 +86,7 @@ class OrderResource extends JsonResource
             'conversion_factor' => $item->conversion_factor,
             'base_quantity' => $item->baseQuantity(),
             'total'        => $item->unit_price * $item->quantity,
-            ...($showsCost ? ['cost_price' => $this->savedUnitCost($item)] : []),
+            ...($showsCost ? ['cost_price' => $item->unit_cost_at_sale === null ? null : (float) $item->unit_cost_at_sale] : []),
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         ...($showsCost ? $this->profitFields($total) : []),
@@ -103,15 +103,6 @@ private function profitFields(float $total): array
         'gross_profit'       => $cost === null ? null : round($total - $cost, 2),
         'unknown_cost_lines' => $this->unknownCostLines(),
     ];
-}
-
-// The line's saved cost per base unit (blended across its allocations), or null when unknown.
-private function savedUnitCost($item): ?float
-{
-    $cost = $item->costOfGoods();
-    $base = $item->baseQuantity();
-
-    return $cost === null || $base === 0 ? null : round($cost / $base, 4);
 }
 
 private function resolveStatus(float $totalPaid, float $total): string

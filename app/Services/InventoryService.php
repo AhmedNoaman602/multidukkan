@@ -116,14 +116,12 @@ class InventoryService
     }
 
     /**
-     * Put stock back at the cost it left with and recalculate each product's average once
-     * (D29, D31/P3). Locks every stock row of the products, then the products, both in id
-     * order (D31/P4). One movement per line. A part with an unknown cost goes back at today's
-     * average (D27): it adds quantity, not value. Quantities and values are summed per product
-     * before dividing, so several allocations don't stack 4-decimal rounding.
+     * Put stock back at a given cost per base unit and recalculate each product's average once
+     * (D31/P2–P3). Locks every stock row of the products, then the products, both in id order
+     * (D31/P4). One movement per line. A line with an unknown cost goes back at today's average
+     * (D27): it adds quantity, not value. Lines are summed per product before dividing.
      *
-     * @param array<int, array{product_id: int, warehouse_id: int, parts: array<int, array{0: int, 1: string|float|null}>}> $lines
-     *        parts: [base quantity, unit cost or null]
+     * @param array<int, array{product_id: int, warehouse_id: int, base_quantity: int, unit_cost: string|float|null}> $lines
      */
     public function restoreAtCost(array $lines, int $referenceId, string $referenceType, ?int $userId, ?string $batchId = null): void
     {
@@ -141,30 +139,33 @@ class InventoryService
                 ->keyBy('id');
 
             foreach ($productIds as $productId) {
-                $parts = collect($lines)->where('product_id', $productId)->flatMap(fn ($line) => $line['parts']);
                 $product = $products[$productId];
 
                 $product->update([
-                    'cost_price' => $this->averageAfterRestore($product->cost_price, $stockBefore[$productId] ?? 0, $parts),
+                    'cost_price' => $this->averageAfterRestore(
+                        $product->cost_price,
+                        $stockBefore[$productId] ?? 0,
+                        collect($lines)->where('product_id', $productId)
+                    ),
                 ]);
             }
 
             foreach ($lines as $line) {
                 $this->restoreStock(
-                    $line['product_id'], $line['warehouse_id'], array_sum(array_column($line['parts'], 0)),
+                    $line['product_id'], $line['warehouse_id'], $line['base_quantity'],
                     $referenceId, $referenceType, $userId, $batchId
                 );
             }
         });
     }
 
-    /** @param Collection<int, array{0: int, 1: string|float|null}> $parts */
-    private function averageAfterRestore(?string $currentCost, int $stock, Collection $parts): ?string
+    /** @param Collection<int, array{base_quantity: int, unit_cost: string|float|null}> $lines */
+    private function averageAfterRestore(?string $currentCost, int $stock, Collection $lines): ?string
     {
-        $known        = $parts->filter(fn ($p) => $p[1] !== null);
-        $knownQty     = $known->sum(fn ($p) => $p[0]);
-        $knownValue   = $known->sum(fn ($p) => $p[0] * $p[1]);
-        $unknownQty   = $parts->sum(fn ($p) => $p[0]) - $knownQty;
+        $known        = $lines->filter(fn ($l) => $l['unit_cost'] !== null);
+        $knownQty     = $known->sum(fn ($l) => $l['base_quantity']);
+        $knownValue   = $known->sum(fn ($l) => $l['base_quantity'] * $l['unit_cost']);
+        $unknownQty   = $lines->sum(fn ($l) => $l['base_quantity']) - $knownQty;
 
         if ($currentCost === null) {
             // No average to blend into (legacy unknown cost): only an empty product takes the known cost.

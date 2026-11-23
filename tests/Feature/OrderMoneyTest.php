@@ -106,22 +106,6 @@ class OrderMoneyTest extends TestCase
         ]);
     }
 
-    public function test_manual_total_does_not_survive_a_later_item_edit(): void
-    {
-        // Documented behavior: manual_total only applies at creation; edits recompute from items.
-        $response = $this->createOrder(['manual_total' => 500])->assertStatus(201);
-
-        $order = Order::find($response->json('id'));
-        $item  = $order->items()->first();
-
-        $this->actingAs($this->user)
-            ->patchJson("/api/orders/{$order->id}/items/{$item->id}", ['quantity' => 3])
-            ->assertStatus(200);
-
-        // 3 x 300 = 900, no discount — the manual override is gone, matches financial-calculations.md
-        $this->assertDatabaseHas('orders', ['id' => $order->id, 'total' => 900, 'manual_total' => null]);
-    }
-
     // ─────────────────────────────────────────
     // 3. PaymentService reads orders.total, not a recomputed items sum
     // ─────────────────────────────────────────

@@ -3,8 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Order;
-use App\Models\OrderItem;
-use App\Models\OrderItemCost;
 use App\Models\Product;
 use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -38,22 +36,10 @@ class OrderItemFactory extends Factory
             'conversion_factor' => 1,
             'unit_name' => 'pcs',
             'unit_price' => $this->faker->numberBetween(1, 100),
+            // A factory line stands for a sale, so it saves the product's cost at creation (D33).
+            'unit_cost_at_sale' => fn (array $attributes) => $attributes['product_id'] === null
+                ? null
+                : Product::withoutGlobalScopes()->whereKey($attributes['product_id'])->value('cost_price'),
         ];
-    }
-
-    // A factory line stands for a sale, so it gets the allocation a sale would save:
-    // the product's cost at creation for the line's base quantity (unknown if the cost is empty).
-    public function configure(): static
-    {
-        return $this->afterCreating(function (OrderItem $item) {
-            $cost = Product::withoutGlobalScopes()->whereKey($item->product_id)->value('cost_price');
-
-            $item->costs()->create([
-                'tenant_id'        => Order::withoutGlobalScopes()->whereKey($item->order_id)->value('tenant_id'),
-                'base_quantity'    => $item->baseQuantity(),
-                'unit_cost'        => $cost,
-                'unit_cost_source' => $cost === null ? null : OrderItemCost::SOURCE_AVERAGE_AT_SALE,
-            ]);
-        });
     }
 }

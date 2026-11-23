@@ -141,18 +141,18 @@ class LocalizedErrorResponsesTest extends TestCase
         $this->assertSame('The customer id field is required. (and 1 more error)', $response->json('message'));
     }
 
-    public function test_the_order_item_update_rule_message_is_translated(): void
+    public function test_the_final_invoice_message_is_translated(): void
     {
         $order  = $this->orderOfOne();
         $itemId = DB::table('order_items')->where('order_id', $order->id)->value('id');
 
-        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}/items/{$itemId}", [], self::AR)
+        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}/items/{$itemId}", ['quantity' => 2], self::AR)
             ->assertStatus(422)
-            ->assertJsonPath('errors.quantity.0', 'اكتب الكمية أو سعر الوحدة عشان تعدّل الصنف.');
+            ->assertJsonPath('message', 'هذه الفاتورة نهائية ولا يمكن تعديلها. أنشئ فاتورة جديدة لأي منتجات أو كميات إضافية.');
 
-        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}/items/{$itemId}", [], self::EN)
+        $this->actingAs($this->admin)->patchJson("/api/orders/{$order->id}/items/{$itemId}", ['quantity' => 2], self::EN)
             ->assertStatus(422)
-            ->assertJsonPath('errors.quantity.0', 'Provide quantity or unit_price to update.');
+            ->assertJsonPath('message', 'This invoice is final and can no longer be edited. Create a new invoice for more products or quantities.');
     }
 
     // ── Missing resources ────────────────────────────────────────
