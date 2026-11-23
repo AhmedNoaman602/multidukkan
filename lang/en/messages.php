@@ -36,6 +36,7 @@ return [
     'cancel_has_return_offset' => 'This invoice was settled by a customer return, so it can\'t be cancelled.',
     'cancel_credit_payout_unavailable' => ':amount of this invoice was paid with store credit, but only :available of credit is available to pay out because the customer owes on other invoices. Give it back as customer credit instead.',
     'order_charge_not_reversed' => 'An invoice can only be removed by cancelling it.',
+    'refund_order_cancelled' => 'This invoice is cancelled. Its payments were settled when it was cancelled.',
     'order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_item_mismatch' => 'Item does not belong to this order',
 

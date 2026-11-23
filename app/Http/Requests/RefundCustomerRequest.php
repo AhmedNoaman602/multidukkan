@@ -57,6 +57,11 @@ public function withValidator($validator): void
                 return;
             }
 
+            if ($payment->order?->trashed()) {
+                $validator->errors()->add('payment_id_target', __('messages.refund_order_cancelled'));
+                return;
+            }
+
             if (! $payment->counts_as_cash) {
                 $validator->errors()->add('payment_id_target', __('messages.credit_payment_not_refundable'));
                 return;
@@ -75,7 +80,7 @@ public function withValidator($validator): void
         }
 
         if ($this->order_id) {
-            $order = Order::find($this->order_id);
+            $order = Order::withTrashed()->find($this->order_id);
             if (!$order || (int) $order->tenant_id !== (int) $tenantId) {
                 $validator->errors()->add('order_id', __('messages.order_not_tenants'));
                 return;
@@ -83,6 +88,11 @@ public function withValidator($validator): void
 
             if ((int) $order->customer_id !== (int) $customerId) {
                 $validator->errors()->add('order_id', __('messages.customer_order_mismatch'));
+                return;
+            }
+
+            if ($order->trashed()) {
+                $validator->errors()->add('order_id', __('messages.refund_order_cancelled'));
                 return;
             }
 

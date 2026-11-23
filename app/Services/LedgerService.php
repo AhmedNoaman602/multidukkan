@@ -473,7 +473,20 @@ public function restoreCredit(array $data): LedgerEntry
     public function issueRefund(array $data): LedgerEntry
     {
         return DB::transaction(function() use ($data){
-            
+
+        // A cancelled invoice already settled its money. Checked on the locked order row, so a
+        // refund that passed validation while a cancel was running is refused once it commits.
+        $byPayment = !empty($data['payment_id_target']);
+        $orderId   = $byPayment
+            ? Payment::whereKey($data['payment_id_target'])->value('order_id')
+            : ($data['order_id'] ?? null);
+
+        if ($orderId !== null && Order::withTrashed()->lockForUpdate()->find($orderId)?->trashed()) {
+            throw ValidationException::withMessages([
+                ($byPayment ? 'payment_id_target' : 'order_id') => __('messages.refund_order_cancelled'),
+            ]);
+        }
+
         if (!empty($data['payment_id_target'])) {
             // Case 1: Refund from a specific target payment.
             // lockForUpdate() so a concurrent refund on this same payment blocks until
