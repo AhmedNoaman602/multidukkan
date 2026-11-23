@@ -29,6 +29,8 @@ return [
     'purchase_order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_already_cancelled' => 'Order already cancelled',
     'order_is_final' => 'This invoice is final and can no longer be edited. Create a new invoice for more products or quantities.',
+    'credit_payout_exceeds_available' => 'Only :available of customer credit is available to pay out.',
+    'credit_payout_walk_in' => 'A walk-in customer has no credit to pay out.',
     'order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_item_mismatch' => 'Item does not belong to this order',
 

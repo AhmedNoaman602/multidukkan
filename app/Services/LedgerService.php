@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Services;
+use App\Models\Customer;
 use App\Models\LedgerEntry;
 use App\Models\PurchaseOrder;
 use App\Models\Payment;
@@ -187,7 +188,7 @@ class LedgerService
         // Sum all entries that increase the customer's outstanding balance (debited from customer, e.g. charges, refunds).
         $debits = LedgerEntry::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
-            ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED','REFUND' ])
+            ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED', 'REFUND', 'CREDIT_PAYOUT'])
             ->sum('amount');
 
         // Sum all entries that decrease the customer's outstanding balance (credited to customer, e.g. payments, reversals).
@@ -208,7 +209,7 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
 {
     $debits = LedgerEntry::where('tenant_id', $tenantId)
         ->whereIn('customer_id', $customerIds)
-        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED', 'REFUND'])
+        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED', 'REFUND', 'CREDIT_PAYOUT'])
         ->groupBy('customer_id')
         ->selectRaw('customer_id, SUM(amount) as total')
         ->pluck('total', 'customer_id');
@@ -356,6 +357,56 @@ public function restoreCredit(array $data): LedgerEntry
     ]);
 }
 
+    /** Credit the customer can use or be paid out: a negative balance, never below zero. */
+    public function availableCredit(int $tenantId, int $customerId): float
+    {
+        return max(0, round(-$this->getBalance($tenantId, $customerId), 2));
+    }
+
+    /**
+     * Pay customer credit out in cash: one CREDIT_PAYOUT (customer debit), no payment row.
+     * The customer lock comes first, before any plain read, so the available credit is
+     * read after every transaction that held the customer has committed.
+     */
+    public function payOutCredit(array $data): LedgerEntry
+    {
+        return DB::transaction(function () use ($data) {
+            $customer = Customer::where('tenant_id', $data['tenant_id'])
+                ->whereKey($data['customer_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($customer->is_walk_in) {
+                throw ValidationException::withMessages([
+                    'customer_id' => __('messages.credit_payout_walk_in'),
+                ]);
+            }
+
+            $amount    = round((float) $data['amount'], 2);
+            $available = $this->availableCredit($customer->tenant_id, $customer->id);
+
+            if ($amount <= 0 || $amount > $available) {
+                throw ValidationException::withMessages([
+                    'amount' => __('messages.credit_payout_exceeds_available', [
+                        'available' => number_format($available, 2, '.', ''),
+                    ]),
+                ]);
+            }
+
+            return LedgerEntry::create([
+                'tenant_id'      => $customer->tenant_id,
+                'customer_id'    => $customer->id,
+                'store_id'       => $data['store_id'] ?? null,
+                'user_id'        => $data['user_id'] ?? null,
+                'type'           => 'CREDIT_PAYOUT',
+                'amount'         => $amount,
+                'description'    => $data['description'] ?? 'Customer credit paid out in cash',
+                'reference_type' => $data['reference_type'],
+                'reference_id'   => $data['reference_id'],
+            ]);
+        }, attempts: 3);
+    }
+
     /**
      * Cash refundable balance for a whole order — net cash (non-credit) payments minus what's already refunded.
      */
@@ -481,7 +532,7 @@ public function restoreCredit(array $data): LedgerEntry
 
         $consumed = LedgerEntry::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
-            ->whereIn('type', ['CREDIT_CONSUMED'])
+            ->whereIn('type', ['CREDIT_CONSUMED', 'CREDIT_PAYOUT'])
             ->sum('amount');
 
         return max(0, round($credits - $consumed, 2));
