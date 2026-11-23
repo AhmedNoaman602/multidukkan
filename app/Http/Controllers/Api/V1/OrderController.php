@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
+use App\Http\Requests\CancelOrderRequest;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
 use App\Models\Order;
@@ -125,25 +126,36 @@ class OrderController extends Controller
         ], 422);
     }    }
 
-    public function destroy(Request $request, Order $order)
+    // POST /orders/{order}/cancel, and the older DELETE /orders/{order} (no settlement sent).
+    public function cancel(CancelOrderRequest $request, Order $order)
     {
         $this->authorize('delete', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
-        
+
         if ($order->trashed()) {
             return response()->json(['message' => __('messages.order_already_cancelled')], 422);
         }
 
-        try{
-            $this->order->cancelOrder($order, auth()->user());
+        $this->order->cancelOrder($order, auth()->user(), $request->validated()['settlement'] ?? null);
 
-            return response()->json(['message' => __('messages.order_cancelled')], 200);
-        }catch(ValidationException $e){
-            return response()->json(['message' => $e->getMessage()], 422);
-        } 
+        return response()->json(['message' => __('messages.order_cancelled')], 200);
+    }
+
+    // Informational only: the cancel recalculates everything under its locks.
+    public function cancellation(Order $order)
+    {
+        $this->authorize('delete', $order);
+
+        if ($order->tenant_id != auth()->user()->tenant_id) {
+            return response()->json(['message' => __('messages.unauthorized')], 403);
+        }
+
+        $summary = $this->ledger->cancellationSummary($order->load('payments', 'customer'));
+
+        return response()->json(['data' => $summary]);
     }
 
 

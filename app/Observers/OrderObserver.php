@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Models\Order;
 use App\Models\AuditLog;
+use App\Models\LedgerEntry;
 use Illuminate\Validation\ValidationException;
 class OrderObserver
 {
@@ -55,19 +56,21 @@ class OrderObserver
     {
     }
 
- public function deleting(Order $order): void
-{
-    $hasUnrefundedPayments = $order->payments()
-        ->cashOnly()
-        ->whereRaw('amount > COALESCE(refunded_amount, 0)')
-        ->exists();
+    // Backstop for any delete that skips OrderService::cancelOrder: an invoice may only go once
+    // its whole charge is reversed (REVERSAL + store credit given back = total).
+    public function deleting(Order $order): void
+    {
+        $reversed = LedgerEntry::where('reference_type', 'order')
+            ->where('reference_id', $order->id)
+            ->whereIn('type', ['REVERSAL', 'CREDIT_APPLY'])
+            ->sum('amount');
 
-    if ($hasUnrefundedPayments) {
-        throw ValidationException::withMessages([
-            'order' => __('messages.order_has_payments'),
-        ]);
+        if (round((float) $reversed, 2) < round((float) $order->total, 2)) {
+            throw ValidationException::withMessages([
+                'order' => __('messages.order_charge_not_reversed'),
+            ]);
+        }
     }
-}
 
     /**
      * Handle the Order "deleted" event.

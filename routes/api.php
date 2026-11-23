@@ -46,7 +46,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
-    Route::delete('/orders/{order}', [OrderController::class, 'destroy'])->withTrashed();
+    Route::delete('/orders/{order}', [OrderController::class, 'cancel'])->withTrashed();
+    Route::post('/orders/{order}/cancel', [OrderController::class, 'cancel'])->withTrashed();
+    Route::get('/orders/{order}/cancellation', [OrderController::class, 'cancellation']);
     Route::get('/orders/{order}', [OrderController::class, 'show']);
     Route::patch('/orders/{order}', [OrderController::class, 'update']);
     Route::patch('/orders/{order}/items/{item}', [OrderController::class, 'updateItem']);

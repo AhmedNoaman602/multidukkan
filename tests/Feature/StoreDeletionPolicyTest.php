@@ -86,7 +86,7 @@ class StoreDeletionPolicyTest extends TestCase
     public function test_store_with_soft_deleted_order_history_cannot_be_deleted(): void
     {
         $order = $this->makeOrder();
-        $order->delete();
+        $order->deleteQuietly();
 
         $this->deleteStore()
             ->assertStatus(422)

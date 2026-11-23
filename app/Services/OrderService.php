@@ -387,78 +387,116 @@ if (!empty($data['pay_immediately'])) {
         return $order->load('items', 'payments', 'customer');
     }
   
-   public function cancelOrder(Order $order, User $user): void
-{
-    DB::transaction(function () use ($order, $user) {
-        $order = Order::withTrashed()->lockForUpdate()->findOrFail($order->id);
-        if($order->trashed()){
-             throw ValidationException::withMessages([
-                'order' => __('messages.order_already_cancelled')
-            ]);
-        }
-        $chargeAmount = $order->total;
+    /**
+     * Cancel an invoice and settle its money in the same transaction.
+     *
+     * Always: store credit back (CREDIT_APPLY), the rest of the charge reversed (REVERSAL),
+     * stock back at each line's sale cost. Whatever was paid, net of earlier refunds, is then
+     * the customer's credit. $settlement decides that whole amount: 'credit' writes nothing
+     * more; 'cash' refunds the cash payments and pays the restored store credit out.
+     *
+     * Locks: customer (L0) → order → payments → stock rows → products. The customer lock is
+     * the first statement, so every read after it sees what the previous holder committed.
+     */
+    public function cancelOrder(Order $order, User $user, ?string $settlement = null): void
+    {
+        $customerId = $order->customer_id;
 
-        $hasUnrefundedPayments = $order->payments()
-            ->cashOnly()
-            ->whereRaw('amount > COALESCE(refunded_amount, 0)')
-            ->exists();
+        DB::transaction(function () use ($order, $user, $settlement, $customerId) {
+            Customer::whereKey($customerId)->lockForUpdate()->firstOrFail();
 
-        if ($hasUnrefundedPayments) {
-            throw ValidationException::withMessages([
-                'order' => __('messages.refund_before_cancel')
-            ]);
-        }
+            $order = Order::withTrashed()->lockForUpdate()->findOrFail($order->id);
+            if ($order->trashed()) {
+                throw ValidationException::withMessages([
+                    'order' => __('messages.order_already_cancelled'),
+                ]);
+            }
 
-        $creditPayments = $order->payments()
-    ->creditOnly()
-    ->get();
+            $order->setRelation('payments', $order->payments()->orderBy('id')->lockForUpdate()->get());
+            $summary = $this->ledger->cancellationSummary($order);
 
-    $creditPaymentsTotal = $creditPayments->sum('amount');
+            if ($summary['blocked_reason'] === 'return_offset') {
+                throw ValidationException::withMessages([
+                    'order' => __('messages.cancel_has_return_offset'),
+                ]);
+            }
 
-    foreach ($creditPayments as $payment) {
-        $this->ledger->restoreCredit([
-        'tenant_id'      => $order->tenant_id,
-        'customer_id'    => $order->customer_id,
-        'store_id'       => $order->store_id,
-        'order_id'       => $order->id,
-        'payment_id'     => $payment->id,
-        'amount'         => $payment->amount,
-        'invoice_number' => $order->invoice_number,
-        'user_id'        => $user->id,
-        ]);
+            $settleInCash = $summary['settlement_required'] && $settlement === 'cash';
+
+            if ($summary['settlement_required']) {
+                if ($settlement === null) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_settlement_required'),
+                    ]);
+                }
+                if (! in_array($settlement, $summary['settlements'], true)) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_walk_in_cash_only'),
+                    ]);
+                }
+                if ($settleInCash && ! $summary['cash_payout_available']) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_credit_payout_unavailable', [
+                            'amount'    => number_format($summary['credit_paid'], 2, '.', ''),
+                            'available' => number_format($summary['available_for_payout'], 2, '.', ''),
+                        ]),
+                    ]);
+                }
+            }
+
+            $entry = [
+                'tenant_id'      => $order->tenant_id,
+                'customer_id'    => $order->customer_id,
+                'store_id'       => $order->store_id,
+                'order_id'       => $order->id,
+                'invoice_number' => $order->invoice_number,
+                'user_id'        => $user->id,
+            ];
+
+            foreach ($order->payments->where('is_auto_reversible', true) as $payment) {
+                $this->ledger->restoreCredit($entry + [
+                    'payment_id' => $payment->id,
+                    'amount'     => $payment->amount,
+                ]);
+            }
+
+            // P2: each line goes back at its own sale cost (unit_cost_at_sale); stock rows and
+            // products are locked together in id order by restoreAtCost (never line by line).
+            // An unknown cost goes back at today's average (D27).
+            $lines = $order->items()->get()->map(fn ($item) => [
+                'product_id'    => $item->product_id,
+                'warehouse_id'  => $item->warehouse_id,
+                'base_quantity' => $item->baseQuantity(),
+                'unit_cost'     => $item->unit_cost_at_sale,
+            ])->all();
+
+            if ($lines !== []) {
+                $this->inventory->restoreAtCost($lines, $order->id, Order::class, $user->id, (string) Str::uuid());
+            }
+
+            $reversalAmount = round($summary['total'] - $summary['credit_paid'], 2);
+            if ($reversalAmount > 0) {
+                $this->ledger->reverseOrder($entry + ['amount' => $reversalAmount]);
+            }
+
+            if ($settleInCash && $summary['cash_paid'] > 0) {
+                $this->ledger->issueRefund($entry + [
+                    'amount' => $summary['cash_paid'],
+                    'method' => 'cash',
+                    'notes'  => 'cancelled order '.$order->invoice_number,
+                ]);
+            }
+
+            if ($settleInCash && $summary['credit_paid'] > 0) {
+                $this->ledger->payOutCredit($entry + [
+                    'amount'         => $summary['credit_paid'],
+                    'reference_type' => 'order',
+                    'reference_id'   => $order->id,
+                    'description'    => 'Store credit paid out — cancelled order '.$order->invoice_number,
+                ]);
+            }
+
+            $order->delete();
+        }, attempts: 3);
     }
-
-        // P2: each line goes back at its own sale cost (unit_cost_at_sale); stock rows and
-        // products are locked together in id order by restoreAtCost (never line by line).
-        // An unknown cost goes back at today's average (D27).
-        $lines = $order->items()->get()->map(fn ($item) => [
-            'product_id'    => $item->product_id,
-            'warehouse_id'  => $item->warehouse_id,
-            'base_quantity' => $item->baseQuantity(),
-            'unit_cost'     => $item->unit_cost_at_sale,
-        ])->all();
-
-        if ($lines !== []) {
-            $this->inventory->restoreAtCost($lines, $order->id, Order::class, $user->id, (string) Str::uuid());
-        }
-
-    $reversalAmount = $chargeAmount - $creditPaymentsTotal;
-    if ($reversalAmount > 0) {
-    $this->ledger->reverseOrder([
-        'tenant_id'      => $order->tenant_id,
-        'customer_id'    => $order->customer_id,
-        'store_id'       => $order->store_id,
-        'order_id'       => $order->id,
-        'amount'         => $reversalAmount,
-        'invoice_number' => $order->invoice_number,
-        'user_id'        => $user->id,
-    ]);
-    }
-    $order->payments()
-      ->whereIn('id', $creditPayments->pluck('id'))
-      ->delete(); 
-
-    $order->delete();
-    }, attempts:3);
-}
 }

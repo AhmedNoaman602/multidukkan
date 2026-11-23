@@ -357,6 +357,42 @@ public function restoreCredit(array $data): LedgerEntry
     ]);
 }
 
+    /**
+     * What cancelling this invoice gives back. Expects the order's payments loaded — under
+     * lock when cancelling, so the amounts are the ones that get written.
+     *
+     * Every cancel restores store credit and reverses the rest of the charge, so the balance
+     * drops by the total. A cash settlement then refunds the cash paid (a debit again), and
+     * the restored store credit is paid out only if that much credit is available by then.
+     */
+    public function cancellationSummary(Order $order): array
+    {
+        $net      = fn ($p) => (float) $p->amount - (float) ($p->refunded_amount ?? 0);
+        $payments = $order->payments;
+
+        $total      = round((float) $order->total, 2);
+        $cashPaid   = round($payments->where('counts_as_cash', true)->sum($net), 2);
+        $creditPaid = round($payments->where('is_auto_reversible', true)->sum($net), 2);
+        $offsets    = round($payments->where('method', 'return_offset')->sum($net), 2);
+        $refundable = round($cashPaid + $creditPaid, 2);
+
+        $balanceBeforePayout = round($this->getBalance($order->tenant_id, $order->customer_id) - $total + $cashPaid, 2);
+        $availableForPayout  = max(0, -$balanceBeforePayout);
+
+        return [
+            'total'                 => $total,
+            'cash_paid'             => $cashPaid,
+            'credit_paid'           => $creditPaid,
+            'refundable'            => $refundable,
+            'unpaid_reversed'       => max(0, round($total - $cashPaid - $creditPaid - $offsets, 2)),
+            'settlement_required'   => $refundable > 0,
+            'settlements'           => $order->customer->is_walk_in ? ['cash'] : ['cash', 'credit'],
+            'cash_payout_available' => $creditPaid <= $availableForPayout,
+            'available_for_payout'  => $availableForPayout,
+            'blocked_reason'        => $offsets > 0 ? 'return_offset' : null,
+        ];
+    }
+
     /** Credit the customer can use or be paid out: a negative balance, never below zero. */
     public function availableCredit(int $tenantId, int $customerId): float
     {
