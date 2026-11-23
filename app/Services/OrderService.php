@@ -359,10 +359,7 @@ if (!empty($data['pay_immediately'])) {
                 auth()->user(), (string) Str::uuid()
             );
         } elseif ($stockDelta < 0) {
-            $this->inventory->restoreStock(
-                $item->product_id, $item->warehouse_id,
-                abs($stockDelta), $order->id, Order::class, auth()->id()
-            );
+            $this->restoreDecrease($order, $item, -$stockDelta);
         }
 
         $item->update([
@@ -376,6 +373,50 @@ if (!empty($data['pay_immediately'])) {
 
         $this->resetToCalculatedTotal($order);
         }, attempts:3);
+    }
+
+    /**
+     * D31/P1: a decrease takes from the newest allocation first and puts that stock back at
+     * the allocation's cost. Refused once the order has any return (D2), so a returned
+     * allocation is never reduced or skipped over.
+     */
+    private function restoreDecrease(Order $order, OrderItem $item, int $quantity): void
+    {
+        $allocations = OrderItemCost::whereIn('order_item_id', $order->items()->pluck('id'))
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        if ($allocations->contains(fn ($a) => $a->returned_quantity > 0)) {
+            throw ValidationException::withMessages([
+                'order' => __('messages.order_has_returns_locked'),
+            ]);
+        }
+
+        $parts = [];
+        $remaining = $quantity;
+        foreach ($allocations->where('order_item_id', $item->id)->reverse() as $allocation) {
+            if ($remaining === 0) {
+                break;
+            }
+
+            $take = min($remaining, $allocation->base_quantity);
+            $parts[] = [$take, $allocation->unit_cost];
+            $remaining -= $take;
+
+            $take === $allocation->base_quantity
+                ? $allocation->delete()
+                : $allocation->update(['base_quantity' => $allocation->base_quantity - $take]);
+        }
+
+        if ($remaining > 0) {
+            throw new \RuntimeException("Order line {$item->id}: allocations cover less than the {$quantity} units being removed.");
+        }
+
+        $this->inventory->restoreAtCost(
+            [['product_id' => $item->product_id, 'warehouse_id' => $item->warehouse_id, 'parts' => $parts]],
+            $order->id, Order::class, auth()->id()
+        );
     }
 
     private function ensureOrderIsEditable(Order $order): void
@@ -605,17 +646,30 @@ public function updateOrder(Order $order, array $data, User $user): Order
         ]);
     }
 
-        $batchId = (string) Str::uuid();
-        foreach ($order->items as $item) {
-            $this->inventory->restoreStock(
-                $item->product_id,
-                $item->warehouse_id,
-                $item->baseQuantity(),
-                $order->id,
-                Order::class,
-                $user->id,
-                $batchId
-            );
+        // D31/P2: each allocation goes back at its own cost; stock rows and products are locked
+        // together in id order by restoreAtCost (never line by line). A line without
+        // allocations goes back at today's average, as before (D27).
+        $items = $order->items()->get();
+        $allocations = OrderItemCost::whereIn('order_item_id', $items->pluck('id'))
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->groupBy('order_item_id');
+
+        $lines = $items->map(fn ($item) => [
+            'product_id'   => $item->product_id,
+            'warehouse_id' => $item->warehouse_id,
+            'parts'        => isset($allocations[$item->id])
+                ? $allocations[$item->id]
+                    ->map(fn ($a) => [$a->base_quantity - $a->returned_quantity, $a->unit_cost])
+                    ->filter(fn ($part) => $part[0] > 0)
+                    ->values()
+                    ->all()
+                : [[$item->baseQuantity(), null]],
+        ])->filter(fn ($line) => $line['parts'] !== [])->values()->all();
+
+        if ($lines !== []) {
+            $this->inventory->restoreAtCost($lines, $order->id, Order::class, $user->id, (string) Str::uuid());
         }
 
     $reversalAmount = $chargeAmount - $creditPaymentsTotal;

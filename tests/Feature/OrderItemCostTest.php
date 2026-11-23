@@ -412,6 +412,102 @@ class OrderItemCostTest extends TestCase
         $this->assertEquals(15, $this->costOf($product), 'D27: unknown cost goes back at today\'s average, which stays 15.');
     }
 
+    public function test_cancelling_an_order_with_products_in_reverse_id_order_restores_each_at_its_cost(): void
+    {
+        $p1 = $this->product(10, 20);
+        $p2 = $this->product(4, 20);
+        $order = Order::findOrFail($this->actingAs($this->admin)->postJson('/api/orders', [
+            'store_id'    => $this->store->id,
+            'customer_id' => $this->customer->id,
+            'order_date'  => $this->today(),
+            'items'       => [['product_id' => $p2->id, 'quantity' => 3], ['product_id' => $p1->id, 'quantity' => 2]],
+        ])->assertStatus(201)->json('id'));
+        $this->buy($p1, 18, 14);
+        $this->buy($p2, 17, 6);
+        $this->assertEquals(12, $this->costOf($p1), 'Setup: (18 × 10 + 18 × 14) / 36');
+        $this->assertEquals(5, $this->costOf($p2), 'Setup: (17 × 4 + 17 × 6) / 34');
+
+        $this->actingAs($this->admin)->deleteJson("/api/orders/{$order->id}")->assertOk();
+
+        $this->assertSame(38, $this->stockOf($p1));
+        $this->assertEquals(11.8947, $this->costOf($p1), '(36 × 12 + 2 × 10) / 38 = 452 / 38');
+        $this->assertSame(37, $this->stockOf($p2));
+        $this->assertEquals(4.9189, $this->costOf($p2), '(34 × 5 + 3 × 4) / 37 = 182 / 37');
+    }
+
+    public function test_several_allocations_are_averaged_in_one_step_without_stacked_rounding(): void
+    {
+        $product = $this->product(10, 3);
+        $order   = $this->sell($product, 2);
+        $itemId  = $this->onlyItemId($order);
+        DB::table('order_item_costs')->where('order_item_id', $itemId)->update(['base_quantity' => 1]);
+        DB::table('order_item_costs')->insert([
+            'tenant_id' => $this->tenant->id, 'order_item_id' => $itemId, 'base_quantity' => 1,
+            'unit_cost' => 12, 'unit_cost_source' => 'average_at_sale', 'returned_quantity' => 0,
+        ]);
+        DB::table('products')->where('id', $product->id)->update(['cost_price' => 12.3333]);
+
+        $this->actingAs($this->admin)->deleteJson("/api/orders/{$order->id}")->assertOk();
+
+        $this->assertSame(3, $this->stockOf($product));
+        $this->assertEquals(
+            11.4444,
+            $this->costOf($product),
+            '(1 × 12.3333 + 10 + 12) / 3 = 11.44443; one allocation at a time would round to 11.4445'
+        );
+    }
+
+    public function test_cancelling_twice_is_refused_and_changes_nothing(): void
+    {
+        [$product, $order, $itemId] = $this->twoAdditionsAtDifferentCosts();
+        $this->actingAs($this->admin)->deleteJson("/api/orders/{$order->id}")->assertOk();
+        $allocations = $this->allocations($itemId);
+
+        $this->actingAs($this->admin)->deleteJson("/api/orders/{$order->id}")->assertStatus(422);
+
+        $this->assertSame(38, $this->stockOf($product));
+        $this->assertEquals(11.8947, $this->costOf($product));
+        $this->assertSame($allocations, $this->allocations($itemId));
+    }
+
+    public function test_a_cancellation_that_fails_midway_changes_no_stock_cost_or_allocation(): void
+    {
+        [$product, $order, $itemId] = $this->twoAdditionsAtDifferentCosts();
+        $this->failOnQuery('insert into `ledger_entries`');
+
+        $this->actingAs($this->admin)->deleteJson("/api/orders/{$order->id}")->assertStatus(500);
+
+        $this->assertSame(34, $this->stockOf($product), 'Stock was restored before the failure and must be rolled back.');
+        $this->assertEquals(12, $this->costOf($product));
+        $this->assertSame([[2, 10.0, 'average_at_sale', 0], [2, 12.0, 'average_at_sale', 0]], $this->allocations($itemId));
+        $this->assertNotSoftDeleted('orders', ['id' => $order->id]);
+    }
+
+    public function test_a_decrease_that_fails_midway_changes_no_stock_cost_or_allocation(): void
+    {
+        [$product, $order, $itemId] = $this->twoAdditionsAtDifferentCosts();
+        $this->failOnQuery('update `ledger_entries`');
+
+        $this->setQuantity($order, $itemId, 1)->assertStatus(500);
+
+        $this->assertSame(4, (int) DB::table('order_items')->where('id', $itemId)->value('quantity'));
+        $this->assertSame(34, $this->stockOf($product));
+        $this->assertEquals(12, $this->costOf($product));
+        $this->assertSame([[2, 10.0, 'average_at_sale', 0], [2, 12.0, 'average_at_sale', 0]], $this->allocations($itemId));
+    }
+
+    /** Throws once, right after the first query that starts with $sqlPrefix, to fail a request midway. */
+    private function failOnQuery(string $sqlPrefix): void
+    {
+        $armed = true;
+        DB::listen(function ($query) use ($sqlPrefix, &$armed) {
+            if ($armed && str_starts_with($query->sql, $sqlPrefix)) {
+                $armed = false;
+                throw new \RuntimeException("Forced failure after: {$sqlPrefix}");
+            }
+        });
+    }
+
     // ─── Database guarantees returns will rely on ──────────────────────────────
 
     public function test_an_allocation_cannot_record_more_returned_than_it_sold(): void

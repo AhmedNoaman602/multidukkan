@@ -28,6 +28,7 @@ return [
     'purchase_order_already_cancelled' => 'تم إلغاء الطلب مسبقًا',
     'purchase_order_cancelled' => 'تم إلغاء الطلب وعكس القيد المحاسبي بنجاح',
     'order_already_cancelled' => 'تم إلغاء الطلب مسبقًا',
+    'order_has_returns_locked' => 'هذا الطلب عليه مرتجع، لذلك لا يمكن تقليل كمياته.',
     'order_cancelled' => 'تم إلغاء الطلب وعكس القيد المحاسبي بنجاح',
     'order_item_mismatch' => 'هذا العنصر لا ينتمي لهذا الطلب',
 

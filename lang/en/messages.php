@@ -28,6 +28,7 @@ return [
     'purchase_order_already_cancelled' => 'Order already cancelled',
     'purchase_order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_already_cancelled' => 'Order already cancelled',
+    'order_has_returns_locked' => 'This order has a customer return, so its quantities can no longer be decreased.',
     'order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_item_mismatch' => 'Item does not belong to this order',
 
