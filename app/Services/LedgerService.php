@@ -474,6 +474,9 @@ public function restoreCredit(array $data): LedgerEntry
     {
         return DB::transaction(function() use ($data){
 
+        // L0: same order as cancel and payments (customer → order → payments).
+        Customer::where('tenant_id', $data['tenant_id'])->whereKey($data['customer_id'])->lockForUpdate()->firstOrFail();
+
         // A cancelled invoice already settled its money. Checked on the locked order row, so a
         // refund that passed validation while a cancel was running is refused once it commits.
         $byPayment = !empty($data['payment_id_target']);

@@ -299,4 +299,117 @@ class ConcurrencyTest extends TestCase
 
         $this->assertSame(422, $edit->status(), 'Edit response: '.$edit->getContent());
     }
+
+    private function paidSale(Product $product, int $quantity = 1): int
+    {
+        return $this->actingAs($this->user)->postJson('/api/orders', array_merge($this->saleData($product), [
+            'items'           => [['product_id' => $product->id, 'quantity' => $quantity]],
+            'pay_immediately' => true,
+            'payment_method'  => 'cash',
+        ]))->assertStatus(201)->json('id');
+    }
+
+    /**
+     * Invoice paid 60 in cash. The child cancels it as customer credit and holds; the cash
+     * payment row still shows 60 unrefunded. A refund of that payment passes validation (the
+     * invoice isn't cancelled yet) and then waits on the customer lock.
+     * Correct result: the refund is refused once the cancel commits; the 60 is paid back once (as credit).
+     */
+    public function test_a_refund_waiting_on_a_cancel_to_credit_is_refused(): void
+    {
+        $orderId   = $this->paidSale($this->productA);
+        $paymentId = DB::table('payments')->where('order_id', $orderId)->value('id');
+
+        $child = $this->startChild([['op' => 'cancel', 'data' => ['order_id' => $orderId, 'settlement' => 'credit']]], holdSeconds: 3);
+
+        $refund = $this->actingAs($this->user)->postJson("/api/customers/{$this->customer->id}/refund", [
+            'payment_id_target' => $paymentId,
+            'amount'            => 60,
+            'method'            => 'cash',
+        ]);
+
+        $this->finish($child);
+
+        $refund->assertStatus(422)->assertJsonPath('errors.payment_id_target.0', __('messages.refund_order_cancelled'));
+        $this->assertEquals(0, DB::table('payments')->where('id', $paymentId)->value('refunded_amount'));
+        $this->assertSame(0, DB::table('ledger_entries')->where('type', 'REFUND')->count());
+        $this->assertEquals(-60, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    /**
+     * Invoice paid 60 in cash. The child refunds 20 and holds; the cancel (cash) waits.
+     * Correct result: the cancel refunds only the 40 left — 60 paid back in total, never 80.
+     */
+    public function test_a_cancel_waiting_on_a_refund_pays_back_only_the_rest(): void
+    {
+        $orderId = $this->paidSale($this->productA);
+
+        $child = $this->startChild([['op' => 'refund', 'data' => [
+            'customer_id' => $this->customer->id,
+            'store_id'    => $this->store->id,
+            'amount'      => 20,
+            'method'      => 'cash',
+            'order_id'    => $orderId,
+        ]]], holdSeconds: 3);
+
+        $cancel = $this->actingAs($this->user)->postJson("/api/orders/{$orderId}/cancel", ['settlement' => 'cash']);
+
+        $this->finish($child);
+
+        $cancel->assertOk();
+        $this->assertEquals(60, DB::table('ledger_entries')->where('type', 'REFUND')->sum('amount'));
+        $this->assertEquals(60, DB::table('payments')->where('order_id', $orderId)->value('refunded_amount'));
+        $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    /**
+     * Invoice paid entirely by store credit. Two cash cancels at once.
+     * Correct result: the credit is restored and paid out once; the second cancel is refused.
+     */
+    public function test_two_cash_cancels_pay_the_store_credit_out_once(): void
+    {
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
+            'customer_id' => $this->customer->id, 'amount' => 60, 'method' => 'cash',
+        ])->assertStatus(201);
+        $orderId = $this->actingAs($this->user)->postJson('/api/orders', $this->saleData($this->productA))
+            ->assertStatus(201)->json('id');
+
+        $child = $this->startChild([['op' => 'cancel', 'data' => ['order_id' => $orderId, 'settlement' => 'cash']]], holdSeconds: 3);
+
+        $second = $this->actingAs($this->user)->postJson("/api/orders/{$orderId}/cancel", ['settlement' => 'cash']);
+
+        $this->finish($child);
+
+        $second->assertStatus(422)->assertJsonPath('message', __('messages.order_already_cancelled'));
+        $this->assertSame(1, DB::table('ledger_entries')->where('type', 'CREDIT_PAYOUT')->count());
+        $this->assertEquals(60, DB::table('ledger_entries')->where('type', 'CREDIT_PAYOUT')->sum('amount'));
+        $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
+
+    /**
+     * Store credit 60 paid invoice A; invoice B (60) is owed. The child pays B in cash and
+     * holds the customer lock. A cash cancel of A must wait and then read the balance after
+     * that payment — reading it before would see B's debt and wrongly refuse the payout.
+     * Correct result: the cancel waits, then pays the 60 credit out.
+     */
+    public function test_a_cash_cancel_reads_the_credit_after_a_payment_it_waited_for(): void
+    {
+        $this->actingAs($this->user)->postJson('/api/payments/auto', [
+            'customer_id' => $this->customer->id, 'amount' => 60, 'method' => 'cash',
+        ])->assertStatus(201);
+        $orderA = $this->actingAs($this->user)->postJson('/api/orders', $this->saleData($this->productA))
+            ->assertStatus(201)->json('id');
+        $orderB = Order::findOrFail($this->actingAs($this->user)->postJson('/api/orders', $this->saleData($this->productB))
+            ->assertStatus(201)->json('id'));
+
+        $child = $this->startChild([$this->directPayment($orderB, 60)], holdSeconds: 3);
+
+        $cancel = $this->actingAs($this->user)->postJson("/api/orders/{$orderA}/cancel", ['settlement' => 'cash']);
+
+        $this->finish($child);
+
+        $cancel->assertOk();
+        $this->assertEquals(60, DB::table('ledger_entries')->where('type', 'CREDIT_PAYOUT')->sum('amount'));
+        $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
+    }
 }
