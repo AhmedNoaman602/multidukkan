@@ -610,19 +610,37 @@ public function restoreCredit(array $data): LedgerEntry
         ];
     }
 
+    // Gross, on the payment's own date: a later refund is a cash outflow on its own date
+    // (cashOutflows), never a reduction of the day the money came in.
     public function settlementBreakdown(Collection $payments): array
     {
-        $net = fn ($p) => $p->amount - ($p->refunded_amount ?? 0);
+        $amount = fn ($p) => (float) $p->amount;
 
-        $cash          = round($payments->where('counts_as_cash', true)->sum($net), 2);
-        $credit        = round($payments->where('is_auto_reversible', true)->sum($net), 2);
-        $returnOffsets = round($payments->where('method', 'return_offset')->sum($net), 2);
+        $cash          = round($payments->where('counts_as_cash', true)->sum($amount), 2);
+        $credit        = round($payments->where('is_auto_reversible', true)->sum($amount), 2);
+        $returnOffsets = round($payments->where('method', 'return_offset')->sum($amount), 2);
 
         return [
             'cash'           => $cash,
             'credit'         => $credit,
             'return_offsets' => $returnOffsets,
             'total'          => round($cash + $credit + $returnOffsets, 2),
+        ];
+    }
+
+    /** Customer cash paid out between two instants, by the date it was paid out. */
+    public function cashOutflows(int $tenantId, \DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        $sums = LedgerEntry::where('tenant_id', $tenantId)
+            ->whereIn('type', ['REFUND', 'CREDIT_PAYOUT'])
+            ->whereBetween('created_at', [$from, $to])
+            ->groupBy('type')
+            ->selectRaw('type, SUM(amount) as total')
+            ->pluck('total', 'type');
+
+        return [
+            'refunded'        => round((float) ($sums['REFUND'] ?? 0), 2),
+            'credit_paid_out' => round((float) ($sums['CREDIT_PAYOUT'] ?? 0), 2),
         ];
     }
 

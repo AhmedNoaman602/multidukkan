@@ -36,6 +36,11 @@ class ReportController extends Controller
         $unpaid = $this->ledger->orderPaymentTotals($this->ordersQuery($tenantId, $from, $to))['unpaid'];
         $payments = $this->fetchPayments($tenantId, $from, $to, $timezone);
         $cashPayments = $payments->where('counts_as_cash', true);
+        $outflows = $this->ledger->cashOutflows(
+            $tenantId,
+            LocalDateRange::startOfDay($from, $timezone),
+            LocalDateRange::endOfDay($to, $timezone),
+        );
         $totalExpenses = $this->expenseService->getTotalForPeriod($tenantId, $from, $to);
         $perPage = $isPrint ? PHP_INT_MAX : ($request->per_page ?? 10);
 
@@ -45,7 +50,7 @@ class ReportController extends Controller
             // times in the same day the totals were calculated for, instead of each
             // side deciding independently.
             'business_timezone'   => $timezone,
-            'summary'             => $this->buildSummary($orders, $unpaid, $payments, $totalExpenses),
+            'summary'             => $this->buildSummary($orders, $unpaid, $payments, $outflows, $totalExpenses),
             'missing_cost_prices' => $this->countMissingCostPrices($orders),
             'profit_by_order'     => $this->paginate($this->buildProfitByOrder($orders),            $request->order_page    ?? 1, $perPage),
             'payments_history'    => $this->paginate($this->buildPaymentsHistory($cashPayments),        $request->payment_page  ?? 1, $perPage),
@@ -86,7 +91,7 @@ private function fetchOrders(int $tenantId, string $from, string $to): Collectio
 
     // ─── Builders ─────────────────────────────────────────────────────────────
 
-private function buildSummary(Collection $orders, float $unpaid, Collection $payments, float $totalExpenses): array {
+private function buildSummary(Collection $orders, float $unpaid, Collection $payments, array $outflows, float $totalExpenses): array {
     $totalRevenue   = $orders->sum(fn($o) => $this->calcOrderTotal($o));
     $settlement     = $this->ledger->settlementBreakdown($payments);
     // Same per-order profit as buildProfitByOrder, so the summary always equals the sum of
@@ -102,6 +107,9 @@ private function buildSummary(Collection $orders, float $unpaid, Collection $pay
             'total_credit_settlements' => $settlement['credit'],
             'total_return_offsets'     => $settlement['return_offsets'],
             'total_settled'            => $settlement['total'],
+            'total_cash_refunded'      => $outflows['refunded'],
+            'total_credit_paid_out'    => $outflows['credit_paid_out'],
+            'net_cash'                 => round($settlement['cash'] - $outflows['refunded'] - $outflows['credit_paid_out'], 2),
             'outstanding'              => $unpaid,
             'gross_profit'    => round($grossProfit, 2),
             'sales_excluded_from_profit'  => round($costUnknown->sum(fn($o) => $this->calcOrderTotal($o)), 2),
@@ -135,7 +143,7 @@ private function buildSummary(Collection $orders, float $unpaid, Collection $pay
         return $payments->map(fn($p) => [
             'invoice_number' => $p->order?->invoice_number,
             'customer_name'  => $p->order?->customer_name_snapshot ?? __('messages.walk_in_label'),
-            'amount'         => round($p->amount - ($p->refunded_amount ?? 0), 2),
+            'amount'         => round((float) $p->amount, 2),
             'method'         => $p->method,
             'paid_at'        => $p->paid_at,
         ])
@@ -154,7 +162,7 @@ private function buildSummary(Collection $orders, float $unpaid, Collection $pay
                 'total'         => round($customerOrders->sum(fn($o) => $this->calcOrderTotal($o)), 2),
                 'collected'     => round(
                     $payments->whereIn('order_id', $customerOrders->pluck('id'))
-                        ->sum(fn($p) => $p->amount - ($p->refunded_amount ?? 0)),
+                        ->sum(fn($p) => (float) $p->amount),
                     2
                 ),
             ])
