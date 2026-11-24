@@ -230,8 +230,10 @@ foreach ($validatedItems as $v) {
             // --- LEDGER & CREDIT CHARGING BLOCK ---
             // Check the customer's current balance before processing this order.
             // A negative balance indicates the customer has an active credit line available.
-             $balanceBefore = $this->ledger->getBalance($order->tenant_id, $order->customer_id);
-             $creditAvailable = max(0, -$balanceBefore);
+            // The shared walk-in account never spends credit, so its invoices stay cancellable in cash.
+             $creditAvailable = $customer->is_walk_in
+                 ? 0
+                 : max(0, -$this->ledger->getBalance($order->tenant_id, $order->customer_id));
 
             // manual_total and discount are mutually exclusive: an override replaces the discount.
             $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;

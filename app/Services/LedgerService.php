@@ -652,7 +652,15 @@ public function restoreCredit(array $data): LedgerEntry
     {
         DB::transaction(function() use ($payment,$newAmount,$newMethod){
          $payment = Payment::lockForUpdate()->findOrFail($payment->id);
-               
+
+        // A cancelled invoice settled its money when it was cancelled. Read after the payment
+        // lock, which a running cancel also holds, so it sees a cancel that just committed.
+        if ($payment->order?->trashed()) {
+            throw ValidationException::withMessages([
+                'payment' => __('messages.payment_order_cancelled'),
+            ]);
+        }
+
         if(!$payment->counts_as_cash || $payment->is_auto_reversible){
             throw ValidationException::withMessages([
                 'payment' => __('messages.payment_not_adjustable')

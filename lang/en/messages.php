@@ -37,6 +37,8 @@ return [
     'cancel_credit_payout_unavailable' => ':amount of this invoice was paid with store credit, but only :available of credit is available to pay out because the customer owes on other invoices. Give it back as customer credit instead.',
     'order_charge_not_reversed' => 'An invoice can only be removed by cancelling it.',
     'refund_order_cancelled' => 'This invoice is cancelled. Its payments were settled when it was cancelled.',
+    'payment_order_cancelled' => 'This payment belongs to a cancelled invoice. Its money was settled at cancellation, so it can\'t be edited.',
+    'walk_in_overpayment' => 'A walk-in customer can\'t keep credit, so the payment can\'t be more than the :remaining still owed.',
     'order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_item_mismatch' => 'Item does not belong to this order',
 
