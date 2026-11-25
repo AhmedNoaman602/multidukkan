@@ -12,7 +12,9 @@ use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\PurchaseOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
@@ -126,6 +128,28 @@ class PurchaseOrderCancelStockMovedTest extends TestCase
         $this->assertNotSoftDeleted('purchase_orders', ['id' => $poId]);
         $this->assertEquals(0, $this->purchaseOuts());
         $this->assertEquals([16, 1], [$this->qty($this->storage), $this->qty($this->shelf)]);
+    }
+
+    public function test_a_cancel_working_from_a_stale_copy_of_an_already_cancelled_purchase_is_refused(): void
+    {
+        // Two purchases into storage: the stock check alone would pass for the second cancel.
+        $this->receive([['quantity' => 1, 'unit_type' => 'secondary']]);
+        $poId = $this->receive([['quantity' => 1, 'unit_type' => 'secondary']]); // 24 pcs in storage
+        $stale = PurchaseOrder::with('items')->findOrFail($poId);
+
+        $this->cancel($poId)->assertStatus(200);
+        $ledgerBefore = LedgerEntry::withoutGlobalScopes()->count();
+
+        try {
+            app(PurchaseOrderService::class)->cancelPurchaseOrder($stale, $this->admin);
+            $this->fail('A second cancel of the same purchase was accepted.');
+        } catch (ValidationException $e) {
+            $this->assertSame(__('messages.purchase_order_already_cancelled'), $e->errors()['purchase_order'][0]);
+        }
+
+        $this->assertEquals(12, $this->qty($this->storage), 'The first purchase\'s box stays.');
+        $this->assertEquals(1, $this->purchaseOuts());
+        $this->assertEquals($ledgerBefore, LedgerEntry::withoutGlobalScopes()->count());
     }
 
     public function test_untouched_received_stock_can_still_be_cancelled(): void

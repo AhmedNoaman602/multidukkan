@@ -7,6 +7,7 @@ use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -258,6 +259,103 @@ class ConcurrencyTest extends TestCase
         $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
 
         $second->assertStatus(422)->assertJsonPath('message', __('messages.order_already_cancelled'));
+    }
+
+    /**
+     * Two purchases of 10 into the shelf (stock 100 → 120). A double click cancels the second
+     * one: the child cancels it and holds its transaction while the same cancel arrives here.
+     * The stock check can't stop the second cancel — 10 pieces of the first purchase are still
+     * there. Correct result: 10 pieces leave once (110), the supplier charge is reversed once,
+     * the second cancel is refused.
+     */
+    public function test_two_simultaneous_purchase_cancels_reverse_it_only_once(): void
+    {
+        $supplier = Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
+        $purchase = fn () => $this->actingAs($this->user)->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'items'       => [[
+                'product_id'   => $this->productA->id,
+                'warehouse_id' => $this->shelf->id,
+                'quantity'     => 10,
+                'unit_price'   => 30,
+            ]],
+        ])->assertStatus(201)->json('data.id');
+
+        $purchase();
+        $secondId = $purchase();
+
+        $child = $this->startChild([['op' => 'purchase_cancel', 'data' => ['purchase_order_id' => $secondId]]], holdSeconds: 3);
+
+        $second = $this->actingAs($this->user)->deleteJson("/api/purchase-orders/{$secondId}");
+
+        $this->finish($child);
+
+        $stock = DB::table('inventory')->where('product_id', $this->productA->id)->value('quantity');
+        $reversals = DB::table('ledger_entries')->where('type', 'PURCHASE_REVERSAL')->where('reference_id', $secondId)->count();
+
+        $this->assertEquals(110, $stock, "Stock is {$stock}: the cancelled purchase's 10 pieces must leave once (second cancel answered {$second->status()}).");
+        $this->assertSame(1, $reversals, 'The supplier charge was reversed '.$reversals.' times.');
+        $this->assertEquals(300, app(LedgerService::class)->getSupplierBalance($this->tenant->id, $supplier->id), 'Only the first purchase is still owed.');
+
+        $second->assertStatus(422)->assertJsonPath('message', __('messages.purchase_order_already_cancelled'));
+    }
+
+    private function purchaseOf(Supplier $supplier, int $quantity, float $unitPrice): int
+    {
+        return $this->actingAs($this->user)->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'items'       => [[
+                'product_id'   => $this->productA->id,
+                'warehouse_id' => $this->shelf->id,
+                'quantity'     => $quantity,
+                'unit_price'   => $unitPrice,
+            ]],
+        ])->assertStatus(201)->json('data.id');
+    }
+
+    /**
+     * A purchase of 100, nothing paid. A double click on "pay 100 against this purchase":
+     * the child pays and holds its transaction while the same payment arrives here.
+     * Correct result: one payment of 100, the second refused; the supplier is owed 0.
+     */
+    public function test_two_simultaneous_payments_of_one_purchase_cannot_overpay_it(): void
+    {
+        $supplier = Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
+        $poId     = $this->purchaseOf($supplier, 10, 10);
+        $payment  = ['supplier_id' => $supplier->id, 'purchase_order_id' => $poId, 'amount' => 100, 'method' => 'cash'];
+
+        $child  = $this->startChild([['op' => 'supplier_payment', 'data' => $payment]], holdSeconds: 3);
+        $second = $this->actingAs($this->user)->postJson('/api/supplier-payments', $payment);
+        $this->finish($child);
+
+        $paid = (float) DB::table('supplier_payments')->where('purchase_order_id', $poId)->sum('amount');
+
+        $this->assertEquals(100, $paid, "A purchase of 100 has {$paid} paid against it (second payment answered {$second->status()}).");
+        $this->assertSame(1, DB::table('ledger_entries')->where('type', 'SUPPLIER_PAYMENT')->count());
+        $this->assertEquals(0, app(LedgerService::class)->getSupplierBalance($this->tenant->id, $supplier->id));
+        $second->assertStatus(422);
+    }
+
+    /**
+     * Two purchases of 100 and 50 (owed 150). Two "pay the supplier 150" requests at once
+     * (no purchase chosen, oldest first). Correct result: 150 paid once, the second refused.
+     */
+    public function test_two_simultaneous_supplier_payments_without_a_purchase_cannot_overpay(): void
+    {
+        $supplier = Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
+        $this->purchaseOf($supplier, 10, 10);
+        $this->purchaseOf($supplier, 5, 10);
+        $payment = ['supplier_id' => $supplier->id, 'amount' => 150, 'method' => 'cash'];
+
+        $child  = $this->startChild([['op' => 'supplier_payment', 'data' => $payment]], holdSeconds: 3);
+        $second = $this->actingAs($this->user)->postJson('/api/supplier-payments', $payment);
+        $this->finish($child);
+
+        $paid = (float) DB::table('supplier_payments')->where('supplier_id', $supplier->id)->sum('amount');
+
+        $this->assertEquals(150, $paid, "The supplier was owed 150 and {$paid} was paid (second payment answered {$second->status()}).");
+        $this->assertEquals(0, app(LedgerService::class)->getSupplierBalance($this->tenant->id, $supplier->id));
+        $second->assertStatus(422);
     }
 
     /**
