@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Services;
+use App\Models\Supplier;
 use App\Models\SupplierPayment;
 use App\Models\User;
 use App\Models\PurchaseOrder;
@@ -16,12 +17,14 @@ class SupplierPaymentService
 
     public function processSupplierPayment(array $data , User $user) : array {
         return DB::transaction(function () use ($data , $user) {
+            Supplier::where('tenant_id', $user->tenant_id)->whereKey($data['supplier_id'])->lockForUpdate()->firstOrFail();
+
             $supplierId = $data['supplier_id'];
             $remaining = round((float)$data['amount'],2);
-            
+
             // Direct payment to a specific order
 if (!empty($data['purchase_order_id'])) {
-    $order = PurchaseOrder::with('supplierPayments')->findOrFail($data['purchase_order_id']);
+    $order = PurchaseOrder::lockForUpdate()->with('supplierPayments')->findOrFail($data['purchase_order_id']);
 
     if ((int) $order->supplier_id !== (int) $supplierId) {
         throw ValidationException::withMessages([
@@ -66,6 +69,7 @@ if (!empty($data['purchase_order_id'])) {
     ->whereUnpaid()
     ->with('supplierPayments')
     ->orderBy('created_at', 'asc')
+    ->lockForUpdate()
     ->get();
 
     $totalOwed = round($PurchaseOrders->sum(fn($o) => $o->total - $o->supplierPayments->sum('amount')), 2);
