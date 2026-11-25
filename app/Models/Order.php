@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\ScopedToTenant;
+use App\Support\LocalDateRange;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -75,6 +76,14 @@ class Order extends Model
     {
         return round($this->payments->where('counts_as_cash', true)
             ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
+    }
+
+    public function createdToday(): bool
+    {
+        $tz = LocalDateRange::businessTimezone();
+
+        return $this->created_at !== null
+            && $this->created_at->copy()->setTimezone($tz)->toDateString() === LocalDateRange::today($tz)->toDateString();
     }
 
     public function unknownCostLines(): int

@@ -28,6 +28,7 @@ return [
     'purchase_order_already_cancelled' => 'Order already cancelled',
     'purchase_order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_already_cancelled' => 'Order already cancelled',
+    'order_date_locked' => 'The invoice date can only be changed on the day the invoice was created.',
     'order_is_final' => 'This invoice is final and can no longer be edited. Create a new invoice for more products or quantities.',
     'credit_payout_exceeds_available' => 'Only :available of customer credit is available to pay out.',
     'credit_payout_walk_in' => 'A walk-in customer has no credit to pay out.',

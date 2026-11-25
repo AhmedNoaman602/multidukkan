@@ -92,6 +92,7 @@ class OrderResource extends JsonResource
         ...($showsCost ? $this->profitFields($total) : []),
         'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
         'order_date' => $this->order_date,
+        'date_editable' => $this->createdToday(),
     ];
 }
 private function profitFields(float $total): array

@@ -28,6 +28,7 @@ return [
     'purchase_order_already_cancelled' => 'تم إلغاء الطلب مسبقًا',
     'purchase_order_cancelled' => 'تم إلغاء الطلب وعكس القيد المحاسبي بنجاح',
     'order_already_cancelled' => 'تم إلغاء الطلب مسبقًا',
+    'order_date_locked' => 'تاريخ الفاتورة يمكن تغييره في نفس يوم إنشائها فقط.',
     'order_is_final' => 'هذه الفاتورة نهائية ولا يمكن تعديلها. أنشئ فاتورة جديدة لأي منتجات أو كميات إضافية.',
     'credit_payout_exceeds_available' => 'رصيد العميل المتاح للصرف :available فقط.',
     'credit_payout_walk_in' => 'العميل النقدي ليس له رصيد يُصرف.',

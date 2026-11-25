@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Support\LocalDateRange;
 use App\Support\Money;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -381,6 +382,15 @@ if (!empty($data['pay_immediately'])) {
 
         $order = DB::transaction(function () use ($order, $data) {
             $order = Order::lockForUpdate()->findOrFail($order->id);
+
+            if (isset($data['order_date'])
+                && Carbon::parse($data['order_date'])->toDateString() !== $order->order_date
+                && ! $order->createdToday()) {
+                throw ValidationException::withMessages([
+                    'order' => __('messages.order_date_locked'),
+                ]);
+            }
+
             $order->update($data);
 
             return $order;
