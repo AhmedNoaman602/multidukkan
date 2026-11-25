@@ -31,7 +31,8 @@ class PurchaseOrderService
         $year = now($timezone)->year;
         [$yearStart, $yearEnd] = LocalDateRange::yearRange($year, $timezone);
 
-        $last = PurchaseOrder::where('tenant_id', $tenantId)
+        $last = PurchaseOrder::withTrashed()
+            ->where('tenant_id', $tenantId)
             ->whereBetween('created_at', [$yearStart, $yearEnd])
             ->whereNotNull('invoice_number')
             ->orderByDesc('id')
