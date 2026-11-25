@@ -43,6 +43,7 @@ return [
     'walk_in_overpayment' => 'العميل النقدي لا يحتفظ برصيد، لذلك لا يمكن أن تزيد الدفعة عن المتبقي :remaining.',
     'order_cancelled' => 'تم إلغاء الطلب وعكس القيد المحاسبي بنجاح',
     'order_item_mismatch' => 'هذا العنصر لا ينتمي لهذا الطلب',
+    'sale_price_override_not_allowed' => 'تغيير سعر البيع مسموح للمالك أو مدير الفرع فقط.',
 
     'warehouse_has_stock_history' => 'لا يمكن حذف مخزن لديه سجل حركة مخزون',
     'warehouse_in_purchase_orders' => 'لا يمكن حذف مخزن يظهر في طلبات شراء سابقة',

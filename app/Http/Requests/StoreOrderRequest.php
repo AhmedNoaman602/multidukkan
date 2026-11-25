@@ -33,7 +33,9 @@ class StoreOrderRequest extends FormRequest
             'items.*.warehouse_id' => 'prohibited',
             'items.*.quantity'     => 'required|integer|min:1',
             'items.*.unit_type' => 'nullable|in:base,secondary',
-            'items.*.unit_price' => 'nullable|numeric|min:0|max:99999999.9999|decimal:0,4',
+            'items.*.unit_price' => $this->user()->role === 'store_staff'
+                ? 'prohibited'
+                : 'nullable|numeric|min:0|max:99999999.9999|decimal:0,4',
             'discount_type' => ['nullable', 'in:amount,percent'],
             'discount' => [
                 'nullable', 'numeric', 'min:0', 'decimal:0,2',
@@ -47,6 +49,13 @@ class StoreOrderRequest extends FormRequest
                 'date',
                 'before_or_equal:' . LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString(),
             ],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'items.*.unit_price.prohibited' => __('messages.sale_price_override_not_allowed'),
         ];
     }
 }

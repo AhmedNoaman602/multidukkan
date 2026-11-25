@@ -43,6 +43,7 @@ return [
     'walk_in_overpayment' => 'A walk-in customer can\'t keep credit, so the payment can\'t be more than the :remaining still owed.',
     'order_cancelled' => 'Order cancelled and ledger reversed successfully',
     'order_item_mismatch' => 'Item does not belong to this order',
+    'sale_price_override_not_allowed' => 'Only the owner or a store manager can change a sale price.',
 
     'warehouse_has_stock_history' => 'Cannot delete a warehouse with stock movement history',
     'warehouse_in_purchase_orders' => 'Cannot delete a warehouse that appears in existing purchase orders',
