@@ -7,6 +7,7 @@ use App\Models\Inventory;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\Supplier;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -258,6 +259,45 @@ class ConcurrencyTest extends TestCase
         $this->assertEquals(0, app(LedgerService::class)->getBalance($this->tenant->id, $this->customer->id));
 
         $second->assertStatus(422)->assertJsonPath('message', __('messages.order_already_cancelled'));
+    }
+
+    /**
+     * Two purchases of 10 into the shelf (stock 100 → 120). A double click cancels the second
+     * one: the child cancels it and holds its transaction while the same cancel arrives here.
+     * The stock check can't stop the second cancel — 10 pieces of the first purchase are still
+     * there. Correct result: 10 pieces leave once (110), the supplier charge is reversed once,
+     * the second cancel is refused.
+     */
+    public function test_two_simultaneous_purchase_cancels_reverse_it_only_once(): void
+    {
+        $supplier = Supplier::factory()->create(['tenant_id' => $this->tenant->id]);
+        $purchase = fn () => $this->actingAs($this->user)->postJson('/api/purchase-orders', [
+            'supplier_id' => $supplier->id,
+            'items'       => [[
+                'product_id'   => $this->productA->id,
+                'warehouse_id' => $this->shelf->id,
+                'quantity'     => 10,
+                'unit_price'   => 30,
+            ]],
+        ])->assertStatus(201)->json('data.id');
+
+        $purchase();
+        $secondId = $purchase();
+
+        $child = $this->startChild([['op' => 'purchase_cancel', 'data' => ['purchase_order_id' => $secondId]]], holdSeconds: 3);
+
+        $second = $this->actingAs($this->user)->deleteJson("/api/purchase-orders/{$secondId}");
+
+        $this->finish($child);
+
+        $stock = DB::table('inventory')->where('product_id', $this->productA->id)->value('quantity');
+        $reversals = DB::table('ledger_entries')->where('type', 'PURCHASE_REVERSAL')->where('reference_id', $secondId)->count();
+
+        $this->assertEquals(110, $stock, "Stock is {$stock}: the cancelled purchase's 10 pieces must leave once (second cancel answered {$second->status()}).");
+        $this->assertSame(1, $reversals, 'The supplier charge was reversed '.$reversals.' times.');
+        $this->assertEquals(300, app(LedgerService::class)->getSupplierBalance($this->tenant->id, $supplier->id), 'Only the first purchase is still owed.');
+
+        $second->assertStatus(422)->assertJsonPath('message', __('messages.purchase_order_already_cancelled'));
     }
 
     /**

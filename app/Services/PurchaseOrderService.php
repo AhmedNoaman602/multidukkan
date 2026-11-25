@@ -254,6 +254,14 @@ class PurchaseOrderService
     public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, User $user): void
     {
         DB::transaction(function () use ($purchaseOrder, $user) {
+            $purchaseOrder = PurchaseOrder::withTrashed()->lockForUpdate()->findOrFail($purchaseOrder->id);
+
+            if ($purchaseOrder->trashed()) {
+                throw ValidationException::withMessages([
+                    'purchase_order' => __('messages.purchase_order_already_cancelled'),
+                ]);
+            }
+
             $this->ensureReceivedStockIsStillThere($purchaseOrder);
 
             $chargeAmount = (float) $purchaseOrder->total;
