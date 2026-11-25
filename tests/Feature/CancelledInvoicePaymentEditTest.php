@@ -116,8 +116,8 @@ class CancelledInvoicePaymentEditTest extends TestCase
 
     public function test_managers_and_staff_still_cannot_edit_payments(): void
     {
-        $active    = $this->paidInvoice();          // first: the later cancel's credit would pay part of it
-        $cancelled = $this->paidInvoice('credit');
+        $active    = $this->paidInvoice();
+        $cancelled = $this->paidInvoice('cash');
         $before    = $this->snapshot();
 
         foreach ([$this->manager, $this->staff] as $user) {

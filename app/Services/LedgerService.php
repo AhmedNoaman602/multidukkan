@@ -379,6 +379,14 @@ public function restoreCredit(array $data): LedgerEntry
         $balanceBeforePayout = round($this->getBalance($order->tenant_id, $order->customer_id) - $total + $cashPaid, 2);
         $availableForPayout  = max(0, -$balanceBeforePayout);
 
+        $otherUnpaid = $refundable > 0
+            && ! $order->customer->is_walk_in
+            && Order::where('tenant_id', $order->tenant_id)
+                ->where('customer_id', $order->customer_id)
+                ->whereKeyNot($order->id)
+                ->whereUnpaid()
+                ->exists();
+
         return [
             'total'                 => $total,
             'cash_paid'             => $cashPaid,
@@ -389,6 +397,7 @@ public function restoreCredit(array $data): LedgerEntry
             'settlements'           => $order->customer->is_walk_in ? ['cash'] : ['cash', 'credit'],
             'cash_payout_available' => $creditPaid <= $availableForPayout,
             'available_for_payout'  => $availableForPayout,
+            'credit_blocked_reason' => $otherUnpaid ? 'other_unpaid_invoices' : null,
             'blocked_reason'        => $offsets > 0 ? 'return_offset' : null,
         ];
     }

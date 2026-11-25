@@ -446,6 +446,11 @@ if (!empty($data['pay_immediately'])) {
                         'settlement' => __('messages.cancel_walk_in_cash_only'),
                     ]);
                 }
+                if ($settlement === 'credit' && $summary['credit_blocked_reason'] !== null) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_credit_other_unpaid'),
+                    ]);
+                }
                 if ($settleInCash && ! $summary['cash_payout_available']) {
                     throw ValidationException::withMessages([
                         'settlement' => __('messages.cancel_credit_payout_unavailable', [

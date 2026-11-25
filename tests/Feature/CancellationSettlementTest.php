@@ -453,19 +453,18 @@ class CancellationSettlementTest extends TestCase
         $this->assertEquals($before, $this->snapshot());
     }
 
-    public function test_the_same_invoice_settled_as_credit_nets_against_the_other_debt(): void
+    public function test_the_same_invoice_cannot_be_settled_as_credit_while_another_invoice_is_owed(): void
     {
         $this->giveCredit(40);
         $orderA = $this->sell();
-        $orderB = $this->sell(1);
+        $this->sell(1);
+        $before = $this->snapshot();
 
-        $this->cancel($orderA, 'credit')->assertOk();
+        $this->cancel($orderA, 'credit')
+            ->assertStatus(422)
+            ->assertJsonPath('errors.settlement.0', __('messages.cancel_credit_other_unpaid'));
 
-        // 50 owed on B − 40 credit back from A.
-        $this->assertEquals(10, $this->balance());
-        $this->assertSame(0, $this->ledgerCount('CREDIT_PAYOUT'));
-        // Existing rule: credit is a balance, it doesn't create payments on other invoices.
-        $this->assertSame(0, Payment::where('order_id', $orderB->id)->count());
+        $this->assertEquals($before, $this->snapshot());
     }
 
     public function test_cash_paid_on_the_invoice_is_refunded_even_while_other_invoices_are_owed(): void
