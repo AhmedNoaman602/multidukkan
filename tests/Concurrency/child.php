@@ -9,10 +9,13 @@
 // Usage: php tests/Concurrency/child.php <base64 json job>
 
 use App\Models\Order;
+use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Services\PaymentService;
+use App\Services\PurchaseOrderService;
+use App\Services\SupplierPaymentService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +35,8 @@ $run = fn (array $step) => match ($step['op']) {
     'direct_payment' => app(PaymentService::class)->processDirectPayment($step['data'], $user),
     'cancel'         => app(OrderService::class)->cancelOrder(Order::findOrFail($step['data']['order_id']), $user),
     'refund'         => app(LedgerService::class)->issueRefund($step['data'] + ['tenant_id' => $user->tenant_id, 'user_id' => $user->id]),
+    'purchase_cancel' => app(PurchaseOrderService::class)->cancelPurchaseOrder(PurchaseOrder::findOrFail($step['data']['purchase_order_id']), $user),
+    'supplier_payment' => app(SupplierPaymentService::class)->processSupplierPayment($step['data'], $user),
 };
 
 DB::beginTransaction();

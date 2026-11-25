@@ -31,7 +31,8 @@ class PurchaseOrderService
         $year = now($timezone)->year;
         [$yearStart, $yearEnd] = LocalDateRange::yearRange($year, $timezone);
 
-        $last = PurchaseOrder::where('tenant_id', $tenantId)
+        $last = PurchaseOrder::withTrashed()
+            ->where('tenant_id', $tenantId)
             ->whereBetween('created_at', [$yearStart, $yearEnd])
             ->whereNotNull('invoice_number')
             ->orderByDesc('id')
@@ -253,6 +254,14 @@ class PurchaseOrderService
     public function cancelPurchaseOrder(PurchaseOrder $purchaseOrder, User $user): void
     {
         DB::transaction(function () use ($purchaseOrder, $user) {
+            $purchaseOrder = PurchaseOrder::withTrashed()->lockForUpdate()->findOrFail($purchaseOrder->id);
+
+            if ($purchaseOrder->trashed()) {
+                throw ValidationException::withMessages([
+                    'purchase_order' => __('messages.purchase_order_already_cancelled'),
+                ]);
+            }
+
             $this->ensureReceivedStockIsStillThere($purchaseOrder);
 
             $chargeAmount = (float) $purchaseOrder->total;
