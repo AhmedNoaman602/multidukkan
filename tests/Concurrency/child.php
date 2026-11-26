@@ -11,6 +11,7 @@
 use App\Models\Order;
 use App\Models\PurchaseOrder;
 use App\Models\User;
+use App\Services\InventoryService;
 use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Services\PaymentService;
@@ -33,8 +34,10 @@ $run = fn (array $step) => match ($step['op']) {
     'sale'           => app(OrderService::class)->createOrder($step['data']),
     'auto_payment'   => app(PaymentService::class)->processAutoPayment($step['data'], $user),
     'direct_payment' => app(PaymentService::class)->processDirectPayment($step['data'], $user),
-    'cancel'         => app(OrderService::class)->cancelOrder(Order::findOrFail($step['data']['order_id']), $user),
+    'cancel'         => app(OrderService::class)->cancelOrder(Order::findOrFail($step['data']['order_id']), $user, $step['data']['settlement'] ?? null),
     'refund'         => app(LedgerService::class)->issueRefund($step['data'] + ['tenant_id' => $user->tenant_id, 'user_id' => $user->id]),
+    'purchase'       => app(PurchaseOrderService::class)->createPurchaseOrder($step['data']),
+    'lock_stock'     => app(InventoryService::class)->lockRows($step['data']['product_ids'], $step['data']['warehouse_ids']),
     'purchase_cancel' => app(PurchaseOrderService::class)->cancelPurchaseOrder(PurchaseOrder::findOrFail($step['data']['purchase_order_id']), $user),
     'supplier_payment' => app(SupplierPaymentService::class)->processSupplierPayment($step['data'], $user),
 };

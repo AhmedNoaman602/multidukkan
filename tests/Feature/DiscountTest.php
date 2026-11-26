@@ -180,28 +180,6 @@ class DiscountTest extends TestCase
     // Update flow
     // ─────────────────────────────────────────
 
-    public function test_update_applies_a_percentage_against_the_current_subtotal(): void
-    {
-        $id = $this->createOrder(['discount' => 0])->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['discount' => 20, 'discount_type' => 'percent'])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 200.00, 'total' => 800.00]);
-    }
-
-    public function test_update_with_a_fixed_discount_stores_the_amount_unchanged(): void
-    {
-        $id = $this->createOrder(['discount' => 0])->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['discount' => 325])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 325.00, 'total' => 675.00]);
-    }
-
     public function test_update_rejects_a_percentage_above_one_hundred(): void
     {
         $id = $this->createOrder(['discount' => 0])->assertStatus(201)->json('id');
@@ -212,17 +190,6 @@ class DiscountTest extends TestCase
             ->assertJsonValidationErrors('discount');
 
         $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0.00]);
-    }
-
-    public function test_update_clamps_a_fixed_discount_to_the_subtotal(): void
-    {
-        $id = $this->createOrder(['discount' => 0])->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['discount' => 9999])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 1000.00, 'total' => 0.00]);
     }
 
     // ─────────────────────────────────────────
@@ -281,40 +248,22 @@ class DiscountTest extends TestCase
         $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 1000.00, 'total' => 0.00]);
     }
 
-    public function test_staff_limit_also_applies_when_editing_an_order(): void
+    public function test_no_role_can_change_a_discount_after_creation(): void
     {
-        $id = $this->createOrder(['discount' => 0], 4, $this->staff)
-            ->assertStatus(201)->json('id');
+        foreach ([$this->staff, $this->manager, $this->admin] as $user) {
+            $id = $this->createOrder(['discount' => 0], 4, $user)->assertStatus(201)->json('id');
 
-        $this->actingAs($this->staff)
-            ->patchJson("/api/orders/{$id}", ['discount' => 400])
-            ->assertStatus(422)
-            ->assertJsonStructure(['message']);
+            // Within the staff limit, so only the final-invoice rule (D32) can refuse it.
+            $this->actingAs($user)
+                ->patchJson("/api/orders/{$id}", ['discount' => 50])
+                ->assertStatus(422)
+                ->assertJsonPath('message', __('messages.order_is_final'));
 
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0.00, 'total' => 1000.00]);
+            $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0.00, 'total' => 1000.00]);
+            $this->assertDatabaseHas('ledger_entries', [
+                'reference_type' => 'order', 'reference_id' => $id, 'type' => 'ORDER_CHARGE', 'amount' => 1000.00,
+            ]);
+        }
     }
 
-    public function test_staff_may_edit_a_discount_within_their_limit(): void
-    {
-        $id = $this->createOrder(['discount' => 0], 4, $this->staff)
-            ->assertStatus(201)->json('id');
-
-        $this->actingAs($this->staff)
-            ->patchJson("/api/orders/{$id}", ['discount' => 5, 'discount_type' => 'percent'])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 50.00, 'total' => 950.00]);
-    }
-
-    public function test_manager_may_edit_beyond_the_staff_limit(): void
-    {
-        $id = $this->createOrder(['discount' => 0], 4, $this->manager)
-            ->assertStatus(201)->json('id');
-
-        $this->actingAs($this->manager)
-            ->patchJson("/api/orders/{$id}", ['discount' => 600])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 600.00, 'total' => 400.00]);
-    }
 }

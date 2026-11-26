@@ -21,6 +21,19 @@ class StockTransferService
      */
     public function transfer(array $data, User $user): StockTransfer
     {
+        $to = Warehouse::where('tenant_id', $user->tenant_id)->find($data['to_warehouse_id']);
+        if ($to) {
+            $this->inventory->ensureStockRows(
+                Product::where('tenant_id', $user->tenant_id)
+                    ->whereIn('id', collect($data['items'])->pluck('product_id'))
+                    ->pluck('id')
+                    ->all(),
+                $to->id,
+                $user->tenant_id,
+                0
+            );
+        }
+
         return DB::transaction(function () use ($data, $user) {
             $from = Warehouse::where('tenant_id', $user->tenant_id)->findOrFail($data['from_warehouse_id']);
             $to   = Warehouse::where('tenant_id', $user->tenant_id)->findOrFail($data['to_warehouse_id']);
@@ -35,6 +48,9 @@ class StockTransferService
                 ->whereIn('id', collect($data['items'])->pluck('product_id'))
                 ->get()
                 ->keyBy('id');
+
+            // D31/P4: stock rows of both locations in id order before any line references a product.
+            $this->inventory->lockRows($products->keys()->all(), [$from->id, $to->id]);
 
             $transfer = StockTransfer::create([
                 'tenant_id'         => $user->tenant_id,

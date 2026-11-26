@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Services;
+use App\Models\Customer;
 use App\Models\LedgerEntry;
 use App\Models\PurchaseOrder;
 use App\Models\Payment;
@@ -187,7 +188,7 @@ class LedgerService
         // Sum all entries that increase the customer's outstanding balance (debited from customer, e.g. charges, refunds).
         $debits = LedgerEntry::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
-            ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED','REFUND' ])
+            ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED', 'REFUND', 'CREDIT_PAYOUT'])
             ->sum('amount');
 
         // Sum all entries that decrease the customer's outstanding balance (credited to customer, e.g. payments, reversals).
@@ -208,7 +209,7 @@ public function getBalancesForCustomers(int $tenantId, array $customerIds): arra
 {
     $debits = LedgerEntry::where('tenant_id', $tenantId)
         ->whereIn('customer_id', $customerIds)
-        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED', 'REFUND'])
+        ->whereIn('type', ['ORDER_CHARGE', 'CREDIT_CONSUMED', 'REFUND', 'CREDIT_PAYOUT'])
         ->groupBy('customer_id')
         ->selectRaw('customer_id, SUM(amount) as total')
         ->pluck('total', 'customer_id');
@@ -357,6 +358,101 @@ public function restoreCredit(array $data): LedgerEntry
 }
 
     /**
+     * What cancelling this invoice gives back. Expects the order's payments loaded — under
+     * lock when cancelling, so the amounts are the ones that get written.
+     *
+     * Every cancel restores store credit and reverses the rest of the charge, so the balance
+     * drops by the total. A cash settlement then refunds the cash paid (a debit again), and
+     * the restored store credit is paid out only if that much credit is available by then.
+     */
+    public function cancellationSummary(Order $order): array
+    {
+        $net      = fn ($p) => (float) $p->amount - (float) ($p->refunded_amount ?? 0);
+        $payments = $order->payments;
+
+        $total      = round((float) $order->total, 2);
+        $cashPaid   = round($payments->where('counts_as_cash', true)->sum($net), 2);
+        $creditPaid = round($payments->where('is_auto_reversible', true)->sum($net), 2);
+        $offsets    = round($payments->where('method', 'return_offset')->sum($net), 2);
+        $refundable = round($cashPaid + $creditPaid, 2);
+
+        $balanceBeforePayout = round($this->getBalance($order->tenant_id, $order->customer_id) - $total + $cashPaid, 2);
+        $availableForPayout  = max(0, -$balanceBeforePayout);
+
+        $otherUnpaid = $refundable > 0
+            && ! $order->customer->is_walk_in
+            && Order::where('tenant_id', $order->tenant_id)
+                ->where('customer_id', $order->customer_id)
+                ->whereKeyNot($order->id)
+                ->whereUnpaid()
+                ->exists();
+
+        return [
+            'total'                 => $total,
+            'cash_paid'             => $cashPaid,
+            'credit_paid'           => $creditPaid,
+            'refundable'            => $refundable,
+            'unpaid_reversed'       => max(0, round($total - $cashPaid - $creditPaid - $offsets, 2)),
+            'settlement_required'   => $refundable > 0,
+            'settlements'           => $order->customer->is_walk_in ? ['cash'] : ['cash', 'credit'],
+            'cash_payout_available' => $creditPaid <= $availableForPayout,
+            'available_for_payout'  => $availableForPayout,
+            'credit_blocked_reason' => $otherUnpaid ? 'other_unpaid_invoices' : null,
+            'blocked_reason'        => $offsets > 0 ? 'return_offset' : null,
+        ];
+    }
+
+    /** Credit the customer can use or be paid out: a negative balance, never below zero. */
+    public function availableCredit(int $tenantId, int $customerId): float
+    {
+        return max(0, round(-$this->getBalance($tenantId, $customerId), 2));
+    }
+
+    /**
+     * Pay customer credit out in cash: one CREDIT_PAYOUT (customer debit), no payment row.
+     * The customer lock comes first, before any plain read, so the available credit is
+     * read after every transaction that held the customer has committed.
+     */
+    public function payOutCredit(array $data): LedgerEntry
+    {
+        return DB::transaction(function () use ($data) {
+            $customer = Customer::where('tenant_id', $data['tenant_id'])
+                ->whereKey($data['customer_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($customer->is_walk_in) {
+                throw ValidationException::withMessages([
+                    'customer_id' => __('messages.credit_payout_walk_in'),
+                ]);
+            }
+
+            $amount    = round((float) $data['amount'], 2);
+            $available = $this->availableCredit($customer->tenant_id, $customer->id);
+
+            if ($amount <= 0 || $amount > $available) {
+                throw ValidationException::withMessages([
+                    'amount' => __('messages.credit_payout_exceeds_available', [
+                        'available' => number_format($available, 2, '.', ''),
+                    ]),
+                ]);
+            }
+
+            return LedgerEntry::create([
+                'tenant_id'      => $customer->tenant_id,
+                'customer_id'    => $customer->id,
+                'store_id'       => $data['store_id'] ?? null,
+                'user_id'        => $data['user_id'] ?? null,
+                'type'           => 'CREDIT_PAYOUT',
+                'amount'         => $amount,
+                'description'    => $data['description'] ?? 'Customer credit paid out in cash',
+                'reference_type' => $data['reference_type'],
+                'reference_id'   => $data['reference_id'],
+            ]);
+        }, attempts: 3);
+    }
+
+    /**
      * Cash refundable balance for a whole order — net cash (non-credit) payments minus what's already refunded.
      */
     public function refundableForOrder(int $orderId): float
@@ -386,7 +482,23 @@ public function restoreCredit(array $data): LedgerEntry
     public function issueRefund(array $data): LedgerEntry
     {
         return DB::transaction(function() use ($data){
-            
+
+        // L0: same order as cancel and payments (customer → order → payments).
+        Customer::where('tenant_id', $data['tenant_id'])->whereKey($data['customer_id'])->lockForUpdate()->firstOrFail();
+
+        // A cancelled invoice already settled its money. Checked on the locked order row, so a
+        // refund that passed validation while a cancel was running is refused once it commits.
+        $byPayment = !empty($data['payment_id_target']);
+        $orderId   = $byPayment
+            ? Payment::whereKey($data['payment_id_target'])->value('order_id')
+            : ($data['order_id'] ?? null);
+
+        if ($orderId !== null && Order::withTrashed()->lockForUpdate()->find($orderId)?->trashed()) {
+            throw ValidationException::withMessages([
+                ($byPayment ? 'payment_id_target' : 'order_id') => __('messages.refund_order_cancelled'),
+            ]);
+        }
+
         if (!empty($data['payment_id_target'])) {
             // Case 1: Refund from a specific target payment.
             // lockForUpdate() so a concurrent refund on this same payment blocks until
@@ -481,7 +593,7 @@ public function restoreCredit(array $data): LedgerEntry
 
         $consumed = LedgerEntry::where('tenant_id', $tenantId)
             ->where('customer_id', $customerId)
-            ->whereIn('type', ['CREDIT_CONSUMED'])
+            ->whereIn('type', ['CREDIT_CONSUMED', 'CREDIT_PAYOUT'])
             ->sum('amount');
 
         return max(0, round($credits - $consumed, 2));
@@ -507,19 +619,37 @@ public function restoreCredit(array $data): LedgerEntry
         ];
     }
 
+    // Gross, on the payment's own date: a later refund is a cash outflow on its own date
+    // (cashOutflows), never a reduction of the day the money came in.
     public function settlementBreakdown(Collection $payments): array
     {
-        $net = fn ($p) => $p->amount - ($p->refunded_amount ?? 0);
+        $amount = fn ($p) => (float) $p->amount;
 
-        $cash          = round($payments->where('counts_as_cash', true)->sum($net), 2);
-        $credit        = round($payments->where('is_auto_reversible', true)->sum($net), 2);
-        $returnOffsets = round($payments->where('method', 'return_offset')->sum($net), 2);
+        $cash          = round($payments->where('counts_as_cash', true)->sum($amount), 2);
+        $credit        = round($payments->where('is_auto_reversible', true)->sum($amount), 2);
+        $returnOffsets = round($payments->where('method', 'return_offset')->sum($amount), 2);
 
         return [
             'cash'           => $cash,
             'credit'         => $credit,
             'return_offsets' => $returnOffsets,
             'total'          => round($cash + $credit + $returnOffsets, 2),
+        ];
+    }
+
+    /** Customer cash paid out between two instants, by the date it was paid out. */
+    public function cashOutflows(int $tenantId, \DateTimeInterface $from, \DateTimeInterface $to): array
+    {
+        $sums = LedgerEntry::where('tenant_id', $tenantId)
+            ->whereIn('type', ['REFUND', 'CREDIT_PAYOUT'])
+            ->whereBetween('created_at', [$from, $to])
+            ->groupBy('type')
+            ->selectRaw('type, SUM(amount) as total')
+            ->pluck('total', 'type');
+
+        return [
+            'refunded'        => round((float) ($sums['REFUND'] ?? 0), 2),
+            'credit_paid_out' => round((float) ($sums['CREDIT_PAYOUT'] ?? 0), 2),
         ];
     }
 
@@ -531,7 +661,15 @@ public function restoreCredit(array $data): LedgerEntry
     {
         DB::transaction(function() use ($payment,$newAmount,$newMethod){
          $payment = Payment::lockForUpdate()->findOrFail($payment->id);
-               
+
+        // A cancelled invoice settled its money when it was cancelled. Read after the payment
+        // lock, which a running cancel also holds, so it sees a cancel that just committed.
+        if ($payment->order?->trashed()) {
+            throw ValidationException::withMessages([
+                'payment' => __('messages.payment_order_cancelled'),
+            ]);
+        }
+
         if(!$payment->counts_as_cash || $payment->is_auto_reversible){
             throw ValidationException::withMessages([
                 'payment' => __('messages.payment_not_adjustable')
@@ -568,16 +706,6 @@ public function restoreCredit(array $data): LedgerEntry
         ]);
         }, attempts: 3);
 
-       
-    }
 
-    public function adjustOrderCharge(Order $order, float $newTotal): void
-    {
-        LedgerEntry::where('reference_type', 'order')
-            ->where('reference_id', $order->id)
-            ->where('type', 'ORDER_CHARGE')
-            ->update(['amount' => $newTotal]);
-        
-        $order->update(['total' => $newTotal]);
     }
 }

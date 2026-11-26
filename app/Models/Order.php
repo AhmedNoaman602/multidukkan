@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\ScopedToTenant;
+use App\Support\LocalDateRange;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -77,12 +78,20 @@ class Order extends Model
             ->sum(fn ($p) => $p->amount - ($p->refunded_amount ?? 0)), 2);
     }
 
-    public function unknownCostLines(): int
+    public function createdToday(): bool
     {
-        return $this->items->filter(fn ($i) => $i->product?->cost_price === null)->count();
+        $tz = LocalDateRange::businessTimezone();
+
+        return $this->created_at !== null
+            && $this->created_at->copy()->setTimezone($tz)->toDateString() === LocalDateRange::today($tz)->toDateString();
     }
 
-    // cost_price is per base unit, so cost uses base quantity (2 box × 12 = 24 pcs).
+    public function unknownCostLines(): int
+    {
+        return $this->items->filter(fn ($i) => $i->costOfGoods() === null)->count();
+    }
+
+    // Historical line costs (order_items.unit_cost_at_sale), never today's product cost (D33).
     // Null when any line's cost is unknown: an unknown cost is never counted as zero.
     public function costOfGoods(): ?float
     {
@@ -90,6 +99,6 @@ class Order extends Model
             return null;
         }
 
-        return (float) $this->items->sum(fn ($i) => $i->product->cost_price * $i->baseQuantity());
+        return (float) $this->items->sum(fn ($i) => $i->costOfGoods());
     }
 }

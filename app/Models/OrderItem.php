@@ -15,6 +15,7 @@ class OrderItem extends Model
         'product_name',
         'quantity',
         'unit_price',
+        'unit_cost_at_sale',
         'warehouse_id',
         'unit_type',
         'conversion_factor',
@@ -41,5 +42,16 @@ class OrderItem extends Model
     public function warehouse()
     {
         return $this->belongsTo(Warehouse::class);
+    }
+
+    // Historical cost of the line: unit_cost_at_sale is per base unit (D33).
+    // Null when the cost is unknown: never counted as zero (4b).
+    public function costOfGoods(): ?float
+    {
+        if ($this->unit_cost_at_sale === null) {
+            return null;
+        }
+
+        return (float) ($this->baseQuantity() * $this->unit_cost_at_sale);
     }
 }

@@ -128,50 +128,6 @@ class UnitSnapshotTest extends TestCase
         $this->assertEquals(24, $movement->quantity);
     }
 
-    public function test_adjusting_a_line_uses_the_saved_factor_after_the_factor_changes(): void
-    {
-        $order = $this->sellBoxes(2);
-        $item  = $order->items()->firstOrFail();
-
-        $this->product->update(['conversion_factor' => 10]);
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$order->id}/items/{$item->id}", ['quantity' => 3])
-            ->assertStatus(200);
-
-        $this->assertEquals(64, $this->stock());
-        $this->assertEquals(12, $this->latestMovement(Order::class, $order->id)->quantity);
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$order->id}/items/{$item->id}", ['quantity' => 1])
-            ->assertStatus(200);
-
-        $this->assertEquals(88, $this->stock());
-        $movement = $this->latestMovement(Order::class, $order->id);
-        $this->assertEquals(InventoryTransaction::TYPE_RETURN, $movement->type);
-        $this->assertEquals(24, $movement->quantity);
-    }
-
-    public function test_adding_an_item_after_the_factor_changes_does_not_merge_into_the_old_line(): void
-    {
-        $order = $this->sellBoxes(2);
-
-        $this->product->update(['conversion_factor' => 10]);
-
-        $this->actingAs($this->admin)
-            ->postJson("/api/orders/{$order->id}/items", [
-                'product_id'   => $this->product->id,
-                'quantity'     => 1,
-                'unit_type'    => 'secondary',
-            ])
-            ->assertSuccessful();
-
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 2, 'conversion_factor' => 12]);
-        $this->assertDatabaseHas('order_items', ['order_id' => $order->id, 'quantity' => 1, 'conversion_factor' => 10]);
-        $this->assertEquals(2, $order->items()->count());
-        $this->assertEquals(66, $this->stock());
-    }
-
     public function test_secondary_unit_without_a_factor_snapshots_a_factor_of_one(): void
     {
         $this->product->update(['conversion_factor' => null]);

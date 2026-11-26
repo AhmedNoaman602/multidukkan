@@ -1,7 +1,9 @@
 # ADR-004: `orders.total` is stored, synced only via `LedgerService::adjustOrderCharge`
 
-**Status**: Accepted **Date**: ~2026-05-17 (migration `add_total_to_orders_table`), recorded 2026-07-08
+**Status**: Accepted, amended 2026-11-23 **Date**: ~2026-05-17 (migration `add_total_to_orders_table`), recorded 2026-07-08
 **Supersedes**: the original project rule "Never store `order.total` — calculate from order_items".
+
+> **Amendment (2026-11-23):** invoices are final once created, so nothing changes an order's total after creation any more. `orders.total` is written once by `OrderService::createOrder` and never updated; `adjustOrderCharge` was removed (see the [ADR-006](ADR-006-ledger-mutability-boundaries.md) amendment). Cancellation leaves the total as it is and appends a `REVERSAL`. The stored-total decision itself is unchanged.
 
 ## Context
 The original rule derived totals from `order_items` at read time to guarantee consistency. In practice, every order list, report, unpaid-orders query and dashboard needed the total, forcing repeated `SUM(unit_price * quantity)` subqueries — directly against the product's #1 requirement (speed). Additionally, the business needed `manual_total` (owner overrides the computed total at sale time), which a purely derived value cannot represent.

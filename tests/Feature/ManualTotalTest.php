@@ -148,51 +148,6 @@ class ManualTotalTest extends TestCase
     // Edit
     // ─────────────────────────────────────────
 
-    public function test_editing_manual_total_clears_the_discount_and_updates_the_ledger(): void
-    {
-        $id = $this->createOrder(['discount' => 100])->assertStatus(201)->json('id');
-
-        $response = $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['manual_total' => 450])
-            ->assertStatus(200);
-
-        $this->assertEquals(450, $response->json('manual_total'));
-        $this->assertEquals(450, $response->json('total'));
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0, 'manual_total' => 450, 'total' => 450]);
-        $this->assertCharge($id, 450);
-    }
-
-    public function test_manual_total_wins_when_sent_with_a_discount_on_edit(): void
-    {
-        $id = $this->createOrder()->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['manual_total' => 450, 'discount' => 100])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0, 'manual_total' => 450, 'total' => 450]);
-        $this->assertCharge($id, 450);
-    }
-
-    public function test_editing_the_discount_clears_the_manual_total(): void
-    {
-        $id = $this->createOrder(['manual_total' => 500])->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['discount' => 100])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 100, 'manual_total' => null, 'total' => 500]);
-        $this->assertCharge($id, 500);
-
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['discount' => 0])
-            ->assertStatus(200);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0, 'manual_total' => null, 'total' => 600]);
-        $this->assertCharge($id, 600);
-    }
-
     public function test_editing_only_notes_keeps_the_manual_total(): void
     {
         $id = $this->createOrder(['manual_total' => 500])->assertStatus(201)->json('id');
@@ -211,48 +166,27 @@ class ManualTotalTest extends TestCase
         $this->assertCharge($id, 500);
     }
 
-    public function test_manual_total_cannot_be_edited_on_a_fully_paid_order(): void
+    public function test_manual_total_cannot_be_edited_after_creation_whatever_the_payments(): void
     {
-        $id = $this->createOrder()->assertStatus(201)->json('id');
-        $this->pay($id, 600);
+        // D32: unpaid, partly paid and fully paid invoices are all final, for every role.
+        foreach ([[0, $this->admin], [100, $this->admin], [600, $this->admin], [0, $this->staff], [100, $this->staff]] as [$paid, $user]) {
+            $id = $this->createOrder()->assertStatus(201)->json('id');
+            if ($paid > 0) {
+                $this->pay($id, $paid);
+            }
 
-        $this->actingAs($this->admin)
-            ->patchJson("/api/orders/{$id}", ['manual_total' => 450])
-            ->assertStatus(422);
+            $this->actingAs($user)
+                ->patchJson("/api/orders/{$id}", ['manual_total' => 450])
+                ->assertStatus(422)
+                ->assertJsonPath('message', __('messages.order_is_final'));
 
-        $this->assertDatabaseHas('orders', ['id' => $id, 'manual_total' => null, 'total' => 600]);
-        $this->assertCharge($id, 600);
-    }
-
-    public function test_staff_cannot_edit_manual_total_on_a_partially_paid_order(): void
-    {
-        $id = $this->createOrder()->assertStatus(201)->json('id');
-        $this->pay($id, 100);
-
-        $this->actingAs($this->staff)
-            ->patchJson("/api/orders/{$id}", ['manual_total' => 450])
-            ->assertStatus(422);
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'manual_total' => null, 'total' => 600]);
-        $this->assertCharge($id, 600);
+            $this->assertDatabaseHas('orders', ['id' => $id, 'manual_total' => null, 'total' => 600]);
+            $this->assertCharge($id, 600);
+        }
     }
 
     // ─────────────────────────────────────────
     // Items
     // ─────────────────────────────────────────
 
-    public function test_adding_an_item_clears_the_manual_total_and_recalculates(): void
-    {
-        $id = $this->createOrder(['manual_total' => 500])->assertStatus(201)->json('id');
-
-        $this->actingAs($this->admin)
-            ->postJson("/api/orders/{$id}/items", [
-                'product_id'   => $this->product->id,
-                'quantity'     => 1,
-            ])
-            ->assertSuccessful();
-
-        $this->assertDatabaseHas('orders', ['id' => $id, 'discount' => 0, 'manual_total' => null, 'total' => 900]);
-        $this->assertCharge($id, 900);
-    }
 }

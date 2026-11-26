@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\Warehouse;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -35,6 +36,10 @@ class OrderItemFactory extends Factory
             'conversion_factor' => 1,
             'unit_name' => 'pcs',
             'unit_price' => $this->faker->numberBetween(1, 100),
+            // A factory line stands for a sale, so it saves the product's cost at creation (D33).
+            'unit_cost_at_sale' => fn (array $attributes) => $attributes['product_id'] === null
+                ? null
+                : Product::withoutGlobalScopes()->whereKey($attributes['product_id'])->value('cost_price'),
         ];
     }
 }

@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Customer;
 use App\Models\Order;
-use App\Models\OrderItem;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\User;
@@ -12,6 +11,7 @@ use App\Models\Warehouse;
 use App\Support\LocalDateRange;
 use App\Support\Money;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -75,6 +75,14 @@ class OrderService
 
     public function createOrder(array $data): Order
     {
+        $user = auth()->user();
+        $this->inventory->ensureStockRows(
+            collect($data['items'])->pluck('product_id')->unique()->values()->all(),
+            $this->shelfOf($user->tenant_id, $user->store_id ?? $data['store_id'])->id,
+            $user->tenant_id,
+            0
+        );
+
         // Unique index on (tenant_id, invoice_number) guards against a collision;
         // retry with a freshly generated number if one ever happens.
         $lastException = null;
@@ -195,9 +203,12 @@ foreach ($validatedItems as $v) {
     }
 }
 
-            // --- ORDER ITEMS & STOCK BLOCK ---
-            // Every line is recorded at the shelf; fulfill() then refills the shelf from storage
-            // if needed and deducts the sale, all inside this transaction.
+            // --- STOCK, THEN ORDER ITEMS ---
+            // fulfill() locks stock, then products, before anything references them (D31/P4),
+            // refills the shelf from storage if needed and deducts the sale. Lines are inserted
+            // afterwards, each with the cost per base unit read under that lock (D33).
+            $costs = $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
+
             $totalAmount = 0;
             foreach ($mergedItems as $v) {
                 $orderItem = $order->items()->create([
@@ -208,21 +219,22 @@ foreach ($validatedItems as $v) {
                     'conversion_factor' => $v['conversionFactor'],
                     'unit_name' => $v['unitName'],
                     'unit_price' => $v['unitPrice'],
+                    'unit_cost_at_sale' => $costs[$v['product']->id],
                     'warehouse_id' => $shelf->id,
                 ]);
 
                 $totalAmount += ($orderItem->unit_price * $orderItem->quantity);
             }
-            // Same exact subtotal as MySQL's SUM in recalculateTotal, so a percent discount matches.
+            // Rounded to the price scale so a percent discount is calculated on an exact subtotal.
             $totalAmount = round($totalAmount, Money::PRICE_SCALE);
-
-            $this->fulfillment->fulfill($order, $shelf, $baseNeeds, $user, $batchId);
 
             // --- LEDGER & CREDIT CHARGING BLOCK ---
             // Check the customer's current balance before processing this order.
             // A negative balance indicates the customer has an active credit line available.
-             $balanceBefore = $this->ledger->getBalance($order->tenant_id, $order->customer_id);
-             $creditAvailable = max(0, -$balanceBefore);
+            // The shared walk-in account never spends credit, so its invoices stay cancellable in cash.
+             $creditAvailable = $customer->is_walk_in
+                 ? 0
+                 : max(0, -$this->ledger->getBalance($order->tenant_id, $order->customer_id));
 
             // manual_total and discount are mutually exclusive: an override replaces the discount.
             $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
@@ -325,60 +337,6 @@ if (!empty($data['pay_immediately'])) {
         }, attempts: 3);
     }
 
-    public function adjustItem(Order $order, OrderItem $item, array $data): void
-    {
-        DB::transaction(function () use ($order, $item, $data) {
-        $order = Order::lockForUpdate()->findOrFail($order->id);
-        $item  = OrderItem::lockForUpdate()->findOrFail($item->id);
-
-        $this->ensureOrderIsEditable($order);
-
-        $oldQty = $item->quantity;
-        $newQty = $data['quantity'] ?? $oldQty;
-        $delta = $newQty - $oldQty;
-
-        $stockDelta = $delta * $item->conversion_factor;
-
-        if ($stockDelta > 0) {
-            // Taken from the line's recorded location; a shelf line refills from storage if short.
-            $this->fulfillment->fulfill(
-                $order, $item->warehouse, [$item->product_id => $stockDelta],
-                auth()->user(), (string) Str::uuid()
-            );
-        } elseif ($stockDelta < 0) {
-            $this->inventory->restoreStock(
-                $item->product_id, $item->warehouse_id,
-                abs($stockDelta), $order->id, Order::class, auth()->id()
-            );
-        }
-
-        $item->update([
-            'quantity' => $newQty,
-            'unit_price' => $data['unit_price'] ?? $item->unit_price,
-        ]);
-
-        $this->resetToCalculatedTotal($order);
-        }, attempts:3);
-    }
-
-    private function ensureOrderIsEditable(Order $order): void
-    {
-        if ($order->isSettled()) {
-            throw ValidationException::withMessages([
-                'order' => __('messages.order_fully_paid_locked'),
-            ]);
-        }
-
-        $isPartiallyPaid = $order->settledAmount() > 0;
-        $isManagerOrAbove = in_array(auth()->user()->role, ['tenant_admin', 'store_manager'], true);
-
-        if ($isPartiallyPaid && !$isManagerOrAbove) {
-            throw ValidationException::withMessages([
-                'order' => __('messages.order_partial_payments_manager_only'),
-            ]);
-        }
-    }
-
     private function resolveDiscount(array $data, float $subtotal, User $user): float
     {
         $value = (float) ($data['discount'] ?? 0);
@@ -410,187 +368,152 @@ if (!empty($data['pay_immediately'])) {
         return number_format(round($price, Money::PRICE_SCALE), Money::PRICE_SCALE, '.', '');
     }
 
-    private function recalculateTotal(Order $order): float
+    /**
+     * D32: a created invoice is final. Only notes and order_date can still change; anything
+     * that changes what the customer owes (discount, manual_total) is refused.
+     */
+    public function updateOrder(Order $order, array $data, User $user): Order
     {
-        $subtotal = $order->items()->sum(DB::raw('unit_price * quantity'));
-        $discount = (float) ($order->discount ?? 0);
-
-        return max(0, Money::total($subtotal - $discount));
-    }
-
-    private function resetToCalculatedTotal(Order $order): void
-    {
-        $order->update(['manual_total' => null]);
-
-        $this->ledger->adjustOrderCharge($order, $this->recalculateTotal($order));
-    }
-
-    public function addItem(Order $order, array $data)
-    {
-        return DB::transaction(function () use ($order, $data) {
-        $order = Order::lockForUpdate()->findOrFail($order->id);
-
-        $this->ensureOrderIsEditable($order);
-
-        $product = Product::findOrFail($data['product_id']);
-        $shelf = $this->shelfOf($order->tenant_id, $order->store_id);
-        $unitType = $data['unit_type'] ?? 'base';
-        $customer = $order->customer;
-
-        $conversionFactor = $product->factorFor($unitType);
-        $stockQuantity = $data['quantity'] * $conversionFactor;
-
-       $price = match ($customer->price_tier) {
-                    'a' => $product->price_a ?? $product->price,
-                    'b' => $product->price_b ?? $product->price,
-                    'c' => $product->price_c ?? $product->price,
-                    'd' => $product->price_d ?? $product->price,
-                    'e' => $product->price_e ?? $product->price,
-                    default => $product->price,
-                };
-
-        $unitPrice = $data['unit_price'] ?? $price * $conversionFactor;
-
-
-
-     $existingItem = $order->items()
-        ->where('product_id', $product->id)
-        ->where('warehouse_id', $shelf->id)
-        ->where('unit_type', $unitType)
-        ->where('conversion_factor', $conversionFactor)
-        ->where('unit_price', $this->priceKey((float) $unitPrice))
-        ->first();
-
-    if ($existingItem) {
-        $existingItem->update([
-            'quantity' => $existingItem->quantity + $data['quantity'],
-        ]);
-    } else {
-        $order->items()->create([
-            'product_id'   => $product->id,
-            'product_name' => $product->name,
-            'warehouse_id' => $shelf->id,
-            'quantity'     => $data['quantity'],
-            'unit_price'   => $unitPrice,
-            'unit_type'    => $unitType,
-            'conversion_factor' => $conversionFactor,
-            'unit_name'    => $product->unitNameFor($unitType),
-        ]);
-    }
-        $this->fulfillment->fulfill(
-            $order, $shelf, [$product->id => $stockQuantity],
-            auth()->user(), (string) Str::uuid()
-        );
-
-      $this->resetToCalculatedTotal($order);
-    }, attempts: 3);
-}
-
-    // OrderService@updateOrder
-public function updateOrder(Order $order, array $data, User $user): Order
-{
-    $order = DB::transaction(function () use ($order, $data, $user) {
-        $order = Order::lockForUpdate()->findOrFail($order->id);
-
-        $manualTotal = isset($data['manual_total']) ? round((float) $data['manual_total'], 2) : null;
-        $hasDiscount = isset($data['discount']);
-        $fields = array_diff_key($data, array_flip(['discount', 'discount_type', 'manual_total']));
-
-        // Discount and manual_total change what the customer owes, so they go through the
-        // payment guard. Notes/order_date carry no money implications.
-        if ($manualTotal !== null) {
-            $this->ensureOrderIsEditable($order);
-
-            $order->update($fields + ['discount' => 0, 'manual_total' => $manualTotal]);
-            $this->ledger->adjustOrderCharge($order, $manualTotal);
-        } elseif ($hasDiscount) {
-            $this->ensureOrderIsEditable($order);
-
-            $subtotal = (float) $order->items()->sum(DB::raw('unit_price * quantity'));
-
-            $order->update($fields + ['discount' => $this->resolveDiscount($data, $subtotal, $user)]);
-            $this->resetToCalculatedTotal($order);
-        } else {
-            $order->update($fields);
-        }
-
-        return $order;
-    }, attempts: 3);
-
-    return $order->load('items', 'payments', 'customer');
-}
-  
-   public function cancelOrder(Order $order, User $user): void
-{
-    DB::transaction(function () use ($order, $user) {
-        $order = Order::withTrashed()->lockForUpdate()->findOrFail($order->id);
-        if($order->trashed()){
-             throw ValidationException::withMessages([
-                'order' => __('messages.order_already_cancelled')
-            ]);
-        }
-        $chargeAmount = $order->total;
-
-        $hasUnrefundedPayments = $order->payments()
-            ->cashOnly()
-            ->whereRaw('amount > COALESCE(refunded_amount, 0)')
-            ->exists();
-
-        if ($hasUnrefundedPayments) {
+        if (array_intersect_key($data, array_flip(['discount', 'discount_type', 'manual_total'])) !== []) {
             throw ValidationException::withMessages([
-                'order' => __('messages.refund_before_cancel')
+                'order' => __('messages.order_is_final'),
             ]);
         }
 
-        $creditPayments = $order->payments()
-    ->creditOnly()
-    ->get();
+        $order = DB::transaction(function () use ($order, $data) {
+            $order = Order::lockForUpdate()->findOrFail($order->id);
 
-    $creditPaymentsTotal = $creditPayments->sum('amount');
+            if (isset($data['order_date'])
+                && Carbon::parse($data['order_date'])->toDateString() !== $order->order_date
+                && ! $order->createdToday()) {
+                throw ValidationException::withMessages([
+                    'order' => __('messages.order_date_locked'),
+                ]);
+            }
 
-    foreach ($creditPayments as $payment) {
-        $this->ledger->restoreCredit([
-        'tenant_id'      => $order->tenant_id,
-        'customer_id'    => $order->customer_id,
-        'store_id'       => $order->store_id,
-        'order_id'       => $order->id,
-        'payment_id'     => $payment->id,
-        'amount'         => $payment->amount,
-        'invoice_number' => $order->invoice_number,
-        'user_id'        => $user->id,
-        ]);
+            $order->update($data);
+
+            return $order;
+        }, attempts: 3);
+
+        return $order->load('items', 'payments', 'customer');
     }
+  
+    /**
+     * Cancel an invoice and settle its money in the same transaction.
+     *
+     * Always: store credit back (CREDIT_APPLY), the rest of the charge reversed (REVERSAL),
+     * stock back at each line's sale cost. Whatever was paid, net of earlier refunds, is then
+     * the customer's credit. $settlement decides that whole amount: 'credit' writes nothing
+     * more; 'cash' refunds the cash payments and pays the restored store credit out.
+     *
+     * Locks: customer (L0) → order → payments → stock rows → products. The customer lock is
+     * the first statement, so every read after it sees what the previous holder committed.
+     */
+    public function cancelOrder(Order $order, User $user, ?string $settlement = null): void
+    {
+        $customerId = $order->customer_id;
 
-        $batchId = (string) Str::uuid();
-        foreach ($order->items as $item) {
-            $this->inventory->restoreStock(
-                $item->product_id,
-                $item->warehouse_id,
-                $item->baseQuantity(),
-                $order->id,
-                Order::class,
-                $user->id,
-                $batchId
-            );
-        }
+        DB::transaction(function () use ($order, $user, $settlement, $customerId) {
+            Customer::whereKey($customerId)->lockForUpdate()->firstOrFail();
 
-    $reversalAmount = $chargeAmount - $creditPaymentsTotal;
-    if ($reversalAmount > 0) {
-    $this->ledger->reverseOrder([
-        'tenant_id'      => $order->tenant_id,
-        'customer_id'    => $order->customer_id,
-        'store_id'       => $order->store_id,
-        'order_id'       => $order->id,
-        'amount'         => $reversalAmount,
-        'invoice_number' => $order->invoice_number,
-        'user_id'        => $user->id,
-    ]);
+            $order = Order::withTrashed()->lockForUpdate()->findOrFail($order->id);
+            if ($order->trashed()) {
+                throw ValidationException::withMessages([
+                    'order' => __('messages.order_already_cancelled'),
+                ]);
+            }
+
+            $order->setRelation('payments', $order->payments()->orderBy('id')->lockForUpdate()->get());
+            $summary = $this->ledger->cancellationSummary($order);
+
+            if ($summary['blocked_reason'] === 'return_offset') {
+                throw ValidationException::withMessages([
+                    'order' => __('messages.cancel_has_return_offset'),
+                ]);
+            }
+
+            $settleInCash = $summary['settlement_required'] && $settlement === 'cash';
+
+            if ($summary['settlement_required']) {
+                if ($settlement === null) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_settlement_required'),
+                    ]);
+                }
+                if (! in_array($settlement, $summary['settlements'], true)) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_walk_in_cash_only'),
+                    ]);
+                }
+                if ($settlement === 'credit' && $summary['credit_blocked_reason'] !== null) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_credit_other_unpaid'),
+                    ]);
+                }
+                if ($settleInCash && ! $summary['cash_payout_available']) {
+                    throw ValidationException::withMessages([
+                        'settlement' => __('messages.cancel_credit_payout_unavailable', [
+                            'amount'    => number_format($summary['credit_paid'], 2, '.', ''),
+                            'available' => number_format($summary['available_for_payout'], 2, '.', ''),
+                        ]),
+                    ]);
+                }
+            }
+
+            $entry = [
+                'tenant_id'      => $order->tenant_id,
+                'customer_id'    => $order->customer_id,
+                'store_id'       => $order->store_id,
+                'order_id'       => $order->id,
+                'invoice_number' => $order->invoice_number,
+                'user_id'        => $user->id,
+            ];
+
+            foreach ($order->payments->where('is_auto_reversible', true) as $payment) {
+                $this->ledger->restoreCredit($entry + [
+                    'payment_id' => $payment->id,
+                    'amount'     => $payment->amount,
+                ]);
+            }
+
+            // P2: each line goes back at its own sale cost (unit_cost_at_sale); stock rows and
+            // products are locked together in id order by restoreAtCost (never line by line).
+            // An unknown cost goes back at today's average (D27).
+            $lines = $order->items()->get()->map(fn ($item) => [
+                'product_id'    => $item->product_id,
+                'warehouse_id'  => $item->warehouse_id,
+                'base_quantity' => $item->baseQuantity(),
+                'unit_cost'     => $item->unit_cost_at_sale,
+            ])->all();
+
+            if ($lines !== []) {
+                $this->inventory->restoreAtCost($lines, $order->id, Order::class, $user->id, (string) Str::uuid());
+            }
+
+            $reversalAmount = round($summary['total'] - $summary['credit_paid'], 2);
+            if ($reversalAmount > 0) {
+                $this->ledger->reverseOrder($entry + ['amount' => $reversalAmount]);
+            }
+
+            if ($settleInCash && $summary['cash_paid'] > 0) {
+                $this->ledger->issueRefund($entry + [
+                    'amount' => $summary['cash_paid'],
+                    'method' => 'cash',
+                    'notes'  => 'cancelled order '.$order->invoice_number,
+                ]);
+            }
+
+            if ($settleInCash && $summary['credit_paid'] > 0) {
+                $this->ledger->payOutCredit($entry + [
+                    'amount'         => $summary['credit_paid'],
+                    'reference_type' => 'order',
+                    'reference_id'   => $order->id,
+                    'description'    => 'Store credit paid out — cancelled order '.$order->invoice_number,
+                ]);
+            }
+
+            $order->delete();
+        }, attempts: 3);
     }
-    $order->payments()
-      ->whereIn('id', $creditPayments->pluck('id'))
-      ->delete(); 
-
-    $order->delete();
-    }, attempts:3);
-}
 }

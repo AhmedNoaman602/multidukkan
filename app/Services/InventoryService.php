@@ -6,6 +6,7 @@ use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\StockTransfer;
 use App\Models\Warehouse;
+use App\Support\Money;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +92,111 @@ class InventoryService
     }
 
     /**
+     * Create missing stock rows (quantity 0) before the caller's transaction starts. Inserting
+     * a stock row takes a shared lock on its product (foreign key), so doing it inside a
+     * transaction before the stock locks would touch products first (D31/P4). Safe when two
+     * requests create the same row at once.
+     *
+     * @param array<int, int> $productIds
+     */
+    public function ensureStockRows(array $productIds, int $warehouseId, int $tenantId, ?int $threshold = null): void
+    {
+        $existing = Inventory::withoutGlobalScopes()
+            ->where('warehouse_id', $warehouseId)
+            ->whereIn('product_id', $productIds)
+            ->pluck('product_id')
+            ->all();
+
+        foreach (array_diff($productIds, $existing) as $productId) {
+            Inventory::withoutGlobalScopes()->createOrFirst(
+                ['warehouse_id' => $warehouseId, 'product_id' => $productId],
+                ['tenant_id' => $tenantId, 'quantity' => 0, 'threshold' => $threshold ?? 10],
+            );
+        }
+    }
+
+    /**
+     * Put stock back at a given cost per base unit and recalculate each product's average once
+     * (D31/P2–P3). Locks every stock row of the products, then the products, both in id order
+     * (D31/P4). One movement per line. A line with an unknown cost goes back at today's average
+     * (D27): it adds quantity, not value. Lines are summed per product before dividing.
+     *
+     * @param array<int, array{product_id: int, warehouse_id: int, base_quantity: int, unit_cost: string|float|null}> $lines
+     */
+    public function restoreAtCost(array $lines, int $referenceId, string $referenceType, ?int $userId, ?string $batchId = null): void
+    {
+        DB::transaction(function () use ($lines, $referenceId, $referenceType, $userId, $batchId) {
+            $productIds = collect($lines)->pluck('product_id')->unique()->sort()->values()->all();
+
+            $stockBefore = $this->lockAllRowsOf($productIds)
+                ->groupBy('product_id')
+                ->map(fn ($rows) => (int) $rows->sum('quantity'));
+
+            $products = Product::whereIn('id', $productIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            foreach ($productIds as $productId) {
+                $product = $products[$productId];
+
+                $product->update([
+                    'cost_price' => $this->averageAfterRestore(
+                        $product->cost_price,
+                        $stockBefore[$productId] ?? 0,
+                        collect($lines)->where('product_id', $productId)
+                    ),
+                ]);
+            }
+
+            foreach ($lines as $line) {
+                $this->restoreStock(
+                    $line['product_id'], $line['warehouse_id'], $line['base_quantity'],
+                    $referenceId, $referenceType, $userId, $batchId
+                );
+            }
+        });
+    }
+
+    /** @param Collection<int, array{base_quantity: int, unit_cost: string|float|null}> $lines */
+    private function averageAfterRestore(?string $currentCost, int $stock, Collection $lines): ?string
+    {
+        $known        = $lines->filter(fn ($l) => $l['unit_cost'] !== null);
+        $knownQty     = $known->sum(fn ($l) => $l['base_quantity']);
+        $knownValue   = $known->sum(fn ($l) => $l['base_quantity'] * $l['unit_cost']);
+        $unknownQty   = $lines->sum(fn ($l) => $l['base_quantity']) - $knownQty;
+
+        if ($currentCost === null) {
+            // No average to blend into (legacy unknown cost): only an empty product takes the known cost.
+            return $stock === 0 && $knownQty > 0
+                ? number_format($knownValue / $knownQty, Money::PRICE_SCALE, '.', '')
+                : null;
+        }
+
+        $value = $stock * $currentCost + $knownValue + $unknownQty * $currentCost;
+
+        return number_format($value / ($stock + $knownQty + $unknownQty), Money::PRICE_SCALE, '.', '');
+    }
+
+    /**
+     * Lock every stock row of these products, at every location, in id order. Used by flows
+     * that recalculate the average and so need the true total stock (D31/P4).
+     *
+     * @param array<int, int> $productIds
+     * @return Collection<int, Inventory>
+     */
+    public function lockAllRowsOf(array $productIds): Collection
+    {
+        $ids = Inventory::whereIn('product_id', $productIds)->pluck('id');
+
+        return Inventory::whereIn('id', $ids)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+    }
+
+    /**
      * Lock every inventory row for these products at these locations, in id order, so
      * every sale and transfer touching overlapping rows queues the same way.
      *
@@ -107,7 +213,6 @@ class InventoryService
             ->lockForUpdate()
             ->get();
     }
-// ay haga
     /**
      * Shelf and storage stock per product for one store, in one grouped query. Products with
      * no stock rows come back as zeros. Display only — sales re-check under lock.

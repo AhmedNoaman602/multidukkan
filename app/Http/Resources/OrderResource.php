@@ -86,12 +86,13 @@ class OrderResource extends JsonResource
             'conversion_factor' => $item->conversion_factor,
             'base_quantity' => $item->baseQuantity(),
             'total'        => $item->unit_price * $item->quantity,
-            ...($showsCost ? ['cost_price' => $item->product?->cost_price ?? null] : []),
+            ...($showsCost ? ['cost_price' => $item->unit_cost_at_sale === null ? null : (float) $item->unit_cost_at_sale] : []),
         ]),
         'amount_remaining' => max(0, round($total - $totalPaid , 2)),
         ...($showsCost ? $this->profitFields($total) : []),
         'created_at' => $this->created_at?->toIso8601ZuluString('microsecond'),
         'order_date' => $this->order_date,
+        'date_editable' => $this->createdToday(),
     ];
 }
 private function profitFields(float $total): array

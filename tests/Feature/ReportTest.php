@@ -531,8 +531,10 @@ class ReportTest extends TestCase
         $this->assertEquals(0, $summary['outstanding']);
     }
 
-    public function test_settlement_breakdown_adds_up_and_cash_is_net_of_refunds(): void
+    public function test_settlement_breakdown_adds_up_and_cash_collected_is_gross(): void
     {
+        // A later refund is reported on its own day (total_cash_refunded); it never lowers
+        // what was collected on the payment's day. The refunded 40 is owed again.
         $this->orderSettledBy(100, null, ['refunded_amount' => 40]);
         $this->orderSettledBy(50, 'credit');
         $this->orderSettledBy(30, 'returnOffset');
@@ -542,10 +544,10 @@ class ReportTest extends TestCase
             ->json('summary');
 
         $this->assertEquals(180, $summary['total_revenue']);
-        $this->assertEquals(60, $summary['total_collected']);
+        $this->assertEquals(100, $summary['total_collected']);
         $this->assertEquals(50, $summary['total_credit_settlements']);
         $this->assertEquals(30, $summary['total_return_offsets']);
-        $this->assertEquals(140, $summary['total_settled']);
+        $this->assertEquals(180, $summary['total_settled']);
         $this->assertEquals(40, $summary['outstanding']);
     }
 

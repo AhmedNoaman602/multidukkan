@@ -12,6 +12,7 @@ use App\Models\Payment;
 use App\Models\Customer;
 use App\Models\Order;
 use App\Models\Store;
+use App\Support\LocalDateRange;
 
 class PaymentTest extends TestCase
 {
@@ -34,13 +35,16 @@ $order = Order::factory()->create([
     'tenant_id'   => $tenant->id,
     'store_id'    => $store->id,
     'customer_id' => $customer->id,
-]);    // Payment today
+]);
+    $today = LocalDateRange::today(LocalDateRange::businessTimezone());
+
+    // Payment today
     $todayPayment = Payment::factory()->create([
         'tenant_id' => $tenant->id,
         'customer_id' => $customer->id,
         'order_id' => $order->id,
         'amount' => 500,
-        'created_at' => now(),
+        'created_at' => $today->copy()->setTime(12, 0)->utc(),
     ]);
 
     // Payment yesterday
@@ -49,10 +53,10 @@ $order = Order::factory()->create([
         'customer_id' => $customer->id,
         'order_id' => $order->id,
         'amount' => 200,
-        'created_at' => now()->subDay(),
+        'created_at' => $today->copy()->subDay()->setTime(12, 0)->utc(),
     ]);
 
-    $response = $this->actingAs($user)->getJson('/api/payments?date=' . now()->toDateString());
+    $response = $this->actingAs($user)->getJson('/api/payments?date=' . $today->toDateString());
 
     $response->assertOk();
     $data = $response->json('data');

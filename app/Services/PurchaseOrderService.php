@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Inventory;
 use App\Models\InventoryTransaction;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
@@ -46,6 +45,11 @@ class PurchaseOrderService
 
     public function createPurchaseOrder(array $data): PurchaseOrder
     {
+        $tenantId = auth()->user()->tenant_id;
+        foreach (collect($data['items'])->groupBy('warehouse_id') as $warehouseId => $items) {
+            $this->inventory->ensureStockRows($items->pluck('product_id')->unique()->values()->all(), (int) $warehouseId, $tenantId);
+        }
+
         $lastException = null;
 
         for ($attempt = 1; $attempt <= self::MAX_INVOICE_RETRIES; $attempt++) {
@@ -128,10 +132,22 @@ class PurchaseOrderService
                 ->unique()
                 ->values();
 
-            $stockMap = Inventory::whereIn('product_id', $productIds)
-                ->selectRaw('product_id, SUM(quantity) as total_stock')
+            // D31/P4: every stock row of these products, then the products, both in id order,
+            // before any line is written. Stock and cost are re-read from the locked rows.
+            $stockMap = $this->inventory->lockAllRowsOf($productIds->all())
                 ->groupBy('product_id')
-                ->pluck('total_stock', 'product_id');
+                ->map(fn ($rows) => $rows->sum('quantity'));
+
+            $lockedProducts = Product::where('tenant_id', $user->tenant_id)
+                ->whereIn('id', $productIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            foreach ($validatedItems as $i => $v) {
+                $validatedItems[$i]['product'] = $lockedProducts[$v['product']->id];
+            }
 
             $purchasedOn = LocalDateRange::today(LocalDateRange::businessTimezone())->toDateString();
 
@@ -215,7 +231,7 @@ class PurchaseOrderService
             ]);
 
             return $purchaseOrder;
-        });
+        }, attempts: 3);
     }
 
     /**

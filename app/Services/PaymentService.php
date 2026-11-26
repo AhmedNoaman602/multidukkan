@@ -32,8 +32,8 @@ class PaymentService
         // Wrap the entire direct payment flow in a database transaction to guarantee data integrity.
         // If any step fails, all db updates (payment record, ledger entries, FIFO distribution) will roll back.
         return DB::transaction(function () use ($data , $user) {
-            Customer::where('tenant_id' , $user->tenant_id)->whereKey($data['customer_id'])->lockForUpdate()->firstOrFail();
-            
+            $customer = Customer::where('tenant_id' , $user->tenant_id)->whereKey($data['customer_id'])->lockForUpdate()->firstOrFail();
+
             $order = Order::lockForUpdate()->findOrFail($data['order_id']);
 
             // orders.total is the authoritative charge amount (ADR-004) — the sum of
@@ -56,6 +56,14 @@ class PaymentService
             // Calculate how much is left to pay on the order, how much of the new payment applies to it,
             // and determine if the customer paid an excess amount that exceeds the remaining balance.
             $remaining     = max(0, $orderTotal - $totalAlreadyPaid);
+
+            // The shared walk-in account never holds credit, so its payments can't exceed what is owed.
+            if ($customer->is_walk_in && round((float) $data['amount'], 2) > round($remaining, 2)) {
+                throw ValidationException::withMessages([
+                    'amount' => __('messages.walk_in_overpayment', ['remaining' => number_format($remaining, 2, '.', '')]),
+                ]);
+            }
+
             $appliedAmount = min($data['amount'], $remaining);
             $excess        = max(0, round($data['amount'] - $remaining, 2));
 
@@ -185,6 +193,14 @@ class PaymentService
                 // Deduct the allocated amount from our running payment balance.
                 $remaining  = round($remaining - $applyAmount, 2);
                 $payments[] = $payment;
+            }
+
+            if ($remaining > 0 && $customer->is_walk_in) {
+                throw ValidationException::withMessages([
+                    'amount' => __('messages.walk_in_overpayment', [
+                        'remaining' => number_format(round((float) $data['amount'] - $remaining, 2), 2, '.', ''),
+                    ]),
+                ]);
             }
 
             // If we still have funds left over after paying all outstanding orders, save it as a general credit in the ledger.

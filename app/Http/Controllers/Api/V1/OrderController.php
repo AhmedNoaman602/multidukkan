@@ -7,10 +7,9 @@ use Illuminate\Http\Request;
 use App\Services\LedgerService;
 use App\Services\OrderService;
 use App\Http\Resources\OrderResource;
+use App\Http\Requests\CancelOrderRequest;
 use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderRequest;
-use App\Http\Requests\UpdateOrderItemRequest;
-use App\Http\Requests\StoreOrderItemRequest;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Support\LocalDateRange;
@@ -59,7 +58,7 @@ class OrderController extends Controller
 
     $totals = $this->ledger->orderPaymentTotals(clone $query);
 
-    $orders = $query->with('items.product', 'payments', 'customer')
+    $orders = $query->with('items', 'payments', 'customer')
         ->orderBy('id', 'desc')
         ->paginate(10);
 
@@ -102,10 +101,10 @@ class OrderController extends Controller
         if ($order->tenant_id != auth()->user()->tenant_id) {
         return response()->json(['message' => __('messages.unauthorized')], 403);
     }
-        return new OrderResource($order->load('items.product', 'payments', 'customer'));
+        return new OrderResource($order->load('items', 'payments', 'customer'));
     }
 
-    
+
     public function update(UpdateOrderRequest $request, Order $order)
     {
         $this->authorize('update', $order);
@@ -127,30 +126,42 @@ class OrderController extends Controller
         ], 422);
     }    }
 
-    public function destroy(Request $request, Order $order)
+    // POST /orders/{order}/cancel, and the older DELETE /orders/{order} (no settlement sent).
+    public function cancel(CancelOrderRequest $request, Order $order)
     {
         $this->authorize('delete', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
-        
+
         if ($order->trashed()) {
             return response()->json(['message' => __('messages.order_already_cancelled')], 422);
         }
 
-        try{
-            $this->order->cancelOrder($order, auth()->user());
+        $this->order->cancelOrder($order, auth()->user(), $request->validated()['settlement'] ?? null);
 
-            return response()->json(['message' => __('messages.order_cancelled')], 200);
-        }catch(ValidationException $e){
-            return response()->json(['message' => $e->getMessage()], 422);
-        } 
+        return response()->json(['message' => __('messages.order_cancelled')], 200);
+    }
+
+    // Informational only: the cancel recalculates everything under its locks.
+    public function cancellation(Order $order)
+    {
+        $this->authorize('delete', $order);
+
+        if ($order->tenant_id != auth()->user()->tenant_id) {
+            return response()->json(['message' => __('messages.unauthorized')], 403);
+        }
+
+        $summary = $this->ledger->cancellationSummary($order->load('payments', 'customer'));
+
+        return response()->json(['data' => $summary]);
     }
 
 
 
-    public function updateItem(UpdateOrderItemRequest $request, Order $order, OrderItem $item){
+    // D32: a created invoice is final — no line quantity or price changes.
+    public function updateItem(Request $request, Order $order, OrderItem $item){
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
@@ -161,22 +172,18 @@ class OrderController extends Controller
             return response()->json(['message' => __('messages.order_item_mismatch')], 404);
         }
 
-         $this->order->adjustItem($order, $item, $request->only(['quantity', 'unit_price']));
-        return new OrderResource($order->refresh()->load('items.product', 'payments', 'customer'));
+        return response()->json(['message' => __('messages.order_is_final')], 422);
     }
 
-
-
-
-    public function addItem(StoreOrderItemRequest $request, Order $order){
+    // D32: a created invoice is final — more products need a new invoice.
+    public function addItem(Request $request, Order $order){
         $this->authorize('update', $order);
 
         if ($order->tenant_id != auth()->user()->tenant_id) {
             return response()->json(['message' => __('messages.unauthorized')], 403);
         }
 
-        $this->order->addItem($order, $request->validated());
-        return new OrderResource($order->refresh()->load('items.product', 'payments', 'customer'));
+        return response()->json(['message' => __('messages.order_is_final')], 422);
     }
     
 }

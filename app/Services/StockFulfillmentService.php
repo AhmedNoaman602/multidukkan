@@ -21,9 +21,13 @@ class StockFulfillmentService
     ) {}
 
     /**
+     * Locks stock rows, then product rows (ascending id), before writing anything that
+     * references the products (D31/P4).
+     *
      * @param array<int, int> $baseNeeds product_id => base units the sale takes from $location
+     * @return array<int, ?string> product_id => cost_price read under the product lock (null = unknown)
      */
-    public function fulfill(Order $order, Warehouse $location, array $baseNeeds, User $user, string $batchId): void
+    public function fulfill(Order $order, Warehouse $location, array $baseNeeds, User $user, string $batchId): array
     {
         ksort($baseNeeds);
         $productIds = array_keys($baseNeeds);
@@ -43,6 +47,13 @@ class StockFulfillmentService
         }
 
         $rows = $this->inventory->lockRows($productIds, [$location->id, ...$sources->keys()]);
+
+        $costs = Product::where('tenant_id', $order->tenant_id)
+            ->whereIn('id', $productIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->pluck('cost_price', 'id')
+            ->all();
 
         $plan = [];
         foreach ($baseNeeds as $productId => $need) {
@@ -89,5 +100,7 @@ class StockFulfillmentService
         foreach ($baseNeeds as $productId => $need) {
             $this->inventory->deductStock($productId, $location->id, $need, $order->id, Order::class, $user->id, $batchId);
         }
+
+        return $costs;
     }
 }
